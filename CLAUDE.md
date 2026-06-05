@@ -29,7 +29,7 @@ Greenfield. A single-file prototype exists separately as design/behaviour refere
 ## Capabilities & milestones
 
 - **M1 — Shell & map:** layout (panel · map · status), basemaps, light/dark, AOI draw (radius + polygon), mobile slide-over. Match mood board.
-- **M2 — Terrain & coverage:** Mapbox Terrain-RGB (token) with AWS Terrarium fallback and flat last-resort; FSPL + Deygout knife-edge + clutter, k=4/3; coverage raster with the signal scale; talk-in as binding link.
+- **M2 — Terrain & coverage:** see **`docs/M2-propagation.md`** (authoritative). Summary: core model = Longley-Rice/ITM compiled to **WASM in a Web Worker** (prefer the public-domain NTIA reference; FSPL+Deygout as fallback); terrain via Mapbox Terrain-RGB (GLO-30/SRTM optional); clutter from ESA WorldCover + canopy height; talk-in as binding link; coverage raster with the signal scale. HF is a separate later module (not ITM). Optional Phase-B backend (signal-server / ITU-R P.1812) for heavy/offline-edge.
 - **M3 — Site recommendation:** candidate generation from DEM local maxima within AOI; greedy set-cover over demand points; draggable sites; recompute.
 - **M4 — Mission input modes:** area / fixed sites / route / points; coordinate entry in lat/long, MGRS, UTM; click-to-place.
 - **M5 — Radio import & mix:** search + import radios; pull specs from FCC OET/FCC ID (+ ETSI/CE, datasheets); user-editable; multi-band radio-mix recommendations.
