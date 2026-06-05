@@ -1,0 +1,89 @@
+/* ==========================================================================
+   GroundLink — design tokens
+   Codifies docs/design-tokens.md (the v6 mood board).
+   Light is the default; dark via :root[data-theme="dark"].
+   The MAP CANVAS STAYS DARK in both themes (--mapbg).
+   Never hardcode theme colours in components — always reference a token.
+   ========================================================================== */
+
+:root {
+  /* ---- light (default) ---- */
+  --bg: #f4f6f9;
+  --bg2: #edf0f4;
+  --surface: #ffffff;
+  --surface2: #fafbfd;
+  --raise: #f0f3f7;
+  --hair: #e5e8ef;
+  --hair2: #d6dce5;
+  --ink: #0f141b;
+  --dim: #586273;
+  --faint: #929cac;
+  --accent: #0a8475; /* deep teal: text, lines, primary action */
+  --accent-bright: #19c4ad; /* vivid teal: fills / tints on light */
+  --accent2: #2a7fe0; /* azure: assets / tracks */
+  --accent-ink: #ffffff; /* text on accent button */
+  --warn: #cf8a16;
+  --bad: #dd4f68;
+  --ok: #0a8475;
+
+  /* ---- map canvas + on-map feature colours (theme-independent) ---- */
+  --mapbg: #0b1018;
+  --mapink: #cfe7e2;
+  --feat-site: #34e6c2; /* site / recommended mast — teal */
+  --feat-track: #46a6ff; /* subject / tracked unit / route — azure */
+  --feat-event: #ffd479; /* event / alert — amber */
+
+  /* ---- coverage spectrum (on the dark map; constant across jobs) ---- */
+  --s1: #34e6c2; /* excellent  ≥ -85 dBm  */
+  --s2: #86e6a0; /* good       ≥ -95 dBm  */
+  --s3: #ffd479; /* marginal   ≥ -103 dBm */
+  --s4: #ff9f7a; /* poor       (transition) */
+  --s5: #ff6b8a; /* none       < -110 dBm */
+
+  /* ---- type, shape, depth ---- */
+  --disp: 'Sora', system-ui, sans-serif;
+  --ui: 'Hanken Grotesk', system-ui, sans-serif;
+  --r: 18px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 12px 30px -16px rgba(16, 24, 40, 0.18);
+
+  /* ---- spacing scale (added: keep all gaps token-driven) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* ---- radii (added: component-scale, smaller than --r) ---- */
+  --r-sm: 8px;
+  --r-md: 11px; /* buttons / inputs per component notes */
+
+  /* ---- layout metrics (added) ---- */
+  --panel-w: 360px;
+  --status-h: 34px;
+  --z-panel: 600;
+  --z-status: 600;
+  --z-toolbar: 500;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0b0d12;
+  --bg2: #0c0f15;
+  --surface: #13161e;
+  --surface2: #171b24;
+  --raise: #1c212c;
+  --hair: rgba(255, 255, 255, 0.08);
+  --hair2: rgba(255, 255, 255, 0.15);
+  --ink: #eef0f5;
+  --dim: #a6adbe;
+  --faint: #6c7490;
+  --accent: #34e6c2; /* bright teal reads on dark */
+  --accent-bright: #34e6c2;
+  --accent2: #46b6ff;
+  --accent-ink: #03201b; /* dark text on bright accent */
+  --warn: #ffd479;
+  --bad: #ff6b8a;
+  --ok: #34e6c2;
+  --shadow: 0 22px 48px -22px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  /* --mapbg / feature / coverage tokens are intentionally shared with light */
+}

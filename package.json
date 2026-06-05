@@ -1,0 +1,19 @@
+{
+  "name": "groundlink-comms-planner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GroundLink — terrain-aware comms coverage and planning web app",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "echo \"deploy: wire up GitHub Pages in a later step\" && exit 1"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

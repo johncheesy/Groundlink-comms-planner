@@ -1,0 +1,218 @@
+/* ==========================================================================
+   GroundLink — base layout
+   App shell: panel · dark map · status bar (EarthRanger-style, map-first).
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--ui);
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden; /* the app owns the viewport; nothing scrolls the body */
+}
+
+/* Tabular figures everywhere data is shown. */
+.tnum,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--disp);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+button {
+  font-family: var(--ui);
+}
+
+/* ---- App grid: [panel | map] over [status bar] -------------------------- */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--panel-w) 1fr;
+  grid-template-rows: 1fr var(--status-h);
+  grid-template-areas:
+    'panel map'
+    'status status';
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+}
+
+.panel {
+  grid-area: panel;
+  background: var(--surface);
+  border-right: 1px solid var(--hair);
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* allow inner scroll */
+  z-index: var(--z-panel);
+}
+
+.map-wrap {
+  grid-area: map;
+  position: relative;
+  background: var(--mapbg); /* dark in BOTH themes; shows while tiles load */
+  min-width: 0;
+  min-height: 0;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  background: var(--mapbg);
+}
+
+.statusbar {
+  grid-area: status;
+  background: var(--surface);
+  border-top: 1px solid var(--hair);
+  z-index: var(--z-status);
+}
+
+/* ---- Brand / panel header ---------------------------------------------- */
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  border-bottom: 1px solid var(--hair);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.brand__mark {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+.brand__name {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.brand__sub {
+  font-size: 11px;
+  color: var(--dim);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.panel__head-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ---- Panel body (scrolls) ---------------------------------------------- */
+
+.panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.panel__body::-webkit-scrollbar {
+  width: 10px;
+}
+.panel__body::-webkit-scrollbar-thumb {
+  background: var(--hair2);
+  border-radius: 999px;
+  border: 3px solid var(--surface);
+}
+
+/* ---- Mobile slide-over scrim (hidden on desktop) ----------------------- */
+
+.scrim {
+  display: none;
+}
+
+/* ---- Mobile: panel becomes a slide-over -------------------------------- */
+
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr var(--status-h);
+    grid-template-areas:
+      'map'
+      'status';
+  }
+
+  .panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: var(--status-h);
+    width: min(86vw, var(--panel-w));
+    border-right: 1px solid var(--hair);
+    box-shadow: var(--shadow);
+    transform: translateX(-102%);
+    transition: transform 0.24s ease;
+    will-change: transform;
+  }
+
+  .app[data-panel='open'] .panel {
+    transform: translateX(0);
+  }
+
+  .scrim {
+    display: block;
+    position: fixed;
+    inset: 0 0 var(--status-h) 0;
+    background: rgba(8, 12, 18, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.24s ease;
+    z-index: calc(var(--z-panel) - 1);
+  }
+
+  .app[data-panel='open'] .scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* The panel toggle button only exists on mobile. */
+.panel-toggle {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .panel-toggle {
+    display: inline-flex;
+  }
+}
