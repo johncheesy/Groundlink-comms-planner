@@ -1,46 +1,49 @@
 import L from 'leaflet';
 
 /**
- * AOI (area of interest) drawing — radius circle + polygon.
+ * AOI (area of interest) drawing + editing — radius circle and polygon.
  *
- * Deliberately dependency-light: built on Leaflet primitives rather than
- * leaflet-draw, so we control the styling (dashed azure boundary, teal vertex
- * handles) and the interaction precisely.
+ * Dependency-light: built on Leaflet primitives (no leaflet-draw), so styling
+ * and interaction are fully under our control and match the design tokens.
  *
- * Modes:
- *   - 'radius':  click to drop the centre, move to size it, click to commit.
- *   - 'polygon': click to add vertices, double-click / Enter to finish,
- *                Esc / right-click to cancel the in-progress shape.
+ * Drawing:
+ *   - 'radius':  click centre, move to size (live tooltip), click to commit.
+ *   - 'polygon': click to add vertices (live tooltip), Backspace removes the
+ *                last point, double-click / Enter finishes, Esc cancels.
  *
- * One AOI at a time (M1). Emits onChange with a summary {type, ...metrics}.
+ * Editing (after commit, no tool active):
+ *   - circle:  drag the centre handle to move, the edge handle to resize.
+ *   - polygon: drag any vertex handle to reshape.
+ *   Metrics recompute live and are pushed through onChange.
+ *
+ * One AOI at a time (M1). Emits onChange with {type, ...metrics}.
  */
 
-/**
- * Resolve a CSS custom property to its computed value.
- * Leaflet writes `color`/`fillColor` as SVG *presentation attributes*
- * (`stroke="…"`), where CSS `var()` does NOT resolve — so we must pass real
- * colour values. The on-map feature colours are theme-independent constants
- * (see docs/design-tokens.md), so resolving once is correct.
- */
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
 }
 
+const fmtKm = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m >= 100000 ? 0 : 1)} km` : `${Math.round(m)} m`);
+const fmtArea = (m2) => {
+  const km2 = m2 / 1e6;
+  if (km2 >= 1) return `${km2.toFixed(km2 >= 100 ? 0 : 1)} km²`;
+  return `${(m2 / 1e4).toFixed(1)} ha`;
+};
+
 export function createAoiController(map, { onChange, onHint } = {}) {
-  // theme-independent map-feature colours, resolved from tokens
+  // theme-independent map-feature colours, resolved from tokens (Leaflet writes
+  // these as SVG presentation attributes, where CSS var() does NOT resolve).
   const track = cssVar('--feat-track', '#46a6ff'); // azure — AOI boundary
   const site = cssVar('--feat-site', '#34e6c2'); // teal — AOI fill
 
   const AOI_STYLE = {
-    // dashed azure boundary, faint teal fill — reads on the dark map
     color: track,
     weight: 2,
     dashArray: '6 5',
     fillColor: site,
     fillOpacity: 0.08,
   };
-
   const PREVIEW_STYLE = {
     color: track,
     weight: 1.5,
@@ -51,30 +54,26 @@ export function createAoiController(map, { onChange, onHint } = {}) {
   };
 
   const layer = L.layerGroup().addTo(map);
+  const editLayer = L.layerGroup().addTo(map);
+
   let mode = null; // null | 'radius' | 'polygon'
-  let committed = null; // { type, layer, ... }
+  let committed = null; // { type, layer }
 
   // transient drawing state
   let radiusCenter = null;
   let polyPoints = [];
-  let preview = null; // preview shape
-  let rubberLine = null; // polygon rubber-band segment to cursor
+  let preview = null;
+  let rubberLine = null;
   let vertexMarkers = [];
+  let measureTip = null; // L.tooltip following the cursor while drawing
 
-  function emit() {
-    onChange?.(summary());
-  }
+  // ---- summary / emit ---------------------------------------------------
 
   function summary() {
     if (!committed) return { type: null };
     if (committed.type === 'radius') {
       const r = committed.layer.getRadius();
-      return {
-        type: 'radius',
-        radiusM: r,
-        areaM2: Math.PI * r * r,
-        center: committed.layer.getLatLng(),
-      };
+      return { type: 'radius', radiusM: r, areaM2: Math.PI * r * r, center: committed.layer.getLatLng() };
     }
     const latlngs = committed.layer.getLatLngs()[0];
     return {
@@ -85,29 +84,52 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     };
   }
 
-  function setHint(text) {
-    onHint?.(text || '');
+  const emit = () => onChange?.(summary());
+  const setHint = (text) => onHint?.(text || '');
+
+  // ---- measure tooltip --------------------------------------------------
+
+  function showMeasure(latlng, text) {
+    if (!measureTip) {
+      measureTip = L.tooltip({
+        permanent: true,
+        direction: 'top',
+        offset: [0, -10],
+        className: 'aoi-measure',
+        opacity: 1,
+      });
+      measureTip.setLatLng(latlng).setContent(text).addTo(map);
+      return;
+    }
+    measureTip.setLatLng(latlng).setContent(text);
+  }
+  function hideMeasure() {
+    if (measureTip) {
+      map.removeLayer(measureTip);
+      measureTip = null;
+    }
   }
 
   // ---- lifecycle --------------------------------------------------------
 
   function clearTransient() {
-    if (preview) {
-      layer.removeLayer(preview);
-      preview = null;
-    }
-    if (rubberLine) {
-      layer.removeLayer(rubberLine);
-      rubberLine = null;
-    }
+    [preview, rubberLine].forEach((l) => l && layer.removeLayer(l));
+    preview = null;
+    rubberLine = null;
     vertexMarkers.forEach((m) => layer.removeLayer(m));
     vertexMarkers = [];
     radiusCenter = null;
     polyPoints = [];
+    hideMeasure();
+  }
+
+  function clearEditHandles() {
+    editLayer.clearLayers();
   }
 
   function clearAll() {
     clearTransient();
+    clearEditHandles();
     if (committed) {
       layer.removeLayer(committed.layer);
       committed = null;
@@ -116,23 +138,17 @@ export function createAoiController(map, { onChange, onHint } = {}) {
   }
 
   function setMode(next) {
-    // toggling the active mode off
-    if (next === mode) next = null;
+    if (next === mode) next = null; // toggle off
     clearTransient();
     mode = next;
 
-    // Leaflet's dblclick-zoom fights polygon finishing — disable while drawing.
     if (mode === 'polygon') map.doubleClickZoom.disable();
     else map.doubleClickZoom.enable();
 
     map.getContainer().style.cursor = mode ? 'crosshair' : '';
-    if (mode === 'radius') {
-      setHint('Click to set the centre, then click again to set the radius.');
-    } else if (mode === 'polygon') {
-      setHint('Click to add points · double-click or Enter to finish · Esc to cancel.');
-    } else {
-      setHint('');
-    }
+    if (mode === 'radius') setHint('Click to set the centre, then click again to set the radius.');
+    else if (mode === 'polygon') setHint('Click to add points · Backspace to undo · double-click or Enter to finish · Esc to cancel.');
+    else setHint('');
     return mode;
   }
 
@@ -141,43 +157,41 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     committed = { type, layer: shapeLayer.setStyle(AOI_STYLE) };
     clearTransient();
     setMode(null);
+    buildEditHandles();
     emit();
   }
 
-  // ---- radius -----------------------------------------------------------
+  // ---- radius drawing ---------------------------------------------------
 
   function radiusClick(e) {
     if (!radiusCenter) {
       radiusCenter = e.latlng;
       preview = L.circle(radiusCenter, { radius: 1, ...PREVIEW_STYLE }).addTo(layer);
-      addVertex(radiusCenter);
+      addVertex(radiusCenter, layer);
       setHint('Move out, then click to set the radius.');
     } else {
-      const r = map.distance(radiusCenter, e.latlng);
-      const circle = L.circle(radiusCenter, { radius: Math.max(r, 1) });
-      circle.addTo(layer);
-      commit('radius', circle);
+      const r = Math.max(map.distance(radiusCenter, e.latlng), 1);
+      commit('radius', L.circle(radiusCenter, { radius: r }).addTo(layer));
     }
   }
 
   function radiusMove(e) {
     if (!radiusCenter || !preview) return;
-    preview.setRadius(Math.max(map.distance(radiusCenter, e.latlng), 1));
+    const r = Math.max(map.distance(radiusCenter, e.latlng), 1);
+    preview.setRadius(r);
+    showMeasure(e.latlng, `r ${fmtKm(r)} · ${fmtArea(Math.PI * r * r)}`);
   }
 
-  // ---- polygon ----------------------------------------------------------
+  // ---- polygon drawing --------------------------------------------------
 
   function polygonClick(e) {
     polyPoints.push(e.latlng);
-    addVertex(e.latlng);
-    if (polyPoints.length >= 2) {
-      if (preview) layer.removeLayer(preview);
-      preview = L.polygon(polyPoints, PREVIEW_STYLE).addTo(layer);
-    }
+    addVertex(e.latlng, layer);
+    redrawPolyPreview();
     setHint(
       polyPoints.length >= 3
-        ? 'Double-click or press Enter to finish · Esc to cancel.'
-        : 'Click to add points · Esc to cancel.',
+        ? 'Double-click or Enter to finish · Backspace to undo · Esc to cancel.'
+        : 'Click to add points · Backspace to undo · Esc to cancel.',
     );
   }
 
@@ -192,23 +206,104 @@ export function createAoiController(map, { onChange, onHint } = {}) {
       opacity: 0.7,
       interactive: false,
     }).addTo(layer);
+
+    const seg = map.distance(last, e.latlng);
+    const text =
+      polyPoints.length >= 2
+        ? `${polyPoints.length} pts · ${fmtArea(polygonAreaM2([...polyPoints, e.latlng]))}`
+        : `seg ${fmtKm(seg)}`;
+    showMeasure(e.latlng, text);
+  }
+
+  function redrawPolyPreview() {
+    if (preview) layer.removeLayer(preview);
+    if (polyPoints.length >= 2) preview = L.polygon(polyPoints, PREVIEW_STYLE).addTo(layer);
+    else preview = null;
+  }
+
+  function undoPolyPoint() {
+    if (mode !== 'polygon' || polyPoints.length === 0) return;
+    polyPoints.pop();
+    const m = vertexMarkers.pop();
+    if (m) layer.removeLayer(m);
+    redrawPolyPreview();
+    if (rubberLine) {
+      layer.removeLayer(rubberLine);
+      rubberLine = null;
+    }
+    if (polyPoints.length === 0) hideMeasure();
   }
 
   function finishPolygon() {
     if (polyPoints.length < 3) return;
-    const poly = L.polygon(polyPoints, {}).addTo(layer);
-    commit('polygon', poly);
+    commit('polygon', L.polygon(polyPoints, {}).addTo(layer));
   }
 
-  // ---- vertex handles ---------------------------------------------------
+  // ---- vertex dots (non-interactive, during drawing) --------------------
 
-  function addVertex(latlng) {
+  function addVertex(latlng, group) {
     const m = L.marker(latlng, {
       icon: L.divIcon({ className: 'aoi-vertex', iconSize: [11, 11] }),
       interactive: false,
       keyboard: false,
-    }).addTo(layer);
+    }).addTo(group);
     vertexMarkers.push(m);
+  }
+
+  // ---- editable handles (after commit) ----------------------------------
+
+  function handleIcon(kind) {
+    return L.divIcon({ className: `aoi-handle aoi-handle--${kind}`, iconSize: [14, 14] });
+  }
+
+  function buildEditHandles() {
+    clearEditHandles();
+    if (!committed) return;
+    if (committed.type === 'radius') buildRadiusHandles();
+    else buildPolygonHandles();
+  }
+
+  function buildRadiusHandles() {
+    const circle = committed.layer;
+    const center = circle.getLatLng();
+    const radius = circle.getRadius();
+    const edge = edgePoint(center, radius);
+
+    const centerH = L.marker(center, { icon: handleIcon('center'), draggable: true, title: 'Move centre' }).addTo(editLayer);
+    const edgeH = L.marker(edge, { icon: handleIcon('edge'), draggable: true, title: 'Resize' }).addTo(editLayer);
+
+    centerH.on('drag', () => {
+      const c = centerH.getLatLng();
+      circle.setLatLng(c);
+      edgeH.setLatLng(edgePoint(c, circle.getRadius()));
+      emit();
+    });
+    edgeH.on('drag', () => {
+      const r = Math.max(map.distance(circle.getLatLng(), edgeH.getLatLng()), 1);
+      circle.setRadius(r);
+      emit();
+    });
+    edgeH.on('dragend', () => edgeH.setLatLng(edgePoint(circle.getLatLng(), circle.getRadius())));
+  }
+
+  function buildPolygonHandles() {
+    const poly = committed.layer;
+    const latlngs = poly.getLatLngs()[0];
+    latlngs.forEach((ll, i) => {
+      const h = L.marker(ll, { icon: handleIcon('vertex'), draggable: true, title: 'Drag to reshape' }).addTo(editLayer);
+      h.on('drag', () => {
+        const pts = poly.getLatLngs()[0].slice();
+        pts[i] = h.getLatLng();
+        poly.setLatLngs(pts);
+        emit();
+      });
+    });
+  }
+
+  // east-bearing point at distance `radius` from `center`
+  function edgePoint(center, radius) {
+    const dLng = (radius / (R * Math.cos(rad(center.lat)))) * (180 / Math.PI);
+    return L.latLng(center.lat, center.lng + dLng);
   }
 
   // ---- map event routing ------------------------------------------------
@@ -217,28 +312,24 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     if (mode === 'radius') radiusClick(e);
     else if (mode === 'polygon') polygonClick(e);
   }
-
   function onMapMove(e) {
     if (mode === 'radius') radiusMove(e);
     else if (mode === 'polygon') polygonMove(e);
   }
-
-  function onMapDblClick(e) {
-    if (mode === 'polygon') {
-      // Leaflet would otherwise zoom on dblclick while drawing
-      finishPolygon();
-    }
+  function onMapDblClick() {
+    if (mode === 'polygon') finishPolygon();
   }
-
   function onKey(e) {
     if (!mode) return;
     if (e.key === 'Enter' && mode === 'polygon') finishPolygon();
-    else if (e.key === 'Escape') {
+    else if (e.key === 'Backspace') {
+      e.preventDefault();
+      undoPolyPoint();
+    } else if (e.key === 'Escape') {
       clearTransient();
       setMode(null);
     }
   }
-
   function onContextMenu(e) {
     if (mode === 'polygon') {
       L.DomEvent.preventDefault(e);
@@ -247,7 +338,6 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     }
   }
 
-  // Suppress the default dblclick-zoom only while actively drawing a polygon.
   map.on('click', onMapClick);
   map.on('mousemove', onMapMove);
   map.on('dblclick', onMapDblClick);
@@ -259,6 +349,13 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     getMode: () => mode,
     clear: clearAll,
     summary,
+    /** Fit the map to the committed AOI, if any. */
+    fitBounds(opts = { padding: [40, 40] }) {
+      if (!committed) return false;
+      const b = committed.type === 'radius' ? committed.layer.getBounds() : committed.layer.getBounds();
+      map.fitBounds(b, opts);
+      return true;
+    },
     destroy() {
       map.off('click', onMapClick);
       map.off('mousemove', onMapMove);
@@ -276,7 +373,7 @@ export function createAoiController(map, { onChange, onHint } = {}) {
 const R = 6378137; // earth radius, metres (WGS84)
 const rad = (d) => (d * Math.PI) / 180;
 
-/** Spherical polygon area in m² (absolute value of the spherical excess). */
+/** Spherical polygon area in m² (absolute spherical excess). */
 function polygonAreaM2(latlngs) {
   if (latlngs.length < 3) return 0;
   let total = 0;
@@ -291,9 +388,7 @@ function polygonAreaM2(latlngs) {
 function polygonPerimeterM(latlngs) {
   let total = 0;
   for (let i = 0; i < latlngs.length; i++) {
-    const a = latlngs[i];
-    const b = latlngs[(i + 1) % latlngs.length];
-    total += L.latLng(a).distanceTo(L.latLng(b));
+    total += L.latLng(latlngs[i]).distanceTo(L.latLng(latlngs[(i + 1) % latlngs.length]));
   }
   return total;
 }

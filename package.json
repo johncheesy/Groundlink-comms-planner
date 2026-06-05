@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "preview:standalone": "node scripts/build-preview.mjs",
     "deploy": "echo \"deploy: wire up GitHub Pages in a later step\" && exit 1"
   },
   "dependencies": {

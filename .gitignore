@@ -4,6 +4,9 @@ node_modules/
 # build output
 dist/
 
+# generated standalone preview (reproducible via `npm run preview:standalone`)
+index-preview.html
+
 # local env / secrets — tokens are user-entered at runtime, never committed
 .env
 .env.*

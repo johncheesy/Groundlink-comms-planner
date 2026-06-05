@@ -4,9 +4,12 @@ import '../styles/index.css';
 import L from 'leaflet';
 import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
-import { initThemeToggle } from './ui/theme.js';
+import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 
 const $ = (sel) => document.querySelector(sel);
+
+// First paint follows the OS colour scheme (light default otherwise).
+applyInitialTheme();
 
 // ---- Map ----------------------------------------------------------------
 
@@ -75,9 +78,15 @@ const fmtArea = (m2) => {
 };
 const fmtKm = (m) => `${(m / 1000).toFixed(m >= 100000 ? 0 : 1)} km`;
 
+const fitAoiBtn = $('#fitAoi');
+const clearAoiBtn = $('#clearAoi');
+
 const aoi = createAoiController(map, {
   onChange(s) {
-    if (!s || s.type === null) {
+    const has = s && s.type !== null;
+    fitAoiBtn.disabled = !has;
+    clearAoiBtn.disabled = !has;
+    if (!has) {
       aoiStatus.textContent = 'none drawn';
       aoiReadout.textContent = 'No area defined yet. Pick a tool, then draw on the map.';
       statusAoi.textContent = '—';
@@ -129,25 +138,42 @@ drawPolygonBtn.addEventListener('click', () => {
   aoi.setMode('polygon');
   syncToolButtons();
 });
-$('#clearAoi').addEventListener('click', () => {
+clearAoiBtn.addEventListener('click', () => {
   aoi.clear();
   aoi.setMode(null);
   syncToolButtons();
 });
+fitAoiBtn.addEventListener('click', () => aoi.fitBounds());
 
 // ---- Mobile slide-over panel -------------------------------------------
 
 const app = $('#app');
+const panelToggle = $('#panelToggle');
+const panel = $('#panel');
+const mq = window.matchMedia('(max-width: 760px)');
+
 const openPanel = () => {
   app.dataset.panel = 'open';
+  panelToggle.setAttribute('aria-expanded', 'true');
+  // move focus into the panel for keyboard users
+  if (mq.matches) panel.querySelector('button, [tabindex]')?.focus();
 };
 const closePanel = () => {
   app.dataset.panel = 'closed';
+  panelToggle.setAttribute('aria-expanded', 'false');
+  if (mq.matches) panelToggle.focus();
 };
-$('#panelToggle').addEventListener('click', openPanel);
+
+panelToggle.addEventListener('click', openPanel);
 $('#scrim').addEventListener('click', closePanel);
+$('#panelClose').addEventListener('click', closePanel);
+
+// Esc closes the slide-over (only when open on mobile)
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && mq.matches && app.dataset.panel === 'open') closePanel();
+});
+
 // close the slide-over after the user commits to drawing on the map (mobile)
-const mq = window.matchMedia('(max-width: 760px)');
 [drawRadiusBtn, drawPolygonBtn].forEach((b) =>
   b.addEventListener('click', () => {
     if (mq.matches) closePanel();

@@ -206,13 +206,47 @@ button {
   }
 }
 
-/* The panel toggle button only exists on mobile. */
+/* The panel toggle + in-panel close button only exist on mobile.
+   .panel-close also carries .btn (display:inline-flex), so we raise specificity
+   with .btn.panel-close to keep it hidden on desktop. */
 .panel-toggle {
+  display: none;
+}
+.btn.panel-close {
   display: none;
 }
 
 @media (max-width: 760px) {
   .panel-toggle {
     display: inline-flex;
+  }
+  .btn.panel-close {
+    display: inline-flex;
+  }
+}
+
+/* Smooth theme change on calm surfaces (not the map, not transforms). */
+.panel,
+.statusbar,
+.section,
+.btn,
+.input,
+.segmented,
+.toolgroup,
+.basemap-switch {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .statusbar,
+  .section,
+  .btn,
+  .input,
+  .segmented,
+  .toolgroup,
+  .basemap-switch,
+  .panel.panel {
+    transition: none;
   }
 }

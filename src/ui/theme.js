@@ -1,14 +1,14 @@
 /**
  * Light / dark theme toggle.
  *
- * Sets `data-theme` on the document root: '' (light, default) or 'dark'.
- * The map canvas stays dark in both themes — that's handled in CSS via the
- * shared --mapbg token, not here.
+ * Sets `data-theme` on the document root: '' (light) or 'dark'.
+ * The map canvas stays dark in both themes — handled in CSS via the shared
+ * --mapbg token, not here.
  *
- * Persistence: in-memory only. Per the project OPSEC/preview constraints we do
- * NOT assume localStorage is available (embedded previews). On the hosted
- * origin a later step may opt into persistence; for now the choice resets on
- * reload, which is safe everywhere.
+ * First load follows the OS preference (`prefers-color-scheme`); after that the
+ * user's explicit toggle wins for the session. Persistence is in-memory only —
+ * per the project constraints we don't assume localStorage exists (embedded
+ * previews). On the hosted origin a later step may opt into persistence.
  */
 
 const root = document.documentElement;
@@ -31,14 +31,57 @@ export function toggleTheme() {
   return next;
 }
 
-/** Wire a toggle button. Returns a cleanup function. */
+/** True if the OS currently prefers a dark colour scheme. */
+export function systemPrefersDark() {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+}
+
+/**
+ * Apply the initial theme from the OS preference (light default otherwise).
+ * Only call once, before first paint, when the user hasn't chosen yet.
+ */
+export function applyInitialTheme() {
+  setTheme(systemPrefersDark() ? 'dark' : 'light');
+  return getTheme();
+}
+
+/**
+ * Wire a toggle button. Reflects state via aria-pressed and label, calls
+ * onChange with the new theme. Returns a cleanup function.
+ */
 export function initThemeToggle(button, onChange) {
   if (!button) return () => {};
+
+  const reflect = () => {
+    const dark = getTheme() === 'dark';
+    button.setAttribute('aria-pressed', String(dark));
+    button.setAttribute('title', dark ? 'Switch to light theme' : 'Switch to dark theme');
+    button.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+  };
+
+  // Track the OS scheme until the user makes an explicit choice this session.
+  let userChose = false;
+  const mql = window.matchMedia?.('(prefers-color-scheme: dark)');
+  const onSystemChange = (e) => {
+    if (userChose) return;
+    setTheme(e.matches ? 'dark' : 'light');
+    reflect();
+    onChange?.(getTheme());
+  };
+  mql?.addEventListener?.('change', onSystemChange);
+
   const handler = () => {
+    userChose = true;
     const next = toggleTheme();
-    button.setAttribute('aria-pressed', String(next === 'dark'));
+    reflect();
     onChange?.(next);
   };
   button.addEventListener('click', handler);
-  return () => button.removeEventListener('click', handler);
+
+  reflect();
+
+  return () => {
+    button.removeEventListener('click', handler);
+    mql?.removeEventListener?.('change', onSystemChange);
+  };
 }
