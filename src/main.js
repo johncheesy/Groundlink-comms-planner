@@ -5,6 +5,8 @@ import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
 import { createCoverageController } from './coverage/coverage.js';
 import { createDroneController } from './drone/drone.js';
+import { createSearch } from './ui/search.js';
+import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { wattsToDbm } from './coverage/model.js';
 
@@ -296,6 +298,35 @@ whenStyleReady(() => {
       radiusKm: 40,
     });
   });
+
+  // ---- Location search + coordinate entry ------------------------------
+  createSearch(map, {
+    input: $('#searchInput'),
+    form: $('#searchForm'),
+    results: $('#searchResults'),
+    clearBtn: $('#searchClear'),
+    onStatus: (msg) => { statusMode.textContent = msg; },
+  });
+
+  // ---- Import KML / KMZ / GPX ------------------------------------------
+  const importInput = $('#importInput');
+  const clearImportBtn = $('#clearImportBtn');
+  const importer = createImportController(map, {
+    onStatus(msg) { statusMode.textContent = msg; },
+  });
+  $('#importBtn').addEventListener('click', () => importInput.click());
+  importInput.addEventListener('change', async () => {
+    for (const file of importInput.files) {
+      const r = await importer.importFile(file);
+      if (r.ok) clearImportBtn.hidden = false;
+    }
+    importInput.value = ''; // allow re-importing the same file
+  });
+  clearImportBtn.addEventListener('click', () => {
+    importer.clear();
+    clearImportBtn.hidden = true;
+    statusMode.textContent = 'Imported data cleared';
+  });
 });
 
 function syncToolButtons() {
@@ -391,6 +422,8 @@ const panelToggle = $('#panelToggle');
 const panel = $('#panel');
 const mq = window.matchMedia('(max-width: 760px)');
 
+const panelCollapse = $('#panelCollapse');
+
 const openPanel = () => {
   app.dataset.panel = 'open';
   panelToggle.setAttribute('aria-expanded', 'true');
@@ -402,7 +435,19 @@ const closePanel = () => {
   if (mq.matches) panelToggle.focus();
 };
 
-panelToggle.addEventListener('click', openPanel);
+// Desktop: collapse the panel to a sliver so the map gets the full width.
+// The map needs a resize once the grid column finishes animating.
+const setCollapsed = (collapsed) => {
+  app.dataset.collapsed = collapsed ? 'true' : 'false';
+  panelToggle.setAttribute('aria-expanded', String(!collapsed));
+  setTimeout(() => resize(), 260);
+};
+
+panelToggle.addEventListener('click', () => {
+  if (mq.matches) openPanel();
+  else setCollapsed(app.dataset.collapsed !== 'true');
+});
+panelCollapse.addEventListener('click', () => setCollapsed(true));
 $('#scrim').addEventListener('click', closePanel);
 $('#panelClose').addEventListener('click', closePanel);
 document.addEventListener('keydown', (e) => {

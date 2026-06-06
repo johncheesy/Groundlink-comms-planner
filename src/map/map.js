@@ -14,8 +14,8 @@ export function initMap(container) {
   const map = new maplibregl.Map({
     container,
     style: buildStyle(DEFAULT_BASEMAP),
-    center: [30.06, -1.95], // [lng, lat] — central/east Africa region
-    zoom: 7,
+    center: [4.9041, 52.3676], // [lng, lat] — Amsterdam (public default; OPSEC-safe)
+    zoom: 10,
     pitch: 0,
     bearing: 0,
     maxPitch: 80,

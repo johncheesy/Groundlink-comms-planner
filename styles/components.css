@@ -27,12 +27,18 @@
   font-weight: 600;
   font-size: 13px;
   letter-spacing: -0.01em;
+  flex: 0 0 auto;
 }
 
 .section__hint {
   margin-left: auto;
   font-size: 11px;
   color: var(--faint);
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .section__body {
@@ -794,4 +800,184 @@
   font-family: var(--ui);
   font-weight: 600;
   color: var(--accent);
+}
+
+/* ---- Location search over the map -------------------------------------- */
+
+.map-search {
+  position: absolute;
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toolbar);
+  width: min(420px, calc(100vw - 220px));
+}
+
+.map-search__form {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 40px;
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.map-search__ico {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--dim);
+}
+
+.map-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 13px;
+  outline: none;
+}
+.map-search__input::placeholder {
+  color: var(--faint);
+}
+
+.map-search__clear {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.map-search__clear:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+.map-search__clear .ico {
+  width: 15px;
+  height: 15px;
+}
+
+.map-search__results {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.map-search__result {
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-search__result:hover,
+.map-search__result.is-active {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+}
+
+.map-search__empty {
+  padding: 8px 10px;
+  font-size: 12.5px;
+  color: var(--dim);
+}
+
+/* temporary search pin marker */
+.search-pin {
+  color: var(--feat-event);
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+.search-pin svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- Imported-feature popup ------------------------------------------- */
+
+.maplibregl-popup-content {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  font-family: var(--ui);
+  font-size: 12.5px;
+  padding: 10px 12px;
+}
+.maplibregl-popup-tip {
+  border-top-color: var(--surface) !important;
+  border-bottom-color: var(--surface) !important;
+}
+.maplibregl-popup-close-button {
+  color: var(--dim);
+  font-size: 16px;
+}
+.import-popup strong {
+  font-family: var(--disp);
+  font-weight: 600;
+}
+.import-popup__desc {
+  margin-top: 4px;
+  color: var(--dim);
+  max-width: 240px;
+  word-break: break-word;
+}
+
+/* ---- Panel collapse (desktop) + expand control ------------------------- */
+
+.app {
+  transition: grid-template-columns 0.24s ease;
+}
+.app[data-collapsed='true'] {
+  grid-template-columns: 0 1fr;
+}
+.app[data-collapsed='true'] .panel {
+  border-right: 0;
+  overflow: hidden;
+}
+
+/* The collapse "<" button is desktop-only (mobile uses the slide-over). */
+.btn.panel-collapse {
+  display: inline-flex;
+}
+
+@media (max-width: 760px) {
+  .btn.panel-collapse {
+    display: none;
+  }
+  /* a centred search bar mustn't collide with the left toggle / right toolbar */
+  .map-search {
+    width: calc(100vw - 112px);
+  }
+}
+
+/* Show the over-map toggle on desktop only when the panel is collapsed. */
+@media (min-width: 761px) {
+  .app[data-collapsed='true'] .panel-toggle {
+    display: inline-flex;
+  }
 }

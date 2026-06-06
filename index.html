@@ -58,6 +58,18 @@
             </button>
 
             <button
+              class="btn btn--icon btn--ghost panel-collapse"
+              id="panelCollapse"
+              type="button"
+              title="Collapse panel"
+              aria-label="Collapse mission panel"
+            >
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
+
+            <button
               class="btn btn--icon btn--ghost panel-close"
               id="panelClose"
               type="button"
@@ -327,12 +339,48 @@
 
         <div id="map"></div>
 
+        <!-- Location search + coordinate entry (over the map, not the panel) -->
+        <div class="map-search" id="mapSearch">
+          <form class="map-search__form" id="searchForm" role="search" autocomplete="off">
+            <svg class="map-search__ico ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              class="map-search__input"
+              id="searchInput"
+              type="text"
+              placeholder="Search place, or 52.3676, 4.9041"
+              aria-label="Search a place or enter coordinates"
+            />
+            <button class="map-search__clear" id="searchClear" type="button" aria-label="Clear search" hidden>
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
+          </form>
+          <ul class="map-search__results" id="searchResults" role="listbox" hidden></ul>
+        </div>
+
         <div class="map-toolbar">
           <div class="basemap-switch" id="basemapSwitch" role="group" aria-label="Basemap">
-            <button class="basemap-switch__btn" type="button" data-basemap="imagery">Imagery</button>
+            <button class="basemap-switch__btn is-active" type="button" data-basemap="imagery">Imagery</button>
             <button class="basemap-switch__btn" type="button" data-basemap="topo">Topo</button>
-            <button class="basemap-switch__btn is-active" type="button" data-basemap="dark">Dark</button>
+            <button class="basemap-switch__btn" type="button" data-basemap="dark">Dark</button>
           </div>
+
+          <div class="toolgroup" role="group" aria-label="Import data">
+            <button class="toolgroup__btn" type="button" id="importBtn" aria-label="Import KML, KMZ or GPX" title="Import KML / KMZ / GPX">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12M8 11l4 4 4-4" />
+                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+              </svg>
+            </button>
+            <button class="toolgroup__btn" type="button" id="clearImportBtn" aria-label="Clear imported data" title="Clear imported data" hidden>
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
+              </svg>
+            </button>
+          </div>
+          <input type="file" id="importInput" accept=".kml,.kmz,.gpx,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml" hidden />
 
           <div class="toolgroup" role="group" aria-label="Map zoom">
             <button class="toolgroup__btn" type="button" id="zoomIn" aria-label="Zoom in">

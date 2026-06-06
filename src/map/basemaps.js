@@ -12,7 +12,7 @@
  */
 
 export const BASEMAPS = ['dark', 'imagery', 'topo'];
-export const DEFAULT_BASEMAP = 'dark';
+export const DEFAULT_BASEMAP = 'imagery'; // satellite by default; users toggle to dark/topo
 
 export const RASTER_BASEMAPS = {
   dark: {
