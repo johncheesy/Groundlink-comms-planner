@@ -230,11 +230,13 @@ whenStyleReady(() => {
     getAoi: () => aoi?.getAoi?.() || null,
     coverageParams,
     onState(st) {
-      dronePanel.hidden = !st.hasDrone;
-      const pace = st.pace;
-      statusPaceWrap.hidden = !pace;
-      statusPaceSep.hidden = !pace;
-      if (pace) statusPace.textContent = `PACE: ${pace}`;
+      if ('hasDrone' in st) {
+        dronePanel.hidden = !st.hasDrone;
+        const pace = st.pace;
+        statusPaceWrap.hidden = !pace;
+        statusPaceSep.hidden = !pace;
+        if (pace) statusPace.textContent = `PACE: ${pace}`;
+      }
       if (st.computing) droneGain.textContent = 'Computing airborne relay vs a ground mast…';
       else if (st.result) {
         const { altFrac, groundFrac, gainPts } = st.result;
@@ -242,6 +244,16 @@ whenStyleReady(() => {
           `Airborne relay @ ${st.altM} m AGL covers ${Math.round(altFrac * 100)}% of the area, ` +
           `vs ${Math.round(groundFrac * 100)}% for a ground mast here — ` +
           `${gainPts >= 0 ? '+' : ''}${gainPts.toFixed(0)} pts. Height is the lever in VHF/UHF.`;
+      }
+      if (st.envProgress !== undefined) {
+        statusMode.textContent = st.envProgress >= 1 ? 'Envelope ready' : `Envelope… ${Math.round(st.envProgress * 100)}%`;
+        if (st.envProgress === 0) envHelp.textContent = 'Computing fly / link zone by altitude band…';
+      }
+      if (st.envDone) {
+        const fMHz = clampNum(c2Freq.value, 30, 6000, 2400);
+        const pW = clampNum(c2Power.value, 0.01, 50, 1);
+        envHelp.textContent = `Fly / link zone for C2 ${fMHz} MHz @ ${pW} W from the GCS. Nested zones = reach at 50/100/120 m AGL; amber = terrain shadow (climb to clear). Planning-grade.`;
+        statusMode.textContent = 'Envelope ready';
       }
     },
   });
@@ -260,6 +272,29 @@ whenStyleReady(() => {
     drone.clear();
     coverage.clear();
     opacityRow.hidden = true;
+  });
+
+  // Flight / link envelope (M2.1 B)
+  addGcsBtn.addEventListener('click', () => {
+    gcsPanel.hidden = false;
+    drone.arm('gcs');
+    statusMode.textContent = 'Click the map to place the ground station (GCS)';
+    if (mq.matches) closePanel();
+  });
+  computeEnvelopeBtn.addEventListener('click', () => {
+    if (!drone.hasGcs()) {
+      envHelp.textContent = 'Place the GCS first — click "Flight envelope", then click the map.';
+      return;
+    }
+    const fMHz = clampNum(c2Freq.value, 30, 6000, 2400);
+    const pW = clampNum(c2Power.value, 0.01, 50, 1);
+    drone.computeEnvelope({
+      freqMHz: fMHz,
+      eirpDbm: wattsToDbm(pW) + TX_GAIN_DBI,
+      rxSensDbm: -97, // typical C2 receiver sensitivity
+      gcsHeightM: 3,
+      radiusKm: 40,
+    });
   });
 });
 
@@ -303,6 +338,13 @@ const clearDroneBtn = $('#clearDrone');
 const statusPaceWrap = $('#statusPaceWrap');
 const statusPaceSep = $('#statusPaceSep');
 const statusPace = $('#statusPace');
+// Flight envelope (M2.1 B)
+const addGcsBtn = $('#addGcs');
+const gcsPanel = $('#gcsPanel');
+const c2Freq = $('#c2Freq');
+const c2Power = $('#c2Power');
+const computeEnvelopeBtn = $('#computeEnvelope');
+const envHelp = $('#envHelp');
 
 function clampNum(v, min, max, fallback) {
   const n = Number.parseFloat(v);

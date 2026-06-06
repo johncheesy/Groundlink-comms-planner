@@ -438,6 +438,12 @@
   border-left-color: var(--warn);
 }
 
+.rule {
+  border: 0;
+  border-top: 1px solid var(--hair);
+  margin: var(--sp-3) 0 var(--sp-1);
+}
+
 /* ---- Legend (coverage spectrum + typed features) ----------------------- */
 
 .legend {
