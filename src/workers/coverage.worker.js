@@ -1,51 +1,94 @@
 /**
  * Coverage compute Web Worker.
  *
- * Runs the FSPL+Deygout fallback model over a grid covering the AOI bbox, off
- * the main thread so the UI never freezes. Emits progress as it sweeps rows and
- * returns a transferable Uint8Array of class indices (one byte per cell).
+ * Computes received signal over a grid covering the AOI bbox, off the main
+ * thread. Two paths:
+ *   - terrain-aware: FSPL + Deygout single knife-edge over a real elevation
+ *     profile (AWS Terrarium DEM), k = 4/3 effective-earth bulge baked in.
+ *   - flat fallback: FSPL only (when terrain is off or the DEM is unavailable).
  *
- * Grid orientation: row 0 = north edge, col 0 = west edge (matches the way the
- * main thread paints the canvas and places the image overlay over the bbox).
+ * Default binding link = talk-in (handheld → repeater): the path loss is
+ * reciprocal, so we model one transmitter at the AOI centre with editable
+ * tx/rx antenna heights.
  *
- * Message in:  { type:'compute', id, bounds:{west,south,east,north}, cols, rows,
- *                tx:{lat,lng}, params:{eirpDbm,freqMHz,rxGainDbi,clutterDb,
- *                thresholds,floorDbm} }
+ * Grid orientation: row 0 = north edge, col 0 = west edge.
+ *
+ * Message in:  { type:'compute', id, bounds, cols, rows, tx:{lat,lng},
+ *                params:{ eirpDbm, freqMHz, rxGainDbi, clutterDb, thresholds,
+ *                         floorDbm, useTerrain, txHeightM, rxHeightM } }
  * Messages out:
- *   { type:'progress', id, done, total }
- *   { type:'done', id, cols, rows, classes:Uint8Array (transferred) }
+ *   { type:'progress', id, done, total, phase }
+ *   { type:'done', id, cols, rows, classes:Uint8Array (transferred), terrain }
  */
-import { receivedDbm, classifyDbm, haversineM } from '../coverage/model.js';
+import { receivedDbm, classifyDbm, haversineM, deygoutLossDb, earthBulgeM } from '../coverage/model.js';
+import { buildDem } from './dem.js';
 
-self.onmessage = (e) => {
+self.onmessage = async (e) => {
   const msg = e.data;
   if (msg?.type !== 'compute') return;
   const { id, bounds, cols, rows, tx, params } = msg;
   const { west, south, east, north } = bounds;
+  const { thresholds, floorDbm } = params;
+
+  // Optional terrain.
+  let dem = null;
+  if (params.useTerrain) {
+    self.postMessage({ type: 'progress', id, done: 0, total: rows, phase: 'terrain' });
+    try {
+      dem = await buildDem(bounds);
+    } catch {
+      dem = null;
+    }
+  }
 
   const classes = new Uint8Array(cols * rows);
   const lngSpan = east - west;
   const latSpan = north - south;
-
-  const thresholds = params.thresholds;
-  const floorDbm = params.floorDbm;
-
-  // Sweep rows north→south; report progress every few rows.
   const reportEvery = Math.max(1, Math.floor(rows / 40));
+
+  const txHeight = params.txHeightM ?? 10;
+  const rxHeight = params.rxHeightM ?? 1.5;
+  const txGround = dem ? dem.sample(tx.lng, tx.lat) : 0;
+  const txElev = txGround + txHeight;
+
   for (let r = 0; r < rows; r++) {
     const lat = north - ((r + 0.5) / rows) * latSpan;
     const rowOff = r * cols;
     for (let c = 0; c < cols; c++) {
       const lng = west + ((c + 0.5) / cols) * lngSpan;
       const dist = haversineM(tx.lat, tx.lng, lat, lng);
-      // Flat fallback: diffraction = 0. (Terrain sampler will populate this.)
-      const dbm = receivedDbm(params, dist, 0, params.clutterDb || 0);
+
+      let diffraction = 0;
+      if (dem && dist > 50) {
+        const rxElev = dem.sample(lng, lat) + rxHeight;
+        diffraction = deygoutLossDb(buildProfile(tx, { lng, lat }, dist, dem), txElev, rxElev, params.freqMHz, dist);
+      }
+      const dbm = receivedDbm(params, dist, diffraction, params.clutterDb || 0);
       classes[rowOff + c] = classifyDbm(dbm, thresholds, floorDbm);
     }
     if (r % reportEvery === 0 || r === rows - 1) {
-      self.postMessage({ type: 'progress', id, done: r + 1, total: rows });
+      self.postMessage({ type: 'progress', id, done: r + 1, total: rows, phase: 'compute' });
     }
   }
 
-  self.postMessage({ type: 'done', id, cols, rows, classes }, [classes.buffer]);
+  self.postMessage({ type: 'done', id, cols, rows, classes, terrain: !!dem }, [classes.buffer]);
 };
+
+/**
+ * Elevation profile between tx and rx, sampled at ~2 km spacing (8–40 points),
+ * with the k = 4/3 earth bulge folded into each terrain height so the knife-
+ * edge geometry accounts for curvature.
+ */
+function buildProfile(tx, rx, totalDist, dem) {
+  const n = Math.max(8, Math.min(40, Math.round(totalDist / 2000)));
+  const profile = [];
+  for (let i = 1; i < n; i++) {
+    const f = i / n;
+    const lng = tx.lng + (rx.lng - tx.lng) * f;
+    const lat = tx.lat + (rx.lat - tx.lat) * f;
+    const d1 = f * totalDist;
+    const h = dem.sample(lng, lat) + earthBulgeM(d1, totalDist - d1);
+    profile.push({ d: d1, h });
+  }
+  return profile;
+}

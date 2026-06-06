@@ -130,21 +130,31 @@ whenStyleReady(() => {
   });
 
   coverage = createCoverageController(map, {
-    onProgress(frac) {
+    onProgress(frac, phase) {
       progress.hidden = false;
       progressBar.style.width = `${Math.round(frac * 100)}%`;
-      statusMode.textContent = frac >= 1 ? 'Coverage ready' : `Computing… ${Math.round(frac * 100)}%`;
+      if (phase === 'terrain' && frac === 0) statusMode.textContent = 'Loading terrain…';
+      else statusMode.textContent = frac >= 1 ? 'Coverage ready' : `Computing… ${Math.round(frac * 100)}%`;
       if (frac >= 1) {
         opacityRow.hidden = false;
-        coverageHelp.textContent = 'Flat free-space estimate from the AOI centre. Adjust opacity, or enable terrain (next step) for terrain-aware coverage.';
         setTimeout(() => {
           progress.hidden = true;
           progressBar.style.width = '0%';
         }, 350);
       }
     },
-    onStatus(state) {
-      if (state === 'error') coverageHelp.textContent = 'Coverage worker failed — see console.';
+    onStatus(state, info) {
+      if (state === 'error') {
+        coverageHelp.textContent = 'Coverage worker failed — see console.';
+      } else if (state === 'done') {
+        const terrain = info?.terrain;
+        coverageEngine.textContent = terrain ? 'FSPL+Deygout · terrain' : 'FSPL · flat';
+        coverageHelp.textContent = terrain
+          ? 'Terrain-aware (FSPL + Deygout knife-edge over DEM, k=4/3). Planning-grade, not survey-grade.'
+          : (useTerrainInput.checked
+              ? 'Terrain unavailable here — fell back to flat free-space (FSPL). Try again or check connectivity.'
+              : 'Flat free-space estimate (FSPL) from the AOI centre.');
+      }
     },
   });
 
@@ -192,12 +202,20 @@ function syncToolButtons() {
 
 const freqInput = $('#freqInput');
 const powerInput = $('#powerInput');
+const txHeightInput = $('#txHeight');
+const rxHeightInput = $('#rxHeight');
+const useTerrainInput = $('#useTerrain');
+const thExcellent = $('#thExcellent');
+const thGood = $('#thGood');
+const thMarginal = $('#thMarginal');
+const thNone = $('#thNone');
 const opacityInput = $('#opacityInput');
 const opacityRow = $('#opacityRow');
 const clearCoverageBtn = $('#clearCoverage');
 const progress = $('#coverageProgress');
 const progressBar = $('#coverageProgressBar');
 const coverageHelp = $('#coverageHelp');
+const coverageEngine = $('#coverageEngine');
 
 function clampNum(v, min, max, fallback) {
   const n = Number.parseFloat(v);
@@ -211,7 +229,24 @@ function runCoverage() {
   const freqMHz = clampNum(freqInput.value, 30, 6000, 150);
   const powerW = clampNum(powerInput.value, 0.01, 100, 5);
   const eirpDbm = wattsToDbm(powerW) + TX_GAIN_DBI;
-  coverage.compute(area.bounds, area.center, { eirpDbm, freqMHz, rxGainDbi: 0, clutterDb: 0 });
+  const thresholds = {
+    excellent: clampNum(thExcellent.value, -200, 0, -85),
+    good: clampNum(thGood.value, -200, 0, -95),
+    marginal: clampNum(thMarginal.value, -200, 0, -103),
+    none: clampNum(thNone.value, -200, 0, -110),
+  };
+  coverage.compute(area.bounds, area.center, {
+    eirpDbm,
+    freqMHz,
+    rxGainDbi: 0,
+    clutterDb: 0,
+    useTerrain: useTerrainInput.checked,
+    txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
+    rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
+    thresholds,
+    floorDbm: -120,
+  });
+  coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
 
 // ---- Mobile slide-over panel -------------------------------------------

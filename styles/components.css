@@ -215,6 +215,67 @@
   flex: 0 0 auto;
 }
 
+/* ---- Checkbox + disclosure + threshold grid ---------------------------- */
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 12px;
+  color: var(--dim);
+  cursor: pointer;
+}
+.check input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+
+.disclosure {
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  background: var(--surface2);
+}
+.disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dim);
+}
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure > summary::after {
+  content: '＋';
+  float: right;
+  color: var(--faint);
+}
+.disclosure[open] > summary::after {
+  content: '－';
+}
+
+.threshold-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+  padding: 0 12px 12px;
+}
+.threshold-grid .field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.input--mini {
+  height: 28px;
+  width: 64px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
 /* ---- Badges ------------------------------------------------------------ */
 
 .badge {

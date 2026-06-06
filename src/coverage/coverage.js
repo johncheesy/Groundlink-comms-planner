@@ -49,11 +49,11 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     worker.onmessage = (e) => {
       const msg = e.data;
       if (!msg || msg.id !== jobId) return;
-      if (msg.type === 'progress') onProgress?.(msg.done / msg.total);
+      if (msg.type === 'progress') onProgress?.(msg.done / msg.total, msg.phase);
       else if (msg.type === 'done') {
         paint(msg);
-        onProgress?.(1);
-        onStatus?.('done');
+        onProgress?.(1, 'compute');
+        onStatus?.('done', { terrain: msg.terrain });
       }
     };
     worker.onerror = () => onStatus?.('error');
