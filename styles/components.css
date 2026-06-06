@@ -261,6 +261,72 @@
   border-color: color-mix(in srgb, var(--accent2) 24%, transparent);
 }
 
+/* ---- Progress bar ------------------------------------------------------ */
+
+.progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--raise);
+  border: 1px solid var(--hair);
+  overflow: hidden;
+}
+
+.progress__bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.12s linear;
+}
+
+/* ---- Range slider ------------------------------------------------------ */
+
+.range {
+  flex: 1 1 auto;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hair2);
+  outline: none;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.range::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+/* ---- Transmitter marker (coverage source) ------------------------------ */
+
+.tx-marker {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 999px;
+  background: var(--feat-site);
+  border: 3px solid var(--mapbg);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--feat-site) 35%, transparent);
+}
+
+/* Coverage raster over the dark map; smoothed between cells, faithful hues. */
+.coverage-overlay {
+  image-rendering: auto;
+}
+
 /* ---- Legend (coverage spectrum + typed features) ----------------------- */
 
 .legend {

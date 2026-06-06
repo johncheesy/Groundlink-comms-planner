@@ -349,6 +349,17 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     getMode: () => mode,
     clear: clearAll,
     summary,
+    /** Geometry for downstream consumers (coverage, recommend): bbox + centre. */
+    getAoi() {
+      if (!committed) return null;
+      const b = committed.layer.getBounds();
+      const c = committed.type === 'radius' ? committed.layer.getLatLng() : b.getCenter();
+      return {
+        type: committed.type,
+        center: { lat: c.lat, lng: c.lng },
+        bounds: { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() },
+      };
+    },
     /** Fit the map to the committed AOI, if any. */
     fitBounds(opts = { padding: [40, 40] }) {
       if (!committed) return false;

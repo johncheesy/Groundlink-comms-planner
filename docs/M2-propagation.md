@@ -47,6 +47,16 @@ Turn a mission (area / sites / route / points) + the imported radios into a terr
 - **ETH Global Canopy Height 2020, 10 m** (GEDI + Sentinel-2, CC-BY) — actual tree heights for tree-cover pixels.
 - Or **Meta/WRI Global Canopy Height, 1 m** (AWS Open Data) for fine detail near sites/routes.
 
+**Buildings & 3D fidelity**
+
+- **Now (coarse / implicit):** the DSM (GLO-30) already includes buildings, but at ~30 m they are smoothed into bulk surface — not individual structures. WorldCover's **Built-up** class adds area-averaged urban clutter loss (and P.1812 adds building-entry loss if used). So "urban areas attenuate more" is handled statistically; discrete buildings are **not**.
+- **Later (high-fidelity, Phase B):** discrete building footprints + heights for per-building blocking/diffraction and indoor (building-entry) loss. True 3D ray-trace is the heaviest tier (CloudRF-style / LiDAR / BYO).
+- **3D view vs 3D modeling:** a 3D map *view* (tilt + terrain relief + extruded buildings + coverage draped on terrain) is **visualization** and can ship early — terrain + drape first, building extrusion when footprint/height data lands. 3D *propagation* (ray-trace through buildings) is the heavy **Phase-B** tier. The 3D view needs a 3D-capable map engine (**MapLibre GL**), not Leaflet.
+- **Footprint datasets (free):** **Google Open Buildings v3** (~1.8 B buildings, Africa + Global South — directly relevant to our regions), **Microsoft Global ML Building Footprints** (~1.4 B, near-global, ODbL), or the conflated **Google-Microsoft / Overture** sets in cloud-native formats (PMTiles / GeoParquet) that tile easily into the app.
+- **Heights are the gap:** footprints are easy globally; per-building heights are patchy outside the US/Europe. Sources: Open Buildings **2.5D** heights, Microsoft height estimates (EU/US), the **GHSL** building-height raster (~100 m mean net building height) as fallback, or estimate from storeys/class.
+- **Licensing:** Google Open Buildings = CC-BY-4.0; Microsoft / Overture / OpenBuildingMap = ODbL (share-alike on derived data) — review before commercial distribution.
+- **Use:** burn building heights into the surface model the engine samples (so diffraction sees them) and/or treat as discrete obstructions; add building-entry loss for indoor coverage.
+
 ## Compute & UX
 
 - Tile the AOI; compute per-pixel path loss on a grid in the Web Worker; **chunk with a progress bar**.
@@ -72,4 +82,4 @@ Turn a mission (area / sites / route / points) + the imported radios into a terr
 
 ## Sources (identifiers)
 
-ITM/Longley-Rice (NTIA/ITS reference; SPLAT!); `signal-server` (CloudRF lineage, GPL); Rust port `rf_signal_algorithms`; ITU-R P.1812-6/8 (+ `Py1812`); Copernicus GLO-30; SRTM; Mapbox Terrain-RGB; ESA WorldCover 10 m (+ Digital Earth Africa); ETH Global Canopy Height 2020 10 m; Meta/WRI Canopy Height 1 m. HF later: ITU-R P.533 / VOACAP.
+ITM/Longley-Rice (NTIA/ITS reference; SPLAT!); `signal-server` (CloudRF lineage, GPL); Rust port `rf_signal_algorithms`; ITU-R P.1812-6/8 (+ `Py1812`); Copernicus GLO-30; SRTM; Mapbox Terrain-RGB; ESA WorldCover 10 m (+ Digital Earth Africa); ETH Global Canopy Height 2020 10 m; Meta/WRI Canopy Height 1 m. Buildings (later): Google Open Buildings v3, Microsoft Global ML Building Footprints, Overture, GHSL building height. HF later: ITU-R P.533 / VOACAP.

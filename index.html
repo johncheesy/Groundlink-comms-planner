@@ -117,7 +117,52 @@
             </div>
           </section>
 
-          <!-- Coverage legend (static for M1) -->
+          <!-- Coverage compute (M2) -->
+          <section class="section" aria-labelledby="coverageTitle">
+            <div class="section__head">
+              <span class="section__title" id="coverageTitle">Coverage</span>
+              <span class="section__hint" id="coverageEngine">FSPL · flat</span>
+            </div>
+            <div class="section__body">
+              <div class="input-row">
+                <div style="flex:1">
+                  <label class="field-label" for="freqInput">Frequency</label>
+                  <div class="input-row">
+                    <input class="input" id="freqInput" type="number" value="150" min="30" max="6000" step="1" />
+                    <span class="input-suffix">MHz</span>
+                  </div>
+                </div>
+                <div style="flex:1">
+                  <label class="field-label" for="powerInput">Tx power</label>
+                  <div class="input-row">
+                    <input class="input" id="powerInput" type="number" value="5" min="0.01" max="100" step="0.5" />
+                    <span class="input-suffix">W</span>
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn btn--primary btn--block" type="button" id="computeCoverage" disabled>
+                Compute coverage
+              </button>
+
+              <div class="progress" id="coverageProgress" hidden>
+                <div class="progress__bar" id="coverageProgressBar"></div>
+              </div>
+
+              <div class="input-row" id="opacityRow" hidden>
+                <label class="field-label" for="opacityInput" style="flex:0 0 auto">Opacity</label>
+                <input class="range" id="opacityInput" type="range" min="0" max="100" value="70" />
+                <button class="btn" type="button" id="clearCoverage">Clear</button>
+              </div>
+
+              <p class="help" id="coverageHelp">
+                Draw an AOI, then compute. The transmitter defaults to the AOI centre.
+                Flat free-space estimate — add a Mapbox token for terrain-aware coverage.
+              </p>
+            </div>
+          </section>
+
+          <!-- Coverage legend / signal scale -->
           <section class="section" aria-labelledby="legendTitle">
             <div class="section__head">
               <span class="section__title" id="legendTitle">Signal</span>

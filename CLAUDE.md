@@ -1,4 +1,6 @@
-# CLAUDE.md — GroundLink Comms Coverage Planner
+# CLAUDE.md — GroundLink Comms Coverage Planner · Claude 2.1
+
+*Build guide v2.1 — keep the filename exactly `CLAUDE.md` so Claude Code auto-loads it.*
 
 Project guide for Claude Code. Read this, then `../context.md` (full project background) and `docs/design-tokens.md` (visual system). The visual target is the mood board `../groundlink_moodboard_v6.html`.
 
@@ -13,7 +15,7 @@ Greenfield. A single-file prototype exists separately as design/behaviour refere
 ## Tech stack (proposed — confirm before scaffolding)
 
 - **Build:** Vite. **Language:** modern vanilla JS (ES modules) + TypeScript if/when useful. No heavy UI framework to start.
-- **Map:** Leaflet 1.9 (prototype uses it) or MapLibre GL for vector basemaps. Esri World Imagery + OpenTopoMap as raster bases; Mapbox Terrain-RGB for elevation.
+- **Map:** lean to **MapLibre GL JS** — vector basemaps + **3D terrain** (terrain-RGB DEM source) + **building extrusion** + pitch/tilt, so a **3D view is native**. Leaflet 1.9 (prototype) is 2D-only and acceptable only if 3D is dropped. Raster bases: Esri World Imagery + OpenTopoMap; elevation via Mapbox Terrain-RGB.
 - **Styling:** plain CSS with the design tokens in `docs/design-tokens.md` (CSS custom properties, light + dark via `:root[data-theme="dark"]`).
 - **Deploy:** GitHub Pages (public-safe build).
 - Keep it dependency-light; justify every added dependency.
@@ -30,12 +32,13 @@ Greenfield. A single-file prototype exists separately as design/behaviour refere
 
 - **M1 — Shell & map:** layout (panel · map · status), basemaps, light/dark, AOI draw (radius + polygon), mobile slide-over. Match mood board.
 - **M2 — Terrain & coverage:** see **`docs/M2-propagation.md`** (authoritative). Summary: core model = Longley-Rice/ITM compiled to **WASM in a Web Worker** (prefer the public-domain NTIA reference; FSPL+Deygout as fallback); terrain via Mapbox Terrain-RGB (GLO-30/SRTM optional); clutter from ESA WorldCover + canopy height; talk-in as binding link; coverage raster with the signal scale. HF is a separate later module (not ITM). Optional Phase-B backend (signal-server / ITU-R P.1812) for heavy/offline-edge.
+- **M2.1 - Drone / airborne relay (branch of M2):** see **`docs/M2.1-drone-relay.md`**. Drone/UAS as an elevated repeater (tx at altitude -> coverage gain; airborne relay as a PACE path, multi-hop chaining) + a drone operating/link envelope from a position (terrain LOS + link budget by altitude band, with terrain-shadow zones). Reuses the M2 terrain + engine; payload/endurance/tether caveats surfaced; regulatory/BVLOS overlays later.
 - **M3 — Site recommendation:** candidate generation from DEM local maxima within AOI; greedy set-cover over demand points; draggable sites; recompute.
 - **M4 — Mission input modes:** area / fixed sites / route / points; coordinate entry in lat/long, MGRS, UTM; click-to-place.
 - **M5 — Radio import & mix:** search + import radios; pull specs from FCC OET/FCC ID (+ ETSI/CE, datasheets); user-editable; multi-band radio-mix recommendations.
 - **M6 — PACE & comms plan + report:** generate PACE and a comms-structure summary; exportable report (PDF/Word) with sites, link budget, bands.
 - **M7 — Export/interop:** KML + GeoJSON, Google Earth + ATAK round-trip.
-- **Later:** Longley-Rice/ITM engine (or signal-server backend), clutter/landcover + tree height, calibration with field RSSI, project save/share, best-server + interference views, offline/edge, auto-cost BOM, power/solar budgeting.
+- **Later:** Longley-Rice/ITM engine (or signal-server backend), clutter/landcover + tree height, calibration with field RSSI, project save/share, best-server + interference views, offline/edge, auto-cost BOM, power/solar budgeting; 3D map view (terrain relief + extruded buildings + coverage drape on the terrain).
 
 ## Proposed repo structure
 

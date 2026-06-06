@@ -5,6 +5,8 @@ import L from 'leaflet';
 import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
+import { createCoverageController } from './coverage/coverage.js';
+import { wattsToDbm } from './coverage/model.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -80,12 +82,14 @@ const fmtKm = (m) => `${(m / 1000).toFixed(m >= 100000 ? 0 : 1)} km`;
 
 const fitAoiBtn = $('#fitAoi');
 const clearAoiBtn = $('#clearAoi');
+const computeBtn = $('#computeCoverage');
 
 const aoi = createAoiController(map, {
   onChange(s) {
     const has = s && s.type !== null;
     fitAoiBtn.disabled = !has;
     clearAoiBtn.disabled = !has;
+    computeBtn.disabled = !has;
     if (!has) {
       aoiStatus.textContent = 'none drawn';
       aoiReadout.textContent = 'No area defined yet. Pick a tool, then draw on the map.';
@@ -144,6 +148,71 @@ clearAoiBtn.addEventListener('click', () => {
   syncToolButtons();
 });
 fitAoiBtn.addEventListener('click', () => aoi.fitBounds());
+
+// ---- Coverage compute (M2) ---------------------------------------------
+
+const freqInput = $('#freqInput');
+const powerInput = $('#powerInput');
+const opacityInput = $('#opacityInput');
+const opacityRow = $('#opacityRow');
+const clearCoverageBtn = $('#clearCoverage');
+const progress = $('#coverageProgress');
+const progressBar = $('#coverageProgressBar');
+const coverageHelp = $('#coverageHelp');
+
+const TX_GAIN_DBI = 2.15; // dipole reference for the default omni
+
+const coverage = createCoverageController(map, {
+  onProgress(frac) {
+    progress.hidden = false;
+    progressBar.style.width = `${Math.round(frac * 100)}%`;
+    statusMode.textContent = frac >= 1 ? 'Coverage ready' : `Computing… ${Math.round(frac * 100)}%`;
+    if (frac >= 1) {
+      opacityRow.hidden = false;
+      coverageHelp.textContent =
+        'Flat free-space estimate from the AOI centre. Adjust opacity, or add a Mapbox token (next step) for terrain-aware coverage.';
+      // let the bar finish, then tuck it away
+      setTimeout(() => {
+        progress.hidden = true;
+        progressBar.style.width = '0%';
+      }, 350);
+    }
+  },
+  onStatus(state) {
+    if (state === 'error') {
+      coverageHelp.textContent = 'Coverage worker failed — see console. The flat fallback should not normally error.';
+    }
+  },
+});
+
+function runCoverage() {
+  const area = aoi.getAoi();
+  if (!area) return;
+  const freqMHz = clampNum(freqInput.value, 30, 6000, 150);
+  const powerW = clampNum(powerInput.value, 0.01, 100, 5);
+  const eirpDbm = wattsToDbm(powerW) + TX_GAIN_DBI;
+  coverage.compute(area.bounds, area.center, { eirpDbm, freqMHz, rxGainDbi: 0, clutterDb: 0 });
+}
+
+function clampNum(v, min, max, fallback) {
+  const n = Number.parseFloat(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+computeBtn.addEventListener('click', runCoverage);
+opacityInput.addEventListener('input', () => coverage.setOpacity(opacityInput.value / 100));
+clearCoverageBtn.addEventListener('click', () => {
+  coverage.clear();
+  opacityRow.hidden = true;
+  progress.hidden = true;
+  progressBar.style.width = '0%';
+  coverageHelp.textContent =
+    'Draw an AOI, then compute. The transmitter defaults to the AOI centre. Flat free-space estimate — add a Mapbox token for terrain-aware coverage.';
+});
+
+// clearing the AOI also clears any coverage raster
+clearAoiBtn.addEventListener('click', () => clearCoverageBtn.click());
 
 // ---- Mobile slide-over panel -------------------------------------------
 
