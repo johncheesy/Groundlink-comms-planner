@@ -174,12 +174,20 @@ whenStyleReady(() => {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
       } else if (state === 'done') {
         const terrain = info?.terrain;
-        coverageEngine.textContent = terrain ? 'FSPL+Deygout · terrain' : 'FSPL · flat';
-        coverageHelp.textContent = terrain
-          ? 'Terrain-aware (FSPL + Deygout knife-edge over DEM, k=4/3). Planning-grade, not survey-grade.'
-          : (useTerrainInput.checked
-              ? 'Terrain unavailable here — fell back to flat free-space (FSPL). Try again or check connectivity.'
-              : 'Flat free-space estimate (FSPL) from the AOI centre.');
+        const clutter = info?.clutter;
+        coverageEngine.textContent =
+          (terrain ? 'FSPL+Deygout' : 'FSPL · flat') + (clutter ? ' · clutter' : '');
+        const bits = [];
+        bits.push(terrain
+          ? 'Terrain-aware (FSPL + Deygout knife-edge over DEM, k=4/3).'
+          : (useTerrainInput.checked ? 'Terrain unavailable — flat FSPL fallback.' : 'Flat free-space (FSPL).'));
+        if (useClutterInput.checked) {
+          bits.push(clutter
+            ? 'ESA WorldCover clutter applied.'
+            : 'Clutter unavailable here (Africa-only source).');
+        }
+        bits.push('Planning-grade, not survey-grade.');
+        coverageHelp.textContent = bits.join(' ');
       }
     },
   });
@@ -231,6 +239,7 @@ const powerInput = $('#powerInput');
 const txHeightInput = $('#txHeight');
 const rxHeightInput = $('#rxHeight');
 const useTerrainInput = $('#useTerrain');
+const useClutterInput = $('#useClutter');
 const thExcellent = $('#thExcellent');
 const thGood = $('#thGood');
 const thMarginal = $('#thMarginal');
@@ -267,6 +276,7 @@ function runCoverage() {
     rxGainDbi: 0,
     clutterDb: 0,
     useTerrain: useTerrainInput.checked,
+    useClutter: useClutterInput.checked,
     txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
     rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
     thresholds,

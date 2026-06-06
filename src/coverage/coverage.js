@@ -42,6 +42,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
   let txMarker = null;
   let hasLayer = false;
   let currentBounds = null; // bbox of the in-flight / last job (worker omits it)
+  let lastStats = null; // { total, covered, byClass:[5], coveredFrac }
 
   function ensureWorker() {
     if (worker) return worker;
@@ -53,7 +54,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
       else if (msg.type === 'done') {
         paint(msg);
         onProgress?.(1, 'compute');
-        onStatus?.('done', { terrain: msg.terrain });
+        onStatus?.('done', { terrain: msg.terrain, clutter: msg.clutter });
       }
     };
     worker.onerror = () => onStatus?.('error');
@@ -68,7 +69,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     return { rows: TARGET_MAX_DIM, cols: Math.max(8, Math.round((TARGET_MAX_DIM * w) / h)) };
   }
 
-  function paint({ classes, cols, rows }) {
+  function paint({ classes, cols, rows, terrain, clutter }) {
     const bounds = currentBounds;
     if (!bounds) return;
     const canvas = document.createElement('canvas');
@@ -77,6 +78,8 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     const ctx = canvas.getContext('2d');
     const img = ctx.createImageData(cols, rows);
     const data = img.data;
+    const byClass = [0, 0, 0, 0, 0];
+    let covered = 0;
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
       const o = i * 4;
@@ -84,6 +87,9 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
         data[o + 3] = 0;
         continue;
       }
+      byClass[cls] += 1;
+      if (cls <= 2) covered += 1; // excellent/good/marginal = usable
+
       const [r, g, b] = palette[cls];
       data[o] = r;
       data[o + 1] = g;
@@ -91,6 +97,8 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
       data[o + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
+    const total = classes.length;
+    lastStats = { total, covered, byClass, coveredFrac: total ? covered / total : 0, terrain: !!terrain, clutter: !!clutter };
     const url = canvas.toDataURL('image/png');
     // image-source coordinates: TL, TR, BR, BL
     const coordinates = [
@@ -160,6 +168,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     compute,
     setOpacity,
     getOpacity: () => opacity,
+    getStats: () => lastStats,
     hasCoverage: () => hasLayer,
     clear,
     destroy() {

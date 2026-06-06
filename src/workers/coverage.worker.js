@@ -22,6 +22,7 @@
  */
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb, earthBulgeM } from '../coverage/model.js';
 import { buildDem } from './dem.js';
+import { buildLandcover, clutterDbForClass } from './worldcover.js';
 
 self.onmessage = async (e) => {
   const msg = e.data;
@@ -30,15 +31,17 @@ self.onmessage = async (e) => {
   const { west, south, east, north } = bounds;
   const { thresholds, floorDbm } = params;
 
-  // Optional terrain.
+  // Optional terrain + clutter (fetched in parallel before the sweep).
   let dem = null;
-  if (params.useTerrain) {
-    self.postMessage({ type: 'progress', id, done: 0, total: rows, phase: 'terrain' });
-    try {
-      dem = await buildDem(bounds);
-    } catch {
-      dem = null;
-    }
+  let landcover = null;
+  if (params.useTerrain || params.useClutter) {
+    self.postMessage({ type: 'progress', id, done: 0, total: rows, phase: 'data' });
+    const [d, lc] = await Promise.all([
+      params.useTerrain ? buildDem(bounds).catch(() => null) : Promise.resolve(null),
+      params.useClutter ? buildLandcover(bounds).catch(() => null) : Promise.resolve(null),
+    ]);
+    dem = d;
+    landcover = lc;
   }
 
   const classes = new Uint8Array(cols * rows);
@@ -63,7 +66,8 @@ self.onmessage = async (e) => {
         const rxElev = dem.sample(lng, lat) + rxHeight;
         diffraction = deygoutLossDb(buildProfile(tx, { lng, lat }, dist, dem), txElev, rxElev, params.freqMHz, dist);
       }
-      const dbm = receivedDbm(params, dist, diffraction, params.clutterDb || 0);
+      const clutterDb = landcover ? clutterDbForClass(landcover.sample(lng, lat)) : params.clutterDb || 0;
+      const dbm = receivedDbm(params, dist, diffraction, clutterDb);
       classes[rowOff + c] = classifyDbm(dbm, thresholds, floorDbm);
     }
     if (r % reportEvery === 0 || r === rows - 1) {
@@ -71,7 +75,7 @@ self.onmessage = async (e) => {
     }
   }
 
-  self.postMessage({ type: 'done', id, cols, rows, classes, terrain: !!dem }, [classes.buffer]);
+  self.postMessage({ type: 'done', id, cols, rows, classes, terrain: !!dem, clutter: !!landcover }, [classes.buffer]);
 };
 
 /**
