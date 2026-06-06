@@ -198,6 +198,36 @@
             </div>
           </section>
 
+          <!-- Drone relay (M2.1) -->
+          <section class="section" aria-labelledby="droneTitle">
+            <div class="section__head">
+              <span class="section__title" id="droneTitle">Drone relay</span>
+              <span class="section__hint">M2.1 · airborne</span>
+            </div>
+            <div class="section__body">
+              <button class="btn btn--block" type="button" id="addDrone">Add drone relay</button>
+
+              <div id="dronePanel" hidden>
+                <div class="input-row">
+                  <label class="field-label" for="droneAlt" style="flex:0 0 auto">Altitude AGL</label>
+                  <input class="range" id="droneAlt" type="range" min="10" max="500" value="120" />
+                  <span class="view-slider__val" id="droneAltVal" data-numeric>120 m</span>
+                </div>
+
+                <button class="btn btn--primary btn--block" type="button" id="computeRelay">Compute relay coverage</button>
+
+                <p class="help" id="droneGain">Place set. Compute to compare the airborne relay against a ground mast at the same spot.</p>
+
+                <div class="caveats">
+                  <div class="caveat caveat--warn" id="payloadCaveat">Payload: a full repeater + duplexer is heavy — use a light cross-band relay or a tethered drone for a true repeater.</div>
+                  <div class="caveat">Endurance: multirotor ≈ 30 min on battery · tethered = persistent · VTOL/fixed-wing = longer loiter.</div>
+                </div>
+
+                <button class="btn btn--block" type="button" id="clearDrone">Remove drone</button>
+              </div>
+            </div>
+          </section>
+
           <!-- Coverage legend / signal scale -->
           <section class="section" aria-labelledby="legendTitle">
             <div class="section__head">
@@ -329,6 +359,10 @@
           <span class="v" id="statusZoom" data-numeric>—</span>
         </span>
         <span class="statusbar__spacer"></span>
+        <span class="statusbar__item" id="statusPaceWrap" hidden>
+          <span class="badge badge--warn" id="statusPace">PACE: Airborne = Alternate</span>
+        </span>
+        <span class="statusbar__sep" id="statusPaceSep" aria-hidden="true" hidden></span>
         <span class="statusbar__item">
           <span class="k">AOI</span>
           <span class="v" id="statusAoi" data-numeric>—</span>

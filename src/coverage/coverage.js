@@ -42,7 +42,10 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
   let txMarker = null;
   let hasLayer = false;
   let currentBounds = null; // bbox of the in-flight / last job (worker omits it)
+  let currentRender = true; // whether the current job paints to the map
+  let currentMarker = true; // whether the current job (re)places the tx marker
   let lastStats = null; // { total, covered, byClass:[5], coveredFrac }
+  let pendingResolve = null; // for computeAsync()
 
   function ensureWorker() {
     if (worker) return worker;
@@ -55,6 +58,11 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
         paint(msg);
         onProgress?.(1, 'compute');
         onStatus?.('done', { terrain: msg.terrain, clutter: msg.clutter });
+        if (pendingResolve) {
+          const r = pendingResolve;
+          pendingResolve = null;
+          r(lastStats);
+        }
       }
     };
     worker.onerror = () => onStatus?.('error');
@@ -96,9 +104,10 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
       data[o + 2] = b;
       data[o + 3] = 255;
     }
-    ctx.putImageData(img, 0, 0);
     const total = classes.length;
     lastStats = { total, covered, byClass, coveredFrac: total ? covered / total : 0, terrain: !!terrain, clutter: !!clutter };
+    if (!currentRender) return; // stats-only pass (e.g. gain-vs-ground baseline)
+    ctx.putImageData(img, 0, 0);
     const url = canvas.toDataURL('image/png');
     // image-source coordinates: TL, TR, BR, BL
     const coordinates = [
@@ -137,16 +146,26 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     txMarker = new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(map);
   }
 
-  function compute(bounds, tx, params) {
+  function compute(bounds, tx, params, opts = {}) {
     const w = ensureWorker();
     const { cols, rows } = gridDims(bounds);
     jobId += 1;
     currentBounds = bounds;
-    placeTx(tx);
+    currentRender = opts.render !== false;
+    currentMarker = opts.marker !== false;
+    if (currentMarker) placeTx(tx);
     onStatus?.('computing');
     onProgress?.(0);
     w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params });
     return jobId;
+  }
+
+  /** Promise variant — resolves with the result stats after the job completes. */
+  function computeAsync(bounds, tx, params, opts = {}) {
+    return new Promise((resolve) => {
+      pendingResolve = resolve;
+      compute(bounds, tx, params, opts);
+    });
   }
 
   function setOpacity(v) {
@@ -166,6 +185,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
 
   return {
     compute,
+    computeAsync,
     setOpacity,
     getOpacity: () => opacity,
     getStats: () => lastStats,

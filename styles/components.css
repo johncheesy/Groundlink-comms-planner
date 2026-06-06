@@ -387,6 +387,57 @@
   image-rendering: auto;
 }
 
+/* ---- Drone relay node + GCS marker ------------------------------------- */
+
+.drone-marker {
+  width: 28px;
+  height: 28px;
+  color: var(--feat-site);
+  background: var(--mapbg);
+  border: 2px solid var(--feat-site);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--feat-site) 26%, transparent);
+  cursor: grab;
+}
+.drone-marker svg {
+  width: 18px;
+  height: 18px;
+}
+
+.gcs-marker {
+  width: 18px;
+  height: 18px;
+  color: var(--feat-track);
+  background: var(--mapbg);
+  border: 2px solid var(--feat-track);
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--feat-track) 26%, transparent);
+}
+
+/* ---- Caveats (drone payload / endurance) ------------------------------- */
+
+.caveats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.caveat {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--dim);
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--hair2);
+}
+.caveat--warn {
+  border-left-color: var(--warn);
+}
+
 /* ---- Legend (coverage spectrum + typed features) ----------------------- */
 
 .legend {

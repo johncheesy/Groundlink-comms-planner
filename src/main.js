@@ -4,6 +4,7 @@ import '../styles/index.css';
 import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
 import { createCoverageController } from './coverage/coverage.js';
+import { createDroneController } from './drone/drone.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { wattsToDbm } from './coverage/model.js';
 
@@ -114,6 +115,7 @@ const computeBtn = $('#computeCoverage');
 const TX_GAIN_DBI = 2.15;
 let aoi = null;
 let coverage = null;
+let drone = null;
 
 function whenStyleReady(fn) {
   if (map.isStyleLoaded()) fn();
@@ -221,6 +223,44 @@ whenStyleReady(() => {
     progressBar.style.width = '0%';
     coverageHelp.textContent = 'Draw an AOI, then compute. The transmitter defaults to the AOI centre. Flat free-space estimate for now.';
   });
+
+  // ---- Drone relay (M2.1) ----------------------------------------------
+  drone = createDroneController(map, {
+    coverage,
+    getAoi: () => aoi?.getAoi?.() || null,
+    coverageParams,
+    onState(st) {
+      dronePanel.hidden = !st.hasDrone;
+      const pace = st.pace;
+      statusPaceWrap.hidden = !pace;
+      statusPaceSep.hidden = !pace;
+      if (pace) statusPace.textContent = `PACE: ${pace}`;
+      if (st.computing) droneGain.textContent = 'Computing airborne relay vs a ground mast…';
+      else if (st.result) {
+        const { altFrac, groundFrac, gainPts } = st.result;
+        droneGain.textContent =
+          `Airborne relay @ ${st.altM} m AGL covers ${Math.round(altFrac * 100)}% of the area, ` +
+          `vs ${Math.round(groundFrac * 100)}% for a ground mast here — ` +
+          `${gainPts >= 0 ? '+' : ''}${gainPts.toFixed(0)} pts. Height is the lever in VHF/UHF.`;
+      }
+    },
+  });
+
+  addDroneBtn.addEventListener('click', () => {
+    drone.armPlacement(true);
+    statusMode.textContent = 'Click the map to place the drone relay';
+    if (mq.matches) closePanel();
+  });
+  droneAlt.addEventListener('input', () => {
+    drone.setAltitude(Number(droneAlt.value));
+    droneAltVal.textContent = `${droneAlt.value} m`;
+  });
+  computeRelayBtn.addEventListener('click', () => drone.computeRelay());
+  clearDroneBtn.addEventListener('click', () => {
+    drone.clear();
+    coverage.clear();
+    opacityRow.hidden = true;
+  });
 });
 
 function syncToolButtons() {
@@ -252,35 +292,52 @@ const progressBar = $('#coverageProgressBar');
 const coverageHelp = $('#coverageHelp');
 const coverageEngine = $('#coverageEngine');
 
+// Drone (M2.1)
+const addDroneBtn = $('#addDrone');
+const dronePanel = $('#dronePanel');
+const droneAlt = $('#droneAlt');
+const droneAltVal = $('#droneAltVal');
+const computeRelayBtn = $('#computeRelay');
+const droneGain = $('#droneGain');
+const clearDroneBtn = $('#clearDrone');
+const statusPaceWrap = $('#statusPaceWrap');
+const statusPaceSep = $('#statusPaceSep');
+const statusPace = $('#statusPace');
+
 function clampNum(v, min, max, fallback) {
   const n = Number.parseFloat(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
 }
 
-function runCoverage() {
-  const area = aoi?.getAoi?.();
-  if (!area) return;
+/** Shared link/engine params (everything except bounds/tx/txHeightM). */
+function coverageParams() {
   const freqMHz = clampNum(freqInput.value, 30, 6000, 150);
   const powerW = clampNum(powerInput.value, 0.01, 100, 5);
-  const eirpDbm = wattsToDbm(powerW) + TX_GAIN_DBI;
-  const thresholds = {
-    excellent: clampNum(thExcellent.value, -200, 0, -85),
-    good: clampNum(thGood.value, -200, 0, -95),
-    marginal: clampNum(thMarginal.value, -200, 0, -103),
-    none: clampNum(thNone.value, -200, 0, -110),
-  };
-  coverage.compute(area.bounds, area.center, {
-    eirpDbm,
+  return {
+    eirpDbm: wattsToDbm(powerW) + TX_GAIN_DBI,
     freqMHz,
     rxGainDbi: 0,
     clutterDb: 0,
     useTerrain: useTerrainInput.checked,
     useClutter: useClutterInput.checked,
-    txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
     rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
-    thresholds,
+    thresholds: {
+      excellent: clampNum(thExcellent.value, -200, 0, -85),
+      good: clampNum(thGood.value, -200, 0, -95),
+      marginal: clampNum(thMarginal.value, -200, 0, -103),
+      none: clampNum(thNone.value, -200, 0, -110),
+    },
     floorDbm: -120,
+  };
+}
+
+function runCoverage() {
+  const area = aoi?.getAoi?.();
+  if (!area) return;
+  coverage.compute(area.bounds, area.center, {
+    ...coverageParams(),
+    txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
   });
   coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
