@@ -315,7 +315,6 @@
 .tx-marker {
   width: 16px;
   height: 16px;
-  margin: -8px 0 0 -8px;
   border-radius: 999px;
   background: var(--feat-site);
   border: 3px solid var(--mapbg);
@@ -488,6 +487,13 @@
   height: 18px;
 }
 
+.toolgroup__btn--text {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
 /* Basemap switcher chips */
 .basemap-switch {
   display: inline-flex;
@@ -543,45 +549,35 @@
   height: 20px;
 }
 
-/* ---- Leaflet overrides to fit the dark map + tokens -------------------- */
+/* ---- MapLibre GL overrides to fit the dark map + tokens --------------- */
 
-.leaflet-container {
-  background: var(--mapbg);
+.maplibregl-map {
   font-family: var(--ui);
 }
 
-.leaflet-control-attribution {
+.maplibregl-canvas {
+  outline: none;
+}
+
+.maplibregl-ctrl-attrib {
   background: rgba(11, 16, 24, 0.66) !important;
   color: var(--mapink) !important;
   font-size: 10px !important;
   backdrop-filter: blur(2px);
+  border-radius: 6px 0 0 0;
 }
-
-.leaflet-control-attribution a {
+.maplibregl-ctrl-attrib a {
   color: var(--feat-track) !important;
 }
-
-/* hide default zoom (we provide our own toolbar) */
-.leaflet-control-zoom {
-  display: none;
+.maplibregl-ctrl-attrib-button {
+  filter: invert(1);
 }
 
-/* AOI vertex dots shown while drawing (non-interactive) */
-.aoi-vertex {
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
-  background: var(--feat-site);
-  border: 2px solid var(--mapbg);
-  border-radius: 999px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--feat-site) 30%, transparent);
-}
-
-/* Editable handles on a committed AOI (draggable) */
+/* Editable handles on a committed AOI (draggable). MapLibre centres markers,
+   so no negative-margin hack is needed. */
 .aoi-handle {
   width: 14px;
   height: 14px;
-  margin: -7px 0 0 -7px;
   border-radius: 999px;
   border: 2px solid var(--mapbg);
   cursor: grab;
@@ -603,8 +599,8 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--feat-track) 30%, transparent);
 }
 
-/* Live measurement tooltip while drawing */
-.leaflet-tooltip.aoi-measure {
+/* Live measurement tooltip while drawing (a MapLibre marker element) */
+.aoi-measure {
   background: rgba(11, 16, 24, 0.86);
   color: var(--mapink);
   border: 1px solid var(--hair2);
@@ -615,9 +611,7 @@
   font-weight: 600;
   box-shadow: var(--shadow);
   white-space: nowrap;
-}
-.leaflet-tooltip.aoi-measure::before {
-  display: none; /* no arrow */
+  pointer-events: none;
 }
 
 /* small "drawing" hint pill over the map */

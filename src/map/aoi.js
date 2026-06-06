@@ -1,347 +1,310 @@
-import L from 'leaflet';
+import maplibregl from 'maplibre-gl';
 
 /**
- * AOI (area of interest) drawing + editing — radius circle and polygon.
+ * AOI drawing + editing for MapLibre GL — radius circle and polygon.
  *
- * Dependency-light: built on Leaflet primitives (no leaflet-draw), so styling
- * and interaction are fully under our control and match the design tokens.
+ * Geometry lives in GeoJSON sources; a radius is stored as its centre + radius
+ * and rendered as a 72-point geodesic circle. Editing uses draggable DOM
+ * markers (circle centre/edge, polygon vertices). No external draw plugin.
  *
- * Drawing:
  *   - 'radius':  click centre, move to size (live tooltip), click to commit.
- *   - 'polygon': click to add vertices (live tooltip), Backspace removes the
- *                last point, double-click / Enter finishes, Esc cancels.
+ *   - 'polygon': click vertices, Backspace undo, dbl-click / Enter finish, Esc cancel.
  *
- * Editing (after commit, no tool active):
- *   - circle:  drag the centre handle to move, the edge handle to resize.
- *   - polygon: drag any vertex handle to reshape.
- *   Metrics recompute live and are pushed through onChange.
- *
- * One AOI at a time (M1). Emits onChange with {type, ...metrics}.
+ * One AOI at a time. Emits onChange({type, ...metrics}); onHint(text) for the
+ * on-map drawing hint. Call only after the map style has loaded.
  */
+
+const SRC_AOI = 'aoi';
+const SRC_PREVIEW = 'aoi-preview';
+const SRC_VERTS = 'aoi-verts';
+
+const R = 6378137;
+const toRad = (d) => (d * Math.PI) / 180;
+const toDeg = (r) => (r * 180) / Math.PI;
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
 }
-
 const fmtKm = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m >= 100000 ? 0 : 1)} km` : `${Math.round(m)} m`);
 const fmtArea = (m2) => {
   const km2 = m2 / 1e6;
-  if (km2 >= 1) return `${km2.toFixed(km2 >= 100 ? 0 : 1)} km²`;
-  return `${(m2 / 1e4).toFixed(1)} ha`;
+  return km2 >= 1 ? `${km2.toFixed(km2 >= 100 ? 0 : 1)} km²` : `${(m2 / 1e4).toFixed(1)} ha`;
 };
 
+// ---- geodesy ------------------------------------------------------------
+function distM(a, b) {
+  const dLat = toRad(b[1] - a[1]);
+  const dLng = toRad(b[0] - a[0]);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function destination(origin, bearingDeg, dist) {
+  const br = toRad(bearingDeg);
+  const lat1 = toRad(origin[1]);
+  const lng1 = toRad(origin[0]);
+  const dr = dist / R;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dr) + Math.cos(lat1) * Math.sin(dr) * Math.cos(br));
+  const lng2 = lng1 + Math.atan2(Math.sin(br) * Math.sin(dr) * Math.cos(lat1), Math.cos(dr) - Math.sin(lat1) * Math.sin(lat2));
+  return [toDeg(lng2), toDeg(lat2)];
+}
+function circleRing(center, radiusM, steps = 72) {
+  const ring = [];
+  for (let i = 0; i <= steps; i++) ring.push(destination(center, (i / steps) * 360, radiusM));
+  return ring;
+}
+function ringAreaM2(coords) {
+  if (coords.length < 3) return 0;
+  let total = 0;
+  for (let i = 0; i < coords.length; i++) {
+    const [x1, y1] = coords[i];
+    const [x2, y2] = coords[(i + 1) % coords.length];
+    total += toRad(x2 - x1) * (2 + Math.sin(toRad(y1)) + Math.sin(toRad(y2)));
+  }
+  return Math.abs((total * R * R) / 2);
+}
+function ringPerimeterM(coords) {
+  let t = 0;
+  for (let i = 0; i < coords.length; i++) t += distM(coords[i], coords[(i + 1) % coords.length]);
+  return t;
+}
+function bboxOf(coords) {
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  for (const [lng, lat] of coords) {
+    if (lng < west) west = lng;
+    if (lng > east) east = lng;
+    if (lat < south) south = lat;
+    if (lat > north) north = lat;
+  }
+  return { west, south, east, north };
+}
+
+const fc = (features) => ({ type: 'FeatureCollection', features });
+const poly = (ring) => ({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} });
+const lineFeat = (coords) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} });
+
 export function createAoiController(map, { onChange, onHint } = {}) {
-  // theme-independent map-feature colours, resolved from tokens (Leaflet writes
-  // these as SVG presentation attributes, where CSS var() does NOT resolve).
-  const track = cssVar('--feat-track', '#46a6ff'); // azure — AOI boundary
-  const site = cssVar('--feat-site', '#34e6c2'); // teal — AOI fill
+  const track = cssVar('--feat-track', '#46a6ff');
+  const site = cssVar('--feat-site', '#34e6c2');
 
-  const AOI_STYLE = {
-    color: track,
-    weight: 2,
-    dashArray: '6 5',
-    fillColor: site,
-    fillOpacity: 0.08,
-  };
-  const PREVIEW_STYLE = {
-    color: track,
-    weight: 1.5,
-    dashArray: '4 4',
-    fillColor: site,
-    fillOpacity: 0.05,
-    interactive: false,
-  };
+  // ---- sources + layers (once) -----------------------------------------
+  if (!map.getSource(SRC_AOI)) {
+    map.addSource(SRC_AOI, { type: 'geojson', data: fc([]) });
+    map.addSource(SRC_PREVIEW, { type: 'geojson', data: fc([]) });
+    map.addSource(SRC_VERTS, { type: 'geojson', data: fc([]) });
 
-  const layer = L.layerGroup().addTo(map);
-  const editLayer = L.layerGroup().addTo(map);
+    map.addLayer({ id: 'aoi-fill', type: 'fill', source: SRC_AOI, paint: { 'fill-color': site, 'fill-opacity': 0.08 } });
+    map.addLayer({ id: 'aoi-line', type: 'line', source: SRC_AOI, paint: { 'line-color': track, 'line-width': 2, 'line-dasharray': [3, 2] } });
+    map.addLayer({ id: 'aoi-preview-fill', type: 'fill', source: SRC_PREVIEW, paint: { 'fill-color': site, 'fill-opacity': 0.05 } });
+    map.addLayer({ id: 'aoi-preview-line', type: 'line', source: SRC_PREVIEW, paint: { 'line-color': track, 'line-width': 1.5, 'line-dasharray': [2, 2], 'line-opacity': 0.8 } });
+    map.addLayer({
+      id: 'aoi-verts',
+      type: 'circle',
+      source: SRC_VERTS,
+      paint: { 'circle-radius': 4, 'circle-color': site, 'circle-stroke-color': '#0b1018', 'circle-stroke-width': 2 },
+    });
+  }
+
+  const setData = (id, data) => map.getSource(id)?.setData(data);
 
   let mode = null; // null | 'radius' | 'polygon'
-  let committed = null; // { type, layer }
-
-  // transient drawing state
-  let radiusCenter = null;
-  let polyPoints = [];
-  let preview = null;
-  let rubberLine = null;
-  let vertexMarkers = [];
-  let measureTip = null; // L.tooltip following the cursor while drawing
+  let committed = null; // { type, ring, center?, radiusM? }
+  let radiusCenter = null; // [lng,lat]
+  let polyPoints = []; // [[lng,lat]]
+  let handles = []; // maplibregl.Marker[]
+  let measureMarker = null;
+  let measureEl = null;
 
   // ---- summary / emit ---------------------------------------------------
-
   function summary() {
     if (!committed) return { type: null };
     if (committed.type === 'radius') {
-      const r = committed.layer.getRadius();
-      return { type: 'radius', radiusM: r, areaM2: Math.PI * r * r, center: committed.layer.getLatLng() };
+      const r = committed.radiusM;
+      return { type: 'radius', radiusM: r, areaM2: Math.PI * r * r };
     }
-    const latlngs = committed.layer.getLatLngs()[0];
-    return {
-      type: 'polygon',
-      vertices: latlngs.length,
-      areaM2: polygonAreaM2(latlngs),
-      perimeterM: polygonPerimeterM(latlngs),
-    };
+    return { type: 'polygon', vertices: committed.ring.length, areaM2: ringAreaM2(committed.ring), perimeterM: ringPerimeterM(committed.ring) };
   }
-
   const emit = () => onChange?.(summary());
-  const setHint = (text) => onHint?.(text || '');
+  const setHint = (t) => onHint?.(t || '');
 
   // ---- measure tooltip --------------------------------------------------
-
-  function showMeasure(latlng, text) {
-    if (!measureTip) {
-      measureTip = L.tooltip({
-        permanent: true,
-        direction: 'top',
-        offset: [0, -10],
-        className: 'aoi-measure',
-        opacity: 1,
-      });
-      measureTip.setLatLng(latlng).setContent(text).addTo(map);
-      return;
+  function showMeasure(lngLat, text) {
+    if (!measureMarker) {
+      measureEl = document.createElement('div');
+      measureEl.className = 'aoi-measure';
+      measureMarker = new maplibregl.Marker({ element: measureEl, anchor: 'bottom', offset: [0, -12] })
+        .setLngLat(lngLat)
+        .addTo(map);
     }
-    measureTip.setLatLng(latlng).setContent(text);
+    measureEl.textContent = text;
+    measureMarker.setLngLat(lngLat);
   }
   function hideMeasure() {
-    if (measureTip) {
-      map.removeLayer(measureTip);
-      measureTip = null;
+    measureMarker?.remove();
+    measureMarker = null;
+    measureEl = null;
+  }
+
+  // ---- handles ----------------------------------------------------------
+  function clearHandles() {
+    handles.forEach((m) => m.remove());
+    handles = [];
+  }
+  function makeHandle(kind, lngLat) {
+    const el = document.createElement('div');
+    el.className = `aoi-handle aoi-handle--${kind}`;
+    const m = new maplibregl.Marker({ element: el, draggable: true }).setLngLat(lngLat).addTo(map);
+    handles.push(m);
+    return m;
+  }
+
+  function buildHandles() {
+    clearHandles();
+    if (!committed) return;
+    if (committed.type === 'radius') {
+      const centerH = makeHandle('center', committed.center);
+      const edgeH = makeHandle('edge', destination(committed.center, 90, committed.radiusM));
+      centerH.on('drag', () => {
+        const c = centerH.getLngLat();
+        committed.center = [c.lng, c.lat];
+        edgeH.setLngLat(destination(committed.center, 90, committed.radiusM));
+        refreshRadius();
+      });
+      edgeH.on('drag', () => {
+        const e = edgeH.getLngLat();
+        committed.radiusM = Math.max(distM(committed.center, [e.lng, e.lat]), 1);
+        refreshRadius();
+      });
+      edgeH.on('dragend', () => edgeH.setLngLat(destination(committed.center, 90, committed.radiusM)));
+    } else {
+      committed.ring.forEach((pt, i) => {
+        const h = makeHandle('vertex', pt);
+        h.on('drag', () => {
+          const p = h.getLngLat();
+          committed.ring[i] = [p.lng, p.lat];
+          setData(SRC_AOI, fc([poly(committed.ring)]));
+          emit();
+        });
+      });
     }
   }
-
-  // ---- lifecycle --------------------------------------------------------
-
-  function clearTransient() {
-    [preview, rubberLine].forEach((l) => l && layer.removeLayer(l));
-    preview = null;
-    rubberLine = null;
-    vertexMarkers.forEach((m) => layer.removeLayer(m));
-    vertexMarkers = [];
-    radiusCenter = null;
-    polyPoints = [];
-    hideMeasure();
-  }
-
-  function clearEditHandles() {
-    editLayer.clearLayers();
-  }
-
-  function clearAll() {
-    clearTransient();
-    clearEditHandles();
-    if (committed) {
-      layer.removeLayer(committed.layer);
-      committed = null;
-    }
+  function refreshRadius() {
+    committed.ring = circleRing(committed.center, committed.radiusM);
+    setData(SRC_AOI, fc([poly(committed.ring)]));
     emit();
   }
 
+  // ---- lifecycle --------------------------------------------------------
+  function clearTransient() {
+    radiusCenter = null;
+    polyPoints = [];
+    setData(SRC_PREVIEW, fc([]));
+    setData(SRC_VERTS, fc([]));
+    hideMeasure();
+  }
+  function clearAll() {
+    clearTransient();
+    clearHandles();
+    committed = null;
+    setData(SRC_AOI, fc([]));
+    emit();
+  }
   function setMode(next) {
-    if (next === mode) next = null; // toggle off
+    if (next === mode) next = null;
     clearTransient();
     mode = next;
-
     if (mode === 'polygon') map.doubleClickZoom.disable();
     else map.doubleClickZoom.enable();
-
-    map.getContainer().style.cursor = mode ? 'crosshair' : '';
+    map.getCanvas().style.cursor = mode ? 'crosshair' : '';
     if (mode === 'radius') setHint('Click to set the centre, then click again to set the radius.');
     else if (mode === 'polygon') setHint('Click to add points · Backspace to undo · double-click or Enter to finish · Esc to cancel.');
     else setHint('');
     return mode;
   }
-
-  function commit(type, shapeLayer) {
-    if (committed) layer.removeLayer(committed.layer);
-    committed = { type, layer: shapeLayer.setStyle(AOI_STYLE) };
+  function commitRadius(center, radiusM) {
+    committed = { type: 'radius', center, radiusM, ring: circleRing(center, radiusM) };
+    setData(SRC_AOI, fc([poly(committed.ring)]));
     clearTransient();
     setMode(null);
-    buildEditHandles();
+    buildHandles();
+    emit();
+  }
+  function commitPolygon(points) {
+    committed = { type: 'polygon', ring: points.slice() };
+    setData(SRC_AOI, fc([poly(committed.ring)]));
+    clearTransient();
+    setMode(null);
+    buildHandles();
     emit();
   }
 
-  // ---- radius drawing ---------------------------------------------------
-
-  function radiusClick(e) {
-    if (!radiusCenter) {
-      radiusCenter = e.latlng;
-      preview = L.circle(radiusCenter, { radius: 1, ...PREVIEW_STYLE }).addTo(layer);
-      addVertex(radiusCenter, layer);
-      setHint('Move out, then click to set the radius.');
-    } else {
-      const r = Math.max(map.distance(radiusCenter, e.latlng), 1);
-      commit('radius', L.circle(radiusCenter, { radius: r }).addTo(layer));
+  // ---- drawing ----------------------------------------------------------
+  function onClick(e) {
+    const ll = [e.lngLat.lng, e.lngLat.lat];
+    if (mode === 'radius') {
+      if (!radiusCenter) {
+        radiusCenter = ll;
+        setData(SRC_VERTS, fc([{ type: 'Feature', geometry: { type: 'Point', coordinates: ll }, properties: {} }]));
+        setHint('Move out, then click to set the radius.');
+      } else {
+        commitRadius(radiusCenter, Math.max(distM(radiusCenter, ll), 1));
+      }
+    } else if (mode === 'polygon') {
+      polyPoints.push(ll);
+      setData(SRC_VERTS, fc(polyPoints.map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} }))));
+      if (polyPoints.length >= 2) setData(SRC_PREVIEW, fc([poly(polyPoints)]));
+      setHint(polyPoints.length >= 3 ? 'Double-click or Enter to finish · Backspace to undo · Esc to cancel.' : 'Click to add points · Backspace to undo · Esc to cancel.');
     }
   }
-
-  function radiusMove(e) {
-    if (!radiusCenter || !preview) return;
-    const r = Math.max(map.distance(radiusCenter, e.latlng), 1);
-    preview.setRadius(r);
-    showMeasure(e.latlng, `r ${fmtKm(r)} · ${fmtArea(Math.PI * r * r)}`);
+  function onMove(e) {
+    const ll = [e.lngLat.lng, e.lngLat.lat];
+    if (mode === 'radius' && radiusCenter) {
+      const r = Math.max(distM(radiusCenter, ll), 1);
+      setData(SRC_PREVIEW, fc([poly(circleRing(radiusCenter, r))]));
+      showMeasure(ll, `r ${fmtKm(r)} · ${fmtArea(Math.PI * r * r)}`);
+    } else if (mode === 'polygon' && polyPoints.length) {
+      const rubber = [...polyPoints, ll];
+      setData(SRC_PREVIEW, fc([poly(rubber), lineFeat([polyPoints[polyPoints.length - 1], ll])]));
+      const text = polyPoints.length >= 2 ? `${polyPoints.length} pts · ${fmtArea(ringAreaM2(rubber))}` : `seg ${fmtKm(distM(polyPoints[polyPoints.length - 1], ll))}`;
+      showMeasure(ll, text);
+    }
   }
-
-  // ---- polygon drawing --------------------------------------------------
-
-  function polygonClick(e) {
-    polyPoints.push(e.latlng);
-    addVertex(e.latlng, layer);
-    redrawPolyPreview();
-    setHint(
-      polyPoints.length >= 3
-        ? 'Double-click or Enter to finish · Backspace to undo · Esc to cancel.'
-        : 'Click to add points · Backspace to undo · Esc to cancel.',
-    );
+  function onDbl(e) {
+    if (mode === 'polygon' && polyPoints.length >= 3) {
+      e.preventDefault?.();
+      commitPolygon(polyPoints);
+    }
   }
-
-  function polygonMove(e) {
-    if (polyPoints.length === 0) return;
-    const last = polyPoints[polyPoints.length - 1];
-    if (rubberLine) layer.removeLayer(rubberLine);
-    rubberLine = L.polyline([last, e.latlng], {
-      color: track,
-      weight: 1.5,
-      dashArray: '3 5',
-      opacity: 0.7,
-      interactive: false,
-    }).addTo(layer);
-
-    const seg = map.distance(last, e.latlng);
-    const text =
-      polyPoints.length >= 2
-        ? `${polyPoints.length} pts · ${fmtArea(polygonAreaM2([...polyPoints, e.latlng]))}`
-        : `seg ${fmtKm(seg)}`;
-    showMeasure(e.latlng, text);
-  }
-
-  function redrawPolyPreview() {
-    if (preview) layer.removeLayer(preview);
-    if (polyPoints.length >= 2) preview = L.polygon(polyPoints, PREVIEW_STYLE).addTo(layer);
-    else preview = null;
-  }
-
-  function undoPolyPoint() {
-    if (mode !== 'polygon' || polyPoints.length === 0) return;
+  function undoPoint() {
+    if (mode !== 'polygon' || !polyPoints.length) return;
     polyPoints.pop();
-    const m = vertexMarkers.pop();
-    if (m) layer.removeLayer(m);
-    redrawPolyPreview();
-    if (rubberLine) {
-      layer.removeLayer(rubberLine);
-      rubberLine = null;
-    }
-    if (polyPoints.length === 0) hideMeasure();
-  }
-
-  function finishPolygon() {
-    if (polyPoints.length < 3) return;
-    commit('polygon', L.polygon(polyPoints, {}).addTo(layer));
-  }
-
-  // ---- vertex dots (non-interactive, during drawing) --------------------
-
-  function addVertex(latlng, group) {
-    const m = L.marker(latlng, {
-      icon: L.divIcon({ className: 'aoi-vertex', iconSize: [11, 11] }),
-      interactive: false,
-      keyboard: false,
-    }).addTo(group);
-    vertexMarkers.push(m);
-  }
-
-  // ---- editable handles (after commit) ----------------------------------
-
-  function handleIcon(kind) {
-    return L.divIcon({ className: `aoi-handle aoi-handle--${kind}`, iconSize: [14, 14] });
-  }
-
-  function buildEditHandles() {
-    clearEditHandles();
-    if (!committed) return;
-    if (committed.type === 'radius') buildRadiusHandles();
-    else buildPolygonHandles();
-  }
-
-  function buildRadiusHandles() {
-    const circle = committed.layer;
-    const center = circle.getLatLng();
-    const radius = circle.getRadius();
-    const edge = edgePoint(center, radius);
-
-    const centerH = L.marker(center, { icon: handleIcon('center'), draggable: true, title: 'Move centre' }).addTo(editLayer);
-    const edgeH = L.marker(edge, { icon: handleIcon('edge'), draggable: true, title: 'Resize' }).addTo(editLayer);
-
-    centerH.on('drag', () => {
-      const c = centerH.getLatLng();
-      circle.setLatLng(c);
-      edgeH.setLatLng(edgePoint(c, circle.getRadius()));
-      emit();
-    });
-    edgeH.on('drag', () => {
-      const r = Math.max(map.distance(circle.getLatLng(), edgeH.getLatLng()), 1);
-      circle.setRadius(r);
-      emit();
-    });
-    edgeH.on('dragend', () => edgeH.setLatLng(edgePoint(circle.getLatLng(), circle.getRadius())));
-  }
-
-  function buildPolygonHandles() {
-    const poly = committed.layer;
-    const latlngs = poly.getLatLngs()[0];
-    latlngs.forEach((ll, i) => {
-      const h = L.marker(ll, { icon: handleIcon('vertex'), draggable: true, title: 'Drag to reshape' }).addTo(editLayer);
-      h.on('drag', () => {
-        const pts = poly.getLatLngs()[0].slice();
-        pts[i] = h.getLatLng();
-        poly.setLatLngs(pts);
-        emit();
-      });
-    });
-  }
-
-  // east-bearing point at distance `radius` from `center`
-  function edgePoint(center, radius) {
-    const dLng = (radius / (R * Math.cos(rad(center.lat)))) * (180 / Math.PI);
-    return L.latLng(center.lat, center.lng + dLng);
-  }
-
-  // ---- map event routing ------------------------------------------------
-
-  function onMapClick(e) {
-    if (mode === 'radius') radiusClick(e);
-    else if (mode === 'polygon') polygonClick(e);
-  }
-  function onMapMove(e) {
-    if (mode === 'radius') radiusMove(e);
-    else if (mode === 'polygon') polygonMove(e);
-  }
-  function onMapDblClick() {
-    if (mode === 'polygon') finishPolygon();
+    setData(SRC_VERTS, fc(polyPoints.map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: p }, properties: {} }))));
+    setData(SRC_PREVIEW, polyPoints.length >= 2 ? fc([poly(polyPoints)]) : fc([]));
+    if (!polyPoints.length) hideMeasure();
   }
   function onKey(e) {
     if (!mode) return;
-    if (e.key === 'Enter' && mode === 'polygon') finishPolygon();
+    if (e.key === 'Enter' && mode === 'polygon' && polyPoints.length >= 3) commitPolygon(polyPoints);
     else if (e.key === 'Backspace') {
       e.preventDefault();
-      undoPolyPoint();
+      undoPoint();
     } else if (e.key === 'Escape') {
       clearTransient();
       setMode(null);
     }
   }
-  function onContextMenu(e) {
+  function onContext(e) {
     if (mode === 'polygon') {
-      L.DomEvent.preventDefault(e);
+      e.preventDefault();
       clearTransient();
       setMode(null);
     }
   }
 
-  map.on('click', onMapClick);
-  map.on('mousemove', onMapMove);
-  map.on('dblclick', onMapDblClick);
-  map.on('contextmenu', onContextMenu);
+  map.on('click', onClick);
+  map.on('mousemove', onMove);
+  map.on('dblclick', onDbl);
+  map.on('contextmenu', onContext);
   document.addEventListener('keydown', onKey);
 
   return {
@@ -349,57 +312,26 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     getMode: () => mode,
     clear: clearAll,
     summary,
-    /** Geometry for downstream consumers (coverage, recommend): bbox + centre. */
     getAoi() {
       if (!committed) return null;
-      const b = committed.layer.getBounds();
-      const c = committed.type === 'radius' ? committed.layer.getLatLng() : b.getCenter();
-      return {
-        type: committed.type,
-        center: { lat: c.lat, lng: c.lng },
-        bounds: { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() },
-      };
+      const b = bboxOf(committed.ring);
+      const center = committed.type === 'radius' ? committed.center : [(b.west + b.east) / 2, (b.south + b.north) / 2];
+      return { type: committed.type, center: { lat: center[1], lng: center[0] }, bounds: b };
     },
-    /** Fit the map to the committed AOI, if any. */
-    fitBounds(opts = { padding: [40, 40] }) {
+    fitBounds(opts = { padding: 60 }) {
       if (!committed) return false;
-      const b = committed.type === 'radius' ? committed.layer.getBounds() : committed.layer.getBounds();
-      map.fitBounds(b, opts);
+      const b = bboxOf(committed.ring);
+      map.fitBounds([[b.west, b.south], [b.east, b.north]], opts);
       return true;
     },
     destroy() {
-      map.off('click', onMapClick);
-      map.off('mousemove', onMapMove);
-      map.off('dblclick', onMapDblClick);
-      map.off('contextmenu', onContextMenu);
+      map.off('click', onClick);
+      map.off('mousemove', onMove);
+      map.off('dblclick', onDbl);
+      map.off('contextmenu', onContext);
       document.removeEventListener('keydown', onKey);
       clearAll();
       map.doubleClickZoom.enable();
     },
   };
-}
-
-// ---- geodesic metrics ---------------------------------------------------
-
-const R = 6378137; // earth radius, metres (WGS84)
-const rad = (d) => (d * Math.PI) / 180;
-
-/** Spherical polygon area in m² (absolute spherical excess). */
-function polygonAreaM2(latlngs) {
-  if (latlngs.length < 3) return 0;
-  let total = 0;
-  for (let i = 0; i < latlngs.length; i++) {
-    const a = latlngs[i];
-    const b = latlngs[(i + 1) % latlngs.length];
-    total += rad(b.lng - a.lng) * (2 + Math.sin(rad(a.lat)) + Math.sin(rad(b.lat)));
-  }
-  return Math.abs((total * R * R) / 2);
-}
-
-function polygonPerimeterM(latlngs) {
-  let total = 0;
-  for (let i = 0; i < latlngs.length; i++) {
-    total += L.latLng(latlngs[i]).distanceTo(L.latLng(latlngs[(i + 1) % latlngs.length]));
-  }
-  return total;
 }

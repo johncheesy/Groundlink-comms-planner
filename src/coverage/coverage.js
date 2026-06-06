@@ -1,21 +1,23 @@
-import L from 'leaflet';
+import maplibregl from 'maplibre-gl';
 import { COVERAGE_CLASS } from './model.js';
 
 /**
- * Coverage controller (main thread).
+ * Coverage controller (main thread) for MapLibre GL.
  *
  * Owns the compute Web Worker, turns its class grid into a coloured canvas
- * using the signal-scale tokens, and drops it on the map as an L.imageOverlay
- * aligned to the AOI bbox. Keeps the UI responsive (compute is off-thread) and
- * reports progress.
+ * using the signal-scale tokens, and shows it as a MapLibre `image` source +
+ * raster layer aligned to the AOI bbox. Compute is off-thread → UI stays
+ * responsive; progress is reported.
  */
+
+const SRC = 'coverage';
+const LAYER = 'coverage-layer';
+const BEFORE = 'aoi-fill'; // keep the AOI outline on top of the raster
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
 }
-
-/** "#rrggbb" → [r,g,b]. */
 function hexToRgb(hex, fallback = [255, 255, 255]) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return fallback;
@@ -23,35 +25,32 @@ function hexToRgb(hex, fallback = [255, 255, 255]) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-const TARGET_MAX_DIM = 220; // grid cells on the longer axis (resolution vs speed)
+const TARGET_MAX_DIM = 220;
 
 export function createCoverageController(map, { onProgress, onStatus } = {}) {
-  // signal-scale colours, resolved once from tokens (class index → rgb)
   const palette = [
-    hexToRgb(cssVar('--s1', '#34e6c2')), // excellent
-    hexToRgb(cssVar('--s2', '#86e6a0')), // good
-    hexToRgb(cssVar('--s3', '#ffd479')), // marginal
-    hexToRgb(cssVar('--s4', '#ff9f7a')), // poor / transition
-    hexToRgb(cssVar('--s5', '#ff6b8a')), // none
+    hexToRgb(cssVar('--s1', '#34e6c2')),
+    hexToRgb(cssVar('--s2', '#86e6a0')),
+    hexToRgb(cssVar('--s3', '#ffd479')),
+    hexToRgb(cssVar('--s4', '#ff9f7a')),
+    hexToRgb(cssVar('--s5', '#ff6b8a')),
   ];
-  const siteColor = cssVar('--feat-site', '#34e6c2');
 
   let worker = null;
   let jobId = 0;
-  let overlay = null;
-  let txMarker = null;
   let opacity = 0.7;
-  let lastResult = null; // { classes, cols, rows, bounds } for re-paint
+  let txMarker = null;
+  let hasLayer = false;
+  let currentBounds = null; // bbox of the in-flight / last job (worker omits it)
 
   function ensureWorker() {
     if (worker) return worker;
-    worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('../workers/coverage.worker.js', import.meta.url), { type: 'module' });
     worker.onmessage = (e) => {
       const msg = e.data;
-      if (!msg || msg.id !== jobId) return; // ignore stale jobs
-      if (msg.type === 'progress') {
-        onProgress?.(msg.done / msg.total);
-      } else if (msg.type === 'done') {
+      if (!msg || msg.id !== jobId) return;
+      if (msg.type === 'progress') onProgress?.(msg.done / msg.total);
+      else if (msg.type === 'done') {
         paint(msg);
         onProgress?.(1);
         onStatus?.('done');
@@ -61,89 +60,80 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     return worker;
   }
 
-  /** Pick grid dimensions so cells are ~square in projected space. */
   function gridDims(bounds) {
     const midLat = (bounds.north + bounds.south) / 2;
     const w = Math.abs(bounds.east - bounds.west) * Math.cos((midLat * Math.PI) / 180);
     const h = Math.abs(bounds.north - bounds.south);
-    let cols, rows;
-    if (w >= h) {
-      cols = TARGET_MAX_DIM;
-      rows = Math.max(8, Math.round((TARGET_MAX_DIM * h) / w));
-    } else {
-      rows = TARGET_MAX_DIM;
-      cols = Math.max(8, Math.round((TARGET_MAX_DIM * w) / h));
-    }
-    return { cols, rows };
+    if (w >= h) return { cols: TARGET_MAX_DIM, rows: Math.max(8, Math.round((TARGET_MAX_DIM * h) / w)) };
+    return { rows: TARGET_MAX_DIM, cols: Math.max(8, Math.round((TARGET_MAX_DIM * w) / h)) };
   }
 
-  function paint({ classes, cols, rows, bounds = lastResult?.bounds }) {
+  function paint({ classes, cols, rows }) {
+    const bounds = currentBounds;
     if (!bounds) return;
-    lastResult = { classes, cols, rows, bounds };
-
     const canvas = document.createElement('canvas');
     canvas.width = cols;
     canvas.height = rows;
     const ctx = canvas.getContext('2d');
     const img = ctx.createImageData(cols, rows);
     const data = img.data;
-
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
       const o = i * 4;
       if (cls === COVERAGE_CLASS.TRANSPARENT || cls > 4) {
-        data[o + 3] = 0; // no coverage → transparent
+        data[o + 3] = 0;
         continue;
       }
       const [r, g, b] = palette[cls];
       data[o] = r;
       data[o + 1] = g;
       data[o + 2] = b;
-      data[o + 3] = 255; // opaque pixel; layer opacity controls blend
+      data[o + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-    // keep edges crisp-ish but allow the browser to smooth between cells
     const url = canvas.toDataURL('image/png');
-    const llBounds = L.latLngBounds([bounds.south, bounds.west], [bounds.north, bounds.east]);
+    // image-source coordinates: TL, TR, BR, BL
+    const coordinates = [
+      [bounds.west, bounds.north],
+      [bounds.east, bounds.north],
+      [bounds.east, bounds.south],
+      [bounds.west, bounds.south],
+    ];
 
-    if (overlay) {
-      overlay.setUrl(url);
-      overlay.setBounds(llBounds);
-      overlay.setOpacity(opacity);
+    if (hasLayer && map.getSource(SRC)) {
+      map.getSource(SRC).updateImage({ url, coordinates });
     } else {
-      overlay = L.imageOverlay(url, llBounds, {
-        opacity,
-        interactive: false,
-        className: 'coverage-overlay',
-      }).addTo(map);
-      overlay.bringToFront();
+      map.addSource(SRC, { type: 'image', url, coordinates });
+      const beforeId = map.getLayer(BEFORE) ? BEFORE : undefined;
+      map.addLayer(
+        {
+          id: LAYER,
+          type: 'raster',
+          source: SRC,
+          paint: { 'raster-opacity': opacity, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
+        },
+        beforeId,
+      );
+      hasLayer = true;
     }
   }
 
   function placeTx(tx) {
+    const lngLat = [tx.lng, tx.lat];
     if (txMarker) {
-      txMarker.setLatLng(tx);
+      txMarker.setLngLat(lngLat);
       return;
     }
-    txMarker = L.marker(tx, {
-      icon: L.divIcon({ className: 'tx-marker', iconSize: [16, 16] }),
-      interactive: false,
-      keyboard: false,
-      zIndexOffset: 1000,
-    }).addTo(map);
+    const el = document.createElement('div');
+    el.className = 'tx-marker';
+    txMarker = new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(map);
   }
 
-  /**
-   * Run a coverage compute.
-   * @param bounds {west,south,east,north}
-   * @param tx {lat,lng}
-   * @param params {eirpDbm, freqMHz, rxGainDbi?, clutterDb?, thresholds?, floorDbm?}
-   */
   function compute(bounds, tx, params) {
     const w = ensureWorker();
     const { cols, rows } = gridDims(bounds);
     jobId += 1;
-    lastResult = { classes: null, cols, rows, bounds };
+    currentBounds = bounds;
     placeTx(tx);
     onStatus?.('computing');
     onProgress?.(0);
@@ -153,20 +143,16 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
 
   function setOpacity(v) {
     opacity = Math.max(0, Math.min(1, v));
-    overlay?.setOpacity(opacity);
+    if (hasLayer && map.getLayer(LAYER)) map.setPaintProperty(LAYER, 'raster-opacity', opacity);
   }
 
   function clear() {
-    jobId += 1; // invalidate any in-flight job
-    if (overlay) {
-      map.removeLayer(overlay);
-      overlay = null;
-    }
-    if (txMarker) {
-      map.removeLayer(txMarker);
-      txMarker = null;
-    }
-    lastResult = null;
+    jobId += 1;
+    if (map.getLayer(LAYER)) map.removeLayer(LAYER);
+    if (map.getSource(SRC)) map.removeSource(SRC);
+    hasLayer = false;
+    txMarker?.remove();
+    txMarker = null;
     onStatus?.('cleared');
   }
 
@@ -174,7 +160,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     compute,
     setOpacity,
     getOpacity: () => opacity,
-    hasCoverage: () => !!overlay,
+    hasCoverage: () => hasLayer,
     clear,
     destroy() {
       clear();

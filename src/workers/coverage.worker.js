@@ -6,7 +6,7 @@
  * returns a transferable Uint8Array of class indices (one byte per cell).
  *
  * Grid orientation: row 0 = north edge, col 0 = west edge (matches the way the
- * main thread paints the canvas and places the L.imageOverlay over the bbox).
+ * main thread paints the canvas and places the image overlay over the bbox).
  *
  * Message in:  { type:'compute', id, bounds:{west,south,east,north}, cols, rows,
  *                tx:{lat,lng}, params:{eirpDbm,freqMHz,rxGainDbi,clutterDb,
@@ -15,7 +15,7 @@
  *   { type:'progress', id, done, total }
  *   { type:'done', id, cols, rows, classes:Uint8Array (transferred) }
  */
-import { receivedDbm, classifyDbm, haversineM } from './model.js';
+import { receivedDbm, classifyDbm, haversineM } from '../coverage/model.js';
 
 self.onmessage = (e) => {
   const msg = e.data;

@@ -1,4 +1,28 @@
-# 0001 — Map library: Leaflet (for now)
+# 0001 — Map library: Leaflet → MapLibre GL JS
+
+**Status:** SUPERSEDED — migrated to MapLibre GL JS at M2 (per CLAUDE.md v2.1)
+**Date:** 2026-06-05 (M1) · migrated 2026-06-06 (M2)
+
+## Update (2026-06-06) — migrated to MapLibre GL JS
+
+Leaflet was replaced by **MapLibre GL JS 5.x** to get native 3D terrain
+(raster-DEM + pitch/tilt) and a path to vector basemaps, as mandated by
+CLAUDE.md v2.1 and needed for M2/M2.1. Notes:
+
+- Basemaps are raster sources in one style, toggled by layer visibility (so
+  runtime AOI/coverage layers survive — `setStyle` would wipe them).
+- DEM is **AWS Terrarium** (token-free) for both 3D terrain and the coverage
+  elevation sampler; Mapbox Terrain-RGB can be swapped in at runtime with a
+  user-supplied token (OPSEC: never committed).
+- AOI draw uses GeoJSON sources/layers + draggable marker handles (still no
+  external draw plugin). Coverage is an `image` source + raster layer.
+- Map canvas stays dark via a background layer (#0b1018) + dark default basemap.
+
+The original M1 rationale below is kept for history.
+
+---
+
+# (history) 0001 — Map library: Leaflet (for M1)
 
 **Status:** accepted (M1) · revisit at M2 (terrain) / vector basemaps
 **Date:** 2026-06-05

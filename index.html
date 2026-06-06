@@ -239,9 +239,9 @@
 
         <div class="map-toolbar">
           <div class="basemap-switch" id="basemapSwitch" role="group" aria-label="Basemap">
-            <button class="basemap-switch__btn is-active" type="button" data-basemap="imagery">Imagery</button>
+            <button class="basemap-switch__btn" type="button" data-basemap="imagery">Imagery</button>
             <button class="basemap-switch__btn" type="button" data-basemap="topo">Topo</button>
-            <button class="basemap-switch__btn" type="button" data-basemap="dark">Dark</button>
+            <button class="basemap-switch__btn is-active" type="button" data-basemap="dark">Dark</button>
           </div>
 
           <div class="toolgroup" role="group" aria-label="Map zoom">
@@ -250,6 +250,12 @@
             </button>
             <button class="toolgroup__btn" type="button" id="zoomOut" aria-label="Zoom out">
               <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+            </button>
+          </div>
+
+          <div class="toolgroup" role="group" aria-label="3D terrain">
+            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggle3d" aria-label="Toggle 3D terrain" aria-pressed="false" title="3D terrain (pitch + relief)">
+              3D
             </button>
           </div>
         </div>
