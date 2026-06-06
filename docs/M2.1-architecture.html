@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>GroundLink &middot; M2.1 &mdash; Drone module</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4f6f9; --surface:#ffffff; --hair:#e5e8ef;
+    --ink:#0f141b; --dim:#586273; --faint:#929cac;
+    --accent:#0a8475; --accent2:#2a7fe0; --warn:#cf8a16;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1200px;margin:0 auto;padding:26px 18px 50px}
+  .cap{max-width:900px;margin:18px auto 0;color:var(--dim);font-size:14px;line-height:1.6;text-align:center}
+  .cap b{color:var(--ink);font-weight:600}
+  svg{display:block;width:100%;height:auto}
+  .frame{background:var(--surface);border:1px solid var(--hair);border-radius:18px;overflow:hidden;
+    box-shadow:0 1px 2px rgba(16,24,40,.05),0 14px 34px -18px rgba(16,24,40,.2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="frame">
+  <svg viewBox="0 0 1180 700" role="img" aria-label="M2.1 drone module: airborne relay and flight/link envelope, side view">
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto">
+        <path d="M1 1 L8 5 L1 9" fill="none" stroke="#0a8475" stroke-width="1.8"/>
+      </marker>
+      <marker id="ahw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M1 1 L8 5 L1 9" fill="none" stroke="#cf8a16" stroke-width="1.8"/>
+      </marker>
+      <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f1726" flood-opacity="0.10"/>
+      </filter>
+    </defs>
+    <rect width="1180" height="700" fill="#f4f6f9"/>
+    <text x="40" y="46" font-family="Sora" font-weight="700" font-size="24" fill="#0f141b" letter-spacing="-0.5">M2.1 &mdash; Drone module: two ways to use a drone</text>
+    <text x="40" y="72" font-family="Hanken Grotesk" font-size="14" fill="#586273">Side view. In VHF/UHF, antenna height is the biggest lever &mdash; a drone at altitude buys range a ground mast can't.</text>
+    <g filter="url(#sh)"><rect x="36" y="104" width="548" height="486" rx="16" fill="#ffffff" stroke="#e5e8ef"/></g>
+    <text x="60" y="142" font-family="Sora" font-weight="600" font-size="15" fill="#0a8475">A &middot; AIRBORNE RELAY</text>
+    <text x="60" y="162" font-family="Hanken Grotesk" font-size="12.5" fill="#586273">lift the repeater &mdash; reach over terrain that blocks a ground mast</text>
+    <path d="M56 498 L120 495 L200 486 L270 455 L320 408 L370 448 L430 482 L500 492 L564 494 L564 560 L56 560 Z"
+          fill="#e9edf2" stroke="#d2d9e3" stroke-width="1.2"/>
+    <line x1="110" y1="496" x2="110" y2="452" stroke="#586273" stroke-width="2"/>
+    <rect x="105" y="446" width="10" height="9" rx="2" fill="#586273"/>
+    <text x="84" y="440" font-family="Hanken Grotesk" font-size="11.5" fill="#586273">GCS / mast</text>
+    <line x1="112" y1="450" x2="300" y2="414" stroke="#cf8a16" stroke-width="1.6" stroke-dasharray="2 5"/>
+    <circle cx="303" cy="413" r="6" fill="#fff" stroke="#cf8a16" stroke-width="1.6"/>
+    <path d="M300 410 l6 6 M306 410 l-6 6" stroke="#cf8a16" stroke-width="1.4"/>
+    <line x1="235" y1="243" x2="235" y2="470" stroke="#94a0b3" stroke-width="1.4" stroke-dasharray="2 5"/>
+    <text x="242" y="360" font-family="Hanken Grotesk" font-size="11" fill="#929cac">altitude (AGL)</text>
+    <line x1="235" y1="225" x2="120" y2="450" stroke="#0a8475" stroke-width="2"/>
+    <line x1="235" y1="225" x2="498" y2="476" stroke="#0a8475" stroke-width="2"/>
+    <line x1="220" y1="222" x2="250" y2="222" stroke="#0a8475" stroke-width="2.4"/>
+    <ellipse cx="220" cy="220" rx="6" ry="2" fill="none" stroke="#0a8475" stroke-width="1.5"/>
+    <ellipse cx="250" cy="220" rx="6" ry="2" fill="none" stroke="#0a8475" stroke-width="1.5"/>
+    <rect x="229" y="218" width="12" height="9" rx="2" fill="#0a8475"/>
+    <line x1="235" y1="218" x2="235" y2="208" stroke="#0a8475" stroke-width="1.5"/>
+    <circle cx="235" cy="206" r="2" fill="#19c4ad"/>
+    <rect x="494" y="478" width="11" height="9" rx="2" fill="#0a8475"/>
+    <circle cx="499" cy="474" r="3" fill="#0a8475"/>
+    <text x="452" y="508" font-family="Hanken Grotesk" font-size="11.5" fill="#586273">team (behind ridge)</text>
+    <g transform="translate(330,182)">
+      <rect x="0" y="0" width="226" height="22" rx="11" fill="#fdf4e6" stroke="#ecd6ab"/>
+      <text x="12" y="15" font-family="Hanken Grotesk" font-size="11.5" fill="#9a6a12">ground mast blocked by the ridge</text>
+    </g>
+    <g transform="translate(60,250)">
+      <rect x="0" y="0" width="150" height="22" rx="11" fill="#e9f6f2" stroke="#bfe6db"/>
+      <text x="12" y="15" font-family="Hanken Grotesk" font-size="11.5" fill="#0a6a5e">drone clears the ridge</text>
+    </g>
+    <g transform="translate(70,544)">
+      <rect x="0" y="0" width="256" height="22" rx="11" fill="#ffffff" stroke="#dfe4ec"/>
+      <text x="12" y="15" font-family="Hanken Grotesk" font-size="11.5" fill="#586273">multi-hop: GCS &rarr; drone &rarr; team</text>
+    </g>
+    <g filter="url(#sh)"><rect x="596" y="104" width="548" height="486" rx="16" fill="#ffffff" stroke="#e5e8ef"/></g>
+    <text x="620" y="142" font-family="Sora" font-weight="600" font-size="15" fill="#0a8475">B &middot; FLIGHT &amp; LINK ENVELOPE</text>
+    <text x="620" y="162" font-family="Hanken Grotesk" font-size="12.5" fill="#586273">from station X: where can it fly and keep its link?</text>
+    <path d="M616 498 L700 494 L780 480 L840 430 L870 400 L910 440 L970 478 L1040 490 L1124 494 L1124 560 L616 560 Z"
+          fill="#e9edf2" stroke="#d2d9e3" stroke-width="1.2"/>
+    <path d="M870 400 L910 440 L970 478 L1040 490 L1124 494 L1124 333 Z"
+          fill="rgba(207,138,22,0.13)" stroke="none"/>
+    <text x="980" y="452" font-family="Hanken Grotesk" font-weight="600" font-size="11.5" fill="#9a6a12">terrain shadow</text>
+    <text x="980" y="468" font-family="Hanken Grotesk" font-size="11" fill="#9a6a12">link drops</text>
+    <line x1="670" y1="497" x2="670" y2="455" stroke="#586273" stroke-width="2"/>
+    <rect x="665" y="449" width="10" height="9" rx="2" fill="#586273"/>
+    <text x="636" y="472" font-family="Hanken Grotesk" font-size="11.5" fill="#586273">station X</text>
+    <line x1="690" y1="250" x2="900" y2="250" stroke="#cdd4df" stroke-width="1.2" stroke-dasharray="3 5"/>
+    <text x="906" y="254" font-family="Hanken Grotesk" font-size="10.5" fill="#929cac">120 m</text>
+    <line x1="690" y1="288" x2="860" y2="288" stroke="#cdd4df" stroke-width="1.2" stroke-dasharray="3 5"/>
+    <text x="866" y="292" font-family="Hanken Grotesk" font-size="10.5" fill="#929cac">100 m</text>
+    <line x1="690" y1="342" x2="820" y2="342" stroke="#cdd4df" stroke-width="1.2" stroke-dasharray="3 5"/>
+    <text x="826" y="346" font-family="Hanken Grotesk" font-size="10.5" fill="#929cac">50 m</text>
+    <line x1="672" y1="452" x2="797" y2="252" stroke="#0a8475" stroke-width="2"/>
+    <line x1="678" y1="454" x2="803" y2="254" stroke="#2a7fe0" stroke-width="2"/>
+    <text x="690" y="356" font-family="Hanken Grotesk" font-size="11" fill="#586273">C2 + video link</text>
+    <line x1="670" y1="453" x2="1124" y2="333" stroke="#94a0b3" stroke-width="1.4" stroke-dasharray="2 5"/>
+    <line x1="884" y1="398" x2="884" y2="300" stroke="#cf8a16" stroke-width="1.8" stroke-dasharray="2 5" marker-end="url(#ahw)"/>
+    <line x1="785" y1="250" x2="815" y2="250" stroke="#0a8475" stroke-width="2.4"/>
+    <ellipse cx="785" cy="248" rx="6" ry="2" fill="none" stroke="#0a8475" stroke-width="1.5"/>
+    <ellipse cx="815" cy="248" rx="6" ry="2" fill="none" stroke="#0a8475" stroke-width="1.5"/>
+    <rect x="794" y="246" width="12" height="9" rx="2" fill="#0a8475"/>
+    <line x1="800" y1="246" x2="800" y2="236" stroke="#0a8475" stroke-width="1.5"/>
+    <circle cx="800" cy="234" r="2" fill="#19c4ad"/>
+    <g transform="translate(620,182)">
+      <rect x="0" y="0" width="172" height="22" rx="11" fill="#ffffff" stroke="#dfe4ec"/>
+      <text x="12" y="15" font-family="Hanken Grotesk" font-size="11.5" fill="#586273">altitude bands (AGL)</text>
+    </g>
+    <g transform="translate(792,300)">
+      <rect x="0" y="0" width="236" height="22" rx="11" fill="#fdf4e6" stroke="#ecd6ab"/>
+      <text x="12" y="15" font-family="Hanken Grotesk" font-size="11.5" fill="#9a6a12">climb to clear &rarr; reach the valley</text>
+    </g>
+    <g transform="translate(40,632)" font-family="Hanken Grotesk" font-size="11.5" fill="#586273">
+      <line x1="0" y1="0" x2="26" y2="0" stroke="#0a8475" stroke-width="2.4"/>
+      <text x="34" y="4">comms / C2 link</text>
+      <line x1="180" y1="0" x2="206" y2="0" stroke="#2a7fe0" stroke-width="2.4"/>
+      <text x="214" y="4">video downlink</text>
+      <line x1="330" y1="0" x2="356" y2="0" stroke="#94a0b3" stroke-width="1.4" stroke-dasharray="2 5"/>
+      <text x="364" y="4">line-of-sight / altitude</text>
+      <rect x="540" y="-8" width="15" height="15" rx="3" fill="rgba(207,138,22,0.18)" stroke="#ecd6ab"/>
+      <text x="563" y="4">terrain shadow (no link)</text>
+      <g transform="translate(760,-1)">
+        <line x1="-9" y1="0" x2="9" y2="0" stroke="#0a8475" stroke-width="2"/>
+        <rect x="-4" y="-3" width="8" height="6" rx="1.5" fill="#0a8475"/>
+        <circle cx="0" cy="-6" r="1.6" fill="#19c4ad"/>
+      </g>
+      <text x="776" y="4">drone (height = reach)</text>
+    </g>
+  </svg>
+  </div>
+  <p class="cap"><b>A &mdash; Airborne relay:</b> put the repeater on a drone so it sees over terrain that blocks a ground mast, and chain it (GCS &rarr; drone &rarr; team). <b>B &mdash; Flight &amp; link envelope:</b> from station X, where the drone can fly and hold its C2 + video link by altitude band &mdash; with the terrain shadow where the link drops and the height needed to clear it. Both reuse the M2 terrain + engine; payload, endurance and tether limits keep the plan realistic.</p>
+</div>
+</body>
+</html>
