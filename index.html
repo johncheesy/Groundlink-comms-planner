@@ -290,6 +290,19 @@
               3D
             </button>
           </div>
+
+          <div class="view-sliders" id="viewSliders" role="group" aria-label="3D view controls" hidden>
+            <div class="view-slider">
+              <label for="tiltSlider">Tilt</label>
+              <input class="range" id="tiltSlider" type="range" min="0" max="85" value="0" aria-label="Tilt (pitch) degrees" />
+              <span class="view-slider__val" id="tiltVal" data-numeric>0°</span>
+            </div>
+            <div class="view-slider">
+              <label for="bearingSlider">Bearing</label>
+              <input class="range" id="bearingSlider" type="range" min="0" max="360" value="0" aria-label="Bearing (orientation) degrees" />
+              <span class="view-slider__val" id="bearingVal" data-numeric>0° N</span>
+            </div>
+          </div>
         </div>
 
         <div class="draw-hint" id="drawHint"></div>

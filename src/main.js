@@ -50,12 +50,38 @@ $('#zoomIn').addEventListener('click', () => map.zoomIn());
 $('#zoomOut').addEventListener('click', () => map.zoomOut());
 
 const toggle3dBtn = $('#toggle3d');
+const viewSliders = $('#viewSliders');
+const tiltSlider = $('#tiltSlider');
+const bearingSlider = $('#bearingSlider');
+const tiltVal = $('#tiltVal');
+const bearingVal = $('#bearingVal');
+
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const compass = (deg) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+const norm360 = (deg) => Math.round(((deg % 360) + 360) % 360);
+
+function reflectViewSliders() {
+  const pitch = Math.round(map.getPitch());
+  const bearing = norm360(map.getBearing());
+  tiltSlider.value = String(pitch);
+  bearingSlider.value = String(bearing);
+  tiltVal.textContent = `${pitch}°`;
+  bearingVal.textContent = `${bearing}° ${compass(bearing)}`;
+}
+
 toggle3dBtn?.addEventListener('click', () => {
   const on = mapApi.toggleTerrain({ exaggeration: 1.5, pitch: 45 });
   toggle3dBtn.classList.toggle('is-active', on);
   toggle3dBtn.setAttribute('aria-pressed', String(on));
+  viewSliders.hidden = !on;
   statusMode.textContent = on ? '3D terrain on' : '3D terrain off';
 });
+
+// Live slider control (instant), and keep sliders synced with drag-rotate/pitch.
+tiltSlider.addEventListener('input', () => map.setPitch(Number(tiltSlider.value)));
+bearingSlider.addEventListener('input', () => map.setBearing(Number(bearingSlider.value)));
+map.on('pitch', reflectViewSliders);
+map.on('rotate', reflectViewSliders);
 
 // ---- Basemap switcher ---------------------------------------------------
 

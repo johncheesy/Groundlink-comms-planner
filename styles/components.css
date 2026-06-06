@@ -555,6 +555,42 @@
   letter-spacing: 0.02em;
 }
 
+/* 3D view sliders (tilt + bearing) — live in the map toolbar */
+.view-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 10px 12px;
+  width: 188px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.view-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.view-slider > label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+  width: 44px;
+  flex: 0 0 auto;
+}
+
+.view-slider__val {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  width: 46px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
 /* Basemap switcher chips */
 .basemap-switch {
   display: inline-flex;
