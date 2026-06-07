@@ -6,6 +6,9 @@ import { createAoiController } from './map/aoi.js';
 import { createCoverageController } from './coverage/coverage.js';
 import { createDroneController } from './drone/drone.js';
 import { createRecommendController } from './recommend/recommend.js';
+import { createMission } from './mission/mission.js';
+import { createMissionTools } from './mission/mission-tools.js';
+import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
@@ -31,15 +34,26 @@ const statusMode = $('#statusMode');
 const statusAoi = $('#statusAoi');
 const statusTerrain = $('#statusTerrain');
 
-const fmtLat = (lat) => `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}`;
-const fmtLng = (lng) => `${Math.abs(lng).toFixed(4)}°${lng >= 0 ? 'E' : 'W'}`;
-
+// Status-bar coordinate readout — click to cycle lat/long → MGRS → UTM.
+let coordFmtIndex = 0;
+let lastCursor = null;
+function renderCursor() {
+  statusCoords.textContent = lastCursor ? formatCoordinate(lastCursor, COORD_CYCLE[coordFmtIndex]) : '—';
+}
 map.on('mousemove', (e) => {
-  statusCoords.textContent = `${fmtLat(e.lngLat.lat)} ${fmtLng(e.lngLat.lng)}`;
+  lastCursor = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+  renderCursor();
 });
 map.getCanvasContainer().addEventListener('mouseleave', () => {
-  statusCoords.textContent = '—';
+  lastCursor = null;
+  renderCursor();
 });
+statusCoords.addEventListener('click', () => {
+  coordFmtIndex = (coordFmtIndex + 1) % COORD_CYCLE.length;
+  renderCursor();
+});
+statusCoords.style.cursor = 'pointer';
+statusCoords.title = 'Click to cycle lat/long · MGRS · UTM';
 
 const updateZoom = () => {
   statusZoom.textContent = map.getZoom().toFixed(1);
@@ -222,6 +236,8 @@ let aoi = null;
 let coverage = null;
 let drone = null;
 let recommender = null;
+let mission = null;
+let missionTools = null;
 let currentAoiAreaM2 = 0;
 
 function whenStyleReady(fn) {
@@ -232,14 +248,17 @@ function whenStyleReady(fn) {
 whenStyleReady(() => {
   updateZoom();
 
+  // Mission model — single source of truth for area / sites / route / points.
+  mission = createMission({ onChange: onMissionChange });
+
   aoi = createAoiController(map, {
     onChange(s) {
       const has = s && s.type !== null;
       fitAoiBtn.disabled = !has;
       clearAoiBtn.disabled = !has;
-      computeBtn.disabled = !has;
-      recommendBtn.disabled = !has;
       currentAoiAreaM2 = has ? s.areaM2 : 0;
+      // Feed the AOI into the mission (drives compute/recommend enablement).
+      mission.setAoi(has ? aoi.getAoi() : null);
       if (!has) {
         // AOI removed → any recommended sites are stale.
         recommender?.clear();
@@ -315,15 +334,55 @@ whenStyleReady(() => {
     },
   });
 
-  // AOI tools
+  // ---- Mission tools (M4): Sites / Route / Points ----------------------
+  missionTools = createMissionTools(map, mission, {
+    onHint(text) {
+      drawHint.classList.toggle('is-visible', Boolean(text));
+      if (text) {
+        drawHint.innerHTML = text
+          .replace('Enter', '<kbd>Enter</kbd>')
+          .replace('Esc', '<kbd>Esc</kbd>')
+          .replace('Backspace', '<kbd>Backspace</kbd>');
+      }
+    },
+    onModeChange(m) {
+      const key = m === 'site' ? 'sites' : m === 'point' ? 'points' : m === 'route' ? 'route' : 'area';
+      reflectMissionMode(key);
+      if (m) statusMode.textContent = `Placing ${m}`;
+    },
+    onStatus(msg) { statusMode.textContent = msg; },
+  });
+
+  // Mission input-mode segmented buttons (Area / Sites / Route / Points).
+  missionModes.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mode]');
+    if (btn) armMissionMode(btn.dataset.mode);
+  });
+
+  // Per-type clear in the element list.
+  missionElements.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-clear]');
+    if (!btn) return;
+    missionTools.clearType(btn.dataset.clear);
+    if (recommender?.hasSites()) recommender.clear();
+  });
+
+  // Bulk add coordinates (any format, optional trailing name).
+  bulkAddBtn.addEventListener('click', runBulkAdd);
+
+  // AOI tools — drawing an AOI is the "Area" mission mode.
   drawRadiusBtn.addEventListener('click', () => {
+    missionTools.setMode(null);
     aoi.setMode('radius');
     syncToolButtons();
+    reflectMissionMode('area');
     if (mq.matches) closePanel();
   });
   drawPolygonBtn.addEventListener('click', () => {
+    missionTools.setMode(null);
     aoi.setMode('polygon');
     syncToolButtons();
+    reflectMissionMode('area');
     if (mq.matches) closePanel();
   });
   clearAoiBtn.addEventListener('click', () => {
@@ -448,17 +507,23 @@ whenStyleReady(() => {
         progressBar.style.width = '0%';
         return;
       }
-      if (info?.empty || !sites || !sites.length) {
+      if (info?.empty) {
         siteResults.hidden = false;
         siteList.innerHTML = '';
-        siteHelp.textContent = 'AOI too small — fewer than two demand points fit inside. Draw a larger area.';
+        siteHelp.textContent = 'Too little demand — fewer than two demand points. Draw an AOI, trace a route, or add points.';
         statusMode.textContent = 'No sites';
         return;
       }
       renderSiteList(sites);
       siteResults.hidden = false;
-      const last = sites[sites.length - 1];
-      const bits = [`${sites.length} site${sites.length > 1 ? 's' : ''} · ${Math.round(last.cumulativeFrac * 100)}% of the AOI covered.`];
+      const coveredFrac = sites.length ? sites[sites.length - 1].cumulativeFrac : info.baseFrac ?? 0;
+      const bits = [];
+      if (sites.length) {
+        bits.push(`${sites.length} new mast${sites.length > 1 ? 's' : ''} · ${Math.round(coveredFrac * 100)}% of demand covered.`);
+        if (info.lockedCount) bits.push(`${info.lockedCount} fixed site${info.lockedCount > 1 ? 's' : ''} held as locked.`);
+      } else {
+        bits.push(`Fixed site${info.lockedCount > 1 ? 's' : ''} already cover ${Math.round(coveredFrac * 100)}% of demand — no extra masts needed.`);
+      }
       if (!info.terrain) bits.push('Terrain unavailable — flat estimate.');
       if (currentAoiAreaM2 > 1e10) bits.push('Large AOI (>10 000 km²) — demand grid capped, results coarse.');
       bits.push('Sites sit on local high ground; model is talk-in at 1.5 m. Planning-grade — not survey-grade.');
@@ -469,14 +534,27 @@ whenStyleReady(() => {
   });
 
   recommendBtn.addEventListener('click', () => {
-    const area = aoi?.getAoi?.();
-    if (!area) return;
+    const bbox = mission.bbox();
+    if (!bbox) return;
     const params = { ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) };
-    const aoiMask = { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring };
-    recommender.recommend({ bounds: area.bounds, aoi: aoiMask, demand: null, lockedSites: [] }, params, {
-      maxSites: clampNum($('#maxSites').value, 1, 6, 3),
-      targetFrac: clampNum($('#targetCoverage').value, 10, 100, 95) / 100,
-    });
+    // Cap the AOI grid resolution for very large areas (edge case in the spec).
+    const demand = mission.demandPoints({ maxDim: currentAoiAreaM2 > 1e10 ? 20 : 28 });
+    if (demand.length < 2) {
+      siteResults.hidden = false;
+      siteList.innerHTML = '';
+      siteHelp.textContent = 'Too little demand — draw an AOI, trace a route, or add points first.';
+      return;
+    }
+    const area = aoi?.getAoi?.();
+    const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
+    recommender.recommend(
+      { bounds: bbox, aoi: aoiMask, demand, lockedSites: mission.lockedSites() },
+      params,
+      {
+        maxSites: clampNum($('#maxSites').value, 1, 6, 3),
+        targetFrac: clampNum($('#targetCoverage').value, 10, 100, 95) / 100,
+      },
+    );
     coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
     if (mq.matches) closePanel();
   });
@@ -491,25 +569,85 @@ whenStyleReady(() => {
     onStatus: (msg) => { statusMode.textContent = msg; },
   });
 
-  // ---- Import KML / KMZ / GPX ------------------------------------------
+  // ---- Import KML / KMZ / GPX (+ promote to mission input) -------------
   const importInput = $('#importInput');
   const clearImportBtn = $('#clearImportBtn');
+  const importPromote = $('#importPromote');
+  const importPromoteText = $('#importPromoteText');
+  const importPromoteBtns = $('#importPromoteBtns');
   const importer = createImportController(map, {
     onStatus(msg) { statusMode.textContent = msg; },
   });
   $('#importBtn').addEventListener('click', () => importInput.click());
   importInput.addEventListener('change', async () => {
+    let byType = null;
     for (const file of importInput.files) {
       const r = await importer.importFile(file);
-      if (r.ok) clearImportBtn.hidden = false;
+      if (r.ok) { clearImportBtn.hidden = false; byType = r.byType; }
     }
     importInput.value = ''; // allow re-importing the same file
+    if (byType) offerImportPromotion(byType);
   });
   clearImportBtn.addEventListener('click', () => {
     importer.clear();
     clearImportBtn.hidden = true;
+    importPromote.hidden = true;
     statusMode.textContent = 'Imported data cleared';
   });
+
+  /** Offer "Use as mission input" buttons appropriate to what was imported. */
+  function offerImportPromotion(byType) {
+    importPromoteBtns.innerHTML = '';
+    const add = (label, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn--sm';
+      b.textContent = label;
+      b.addEventListener('click', () => { fn(); finishPromotion(); });
+      importPromoteBtns.appendChild(b);
+    };
+    if (byType.lines) add('Lines → route', promoteLinesToRoute);
+    if (byType.points) add('Points → sites', () => promotePoints(true));
+    if (byType.points) add('Points → demand', () => promotePoints(false));
+    if (byType.polygons) add('Polygon → AOI', promotePolygonToAoi);
+    if (!importPromoteBtns.children.length) { importPromote.hidden = true; return; }
+
+    const bits = [];
+    if (byType.points) bits.push(`${byType.points} point${byType.points > 1 ? 's' : ''}`);
+    if (byType.lines) bits.push(`${byType.lines} line${byType.lines > 1 ? 's' : ''}`);
+    if (byType.polygons) bits.push(`${byType.polygons} polygon${byType.polygons > 1 ? 's' : ''}`);
+    importPromoteText.textContent = `Imported ${bits.join(', ')}. Use as mission input (stays in the browser):`;
+    importPromote.hidden = false;
+  }
+
+  function promoteLinesToRoute() {
+    const line = importer.getFeatures().find((f) => f.geometry?.type === 'LineString');
+    if (!line) return;
+    mission.setRoute(line.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })));
+  }
+  function promotePoints(asSites) {
+    for (const f of importer.getFeatures()) {
+      if (f.geometry?.type !== 'Point') continue;
+      const [lng, lat] = f.geometry.coordinates;
+      const name = f.properties?.name || '';
+      if (asSites) mission.addSite(lat, lng, name);
+      else mission.addPoint(lat, lng, name);
+    }
+  }
+  function promotePolygonToAoi() {
+    const pg = importer.getFeatures().find((f) => f.geometry?.type === 'Polygon');
+    if (pg) aoi.setPolygon(pg.geometry.coordinates[0]);
+  }
+  function finishPromotion() {
+    // Promoted data now lives in the mission (with its own markers); drop the
+    // passive overlay so nothing is shown twice.
+    missionTools.refresh();
+    if (recommender?.hasSites()) recommender.clear();
+    importer.clear();
+    clearImportBtn.hidden = true;
+    importPromote.hidden = true;
+    statusMode.textContent = 'Imported data added to the mission';
+  }
 });
 
 function syncToolButtons() {
@@ -568,6 +706,104 @@ const siteProgressBar = $('#siteProgressBar');
 const siteResults = $('#siteResults');
 const siteList = $('#siteList');
 const siteHelp = $('#siteHelp');
+
+// Mission (M4)
+const missionModes = $('#missionModes');
+const missionElements = $('#missionElements');
+const missionSitesCount = $('#missionSitesCount');
+const missionRouteCount = $('#missionRouteCount');
+const missionPointsCount = $('#missionPointsCount');
+const bulkInput = $('#bulkInput');
+const bulkAsSites = $('#bulkAsSites');
+const bulkAddBtn = $('#bulkAddBtn');
+const bulkReport = $('#bulkReport');
+
+/** Reflect the active mission input mode in the segmented buttons. */
+function reflectMissionMode(key) {
+  missionModes?.querySelectorAll('[data-mode]').forEach((b) => {
+    const on = b.dataset.mode === key;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+
+/** Arm a mission input mode. Area defers to the AOI Radius/Polygon tools. */
+function armMissionMode(key) {
+  if (key === 'area') {
+    missionTools.setMode(null); // onModeChange reflects 'area'
+    statusMode.textContent = 'Area mode — pick Radius or Polygon';
+    return;
+  }
+  aoi.setMode(null);
+  syncToolButtons();
+  missionTools.setMode(key === 'sites' ? 'site' : key === 'points' ? 'point' : 'route');
+  if (mq.matches) closePanel();
+}
+
+/** Drive the panel element list + compute/recommend enablement from the model. */
+function onMissionChange(s) {
+  if (!missionElements) return;
+  const showRow = (type, n) => {
+    const row = missionElements.querySelector(`[data-type="${type}"]`);
+    if (row) row.hidden = n < 1;
+  };
+  showRow('sites', s.sites);
+  showRow('route', s.route);
+  showRow('points', s.points);
+  missionElements.hidden = s.sites < 1 && s.route < 1 && s.points < 1;
+  missionSitesCount.textContent = String(s.sites);
+  missionRouteCount.textContent = String(s.route);
+  missionPointsCount.textContent = String(s.points);
+
+  const bbox = mission.bbox();
+  // Coverage needs a transmitter source: a fixed site, or an AOI centre.
+  computeBtn.disabled = !bbox || (s.sites < 1 && !s.hasAoi);
+  // Recommend needs demand: an AOI, a route (≥2 vertices), or explicit points.
+  recommendBtn.disabled = !bbox || (!s.hasAoi && s.route < 2 && s.points < 1);
+}
+
+/** Split a bulk line into a coordinate (longest parseable prefix) + name. */
+function splitCoordName(line) {
+  const tokens = line.split(/\s+/);
+  for (let n = tokens.length; n >= 1; n--) {
+    const coordStr = tokens.slice(0, n).join(' ');
+    if (parseCoordinate(coordStr)) return { coord: coordStr, name: tokens.slice(n).join(' ') };
+  }
+  return { coord: line, name: '' }; // unparseable → reported by line number
+}
+
+/** Parse the bulk-add textarea; add points/sites; report bad lines by number. */
+function runBulkAdd() {
+  const asSites = bulkAsSites.checked;
+  const lines = bulkInput.value.split('\n');
+  let added = 0;
+  const badNums = [];
+  const badLines = [];
+  lines.forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) return;
+    const { coord, name } = splitCoordName(line);
+    const parsed = parseCoordinate(coord);
+    if (!parsed) {
+      badNums.push(i + 1);
+      badLines.push(raw);
+      return;
+    }
+    if (asSites) mission.addSite(parsed.lat, parsed.lng, name);
+    else mission.addPoint(parsed.lat, parsed.lng, name);
+    added += 1;
+  });
+  missionTools.refresh();
+
+  const parts = [];
+  if (added) parts.push(`Added ${added} ${asSites ? 'site' : 'point'}${added > 1 ? 's' : ''}.`);
+  if (badNums.length) parts.push(`Could not parse line${badNums.length > 1 ? 's' : ''} ${badNums.join(', ')}.`);
+  bulkReport.hidden = parts.length === 0;
+  bulkReport.textContent = parts.join(' ');
+  // Keep only the failed lines so the user can fix them in place.
+  bulkInput.value = badLines.join('\n');
+  if (added && mq.matches) closePanel();
+}
 
 /** Render the recommended-site rows; hover highlights the marker, click flies to it. */
 function renderSiteList(sites) {
@@ -633,28 +869,28 @@ function coverageParams() {
 // (TRANSPARENT) cells give the raster its natural round edge.
 const WINDOW_CAP_MULT = 3;
 
-function coverageBounds(area, params) {
-  const tx = area.center;
-  const a = area.bounds;
-  const aoiHalfLat = (a.north - a.south) / 2;
-  const aoiHalfLng = (a.east - a.west) / 2;
+// Floor on the half-extent so a single-point / single-site mission still gets a
+// window large enough to show the signal, not a sliver around the bbox.
+const MIN_HALF_DEG = 0.05; // ≈ 5.5 km
+
+function coverageBoundsFor(bbox, center, params) {
+  const halfLat = Math.max((bbox.north - bbox.south) / 2, MIN_HALF_DEG);
+  const halfLng = Math.max((bbox.east - bbox.west) / 2, MIN_HALF_DEG);
   const rangeM = maxRangeM(params);
-  const dLat = Math.min(rangeM / 111320, WINDOW_CAP_MULT * aoiHalfLat);
+  const dLat = Math.min(rangeM / 111320, WINDOW_CAP_MULT * halfLat);
   const dLng = Math.min(
-    rangeM / (111320 * Math.cos((tx.lat * Math.PI) / 180)),
-    WINDOW_CAP_MULT * aoiHalfLng,
+    rangeM / (111320 * Math.cos((center.lat * Math.PI) / 180)),
+    WINDOW_CAP_MULT * halfLng,
   );
   return {
-    west: Math.min(tx.lng - dLng, a.west),
-    south: Math.min(tx.lat - dLat, a.south),
-    east: Math.max(tx.lng + dLng, a.east),
-    north: Math.max(tx.lat + dLat, a.north),
+    west: Math.min(center.lng - dLng, bbox.west),
+    south: Math.min(center.lat - dLat, bbox.south),
+    east: Math.max(center.lng + dLng, bbox.east),
+    north: Math.max(center.lat + dLat, bbox.north),
   };
 }
 
 function runCoverage() {
-  const area = aoi?.getAoi?.();
-  if (!area) return;
   // Single-tx coverage and the M3 multi-site raster share one map layer, so a
   // fresh coverage run supersedes any recommendation — clear stale site markers
   // and the list instead of leaving them floating over the new raster.
@@ -663,8 +899,35 @@ function runCoverage() {
     ...coverageParams(),
     txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
   };
-  const aoiMask = { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring };
-  coverage.compute(coverageBounds(area, params), area.center, params, { aoi: aoiMask });
+  const sites = mission.getSites();
+  const area = aoi?.getAoi?.();
+  const bbox = mission.bbox();
+  if (!bbox) {
+    coverageHelp.textContent = 'Define a mission first — draw an AOI or place a fixed site.';
+    return;
+  }
+
+  // Transmitter source: fixed sites (multi-tx) take precedence; otherwise the
+  // AOI centre is the single transmitter (the M2 default).
+  let txs = null;
+  let center;
+  if (sites.length) {
+    txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM: params.txHeightM }));
+    center = { lat: sites[0].lat, lng: sites[0].lng };
+  } else if (area) {
+    center = area.center;
+  } else {
+    coverageHelp.textContent =
+      'No transmitter — place a fixed site, or draw an AOI so its centre becomes the tx.';
+    return;
+  }
+
+  const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
+  coverage.compute(coverageBoundsFor(bbox, center, params), center, params, {
+    aoi: aoiMask,
+    txs,
+    marker: !txs, // multi-site markers stand in for the single tx marker
+  });
   coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
 
@@ -728,5 +991,7 @@ if (import.meta.env.DEV) {
     get aoi() { return aoi; },
     get coverage() { return coverage; },
     get recommender() { return recommender; },
+    get mission() { return mission; },
+    get missionTools() { return missionTools; },
   };
 }

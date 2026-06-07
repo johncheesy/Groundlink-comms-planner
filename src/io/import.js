@@ -236,7 +236,7 @@ export function createImportController(map, { onStatus } = {}) {
     if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 800 });
 
     onStatus?.(`Imported ${fc.features.length} feature${fc.features.length > 1 ? 's' : ''} from ${file.name}`, 'done');
-    return { ok: true, count: fc.features.length };
+    return { ok: true, count: fc.features.length, byType: countByType(data.features) };
   }
 
   function clear() {
@@ -248,5 +248,22 @@ export function createImportController(map, { onStatus } = {}) {
     }
   }
 
-  return { importFile, clear, hasData: () => data.features.length > 0 };
+  return {
+    importFile,
+    clear,
+    hasData: () => data.features.length > 0,
+    getFeatures: () => data.features.slice(),
+  };
+}
+
+/** Tally the accumulated features by geometry kind (for promotion offers). */
+function countByType(features) {
+  const t = { points: 0, lines: 0, polygons: 0 };
+  for (const f of features) {
+    const g = f.geometry?.type;
+    if (g === 'Point') t.points += 1;
+    else if (g === 'LineString' || g === 'MultiLineString') t.lines += 1;
+    else if (g === 'Polygon' || g === 'MultiPolygon') t.polygons += 1;
+  }
+  return t;
 }

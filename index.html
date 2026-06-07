@@ -91,16 +91,61 @@
               <span class="section__hint">where comms are needed</span>
             </div>
             <div class="section__body">
-              <div class="segmented" role="group" aria-label="Mission input mode">
-                <button class="segmented__btn is-active" type="button" aria-pressed="true">Area</button>
-                <button class="segmented__btn" type="button" aria-pressed="false">Sites</button>
-                <button class="segmented__btn" type="button" aria-pressed="false">Route</button>
-                <button class="segmented__btn" type="button" aria-pressed="false">Points</button>
+              <div class="segmented" role="group" aria-label="Mission input mode" id="missionModes">
+                <button class="segmented__btn is-active" type="button" data-mode="area" aria-pressed="true">Area</button>
+                <button class="segmented__btn" type="button" data-mode="sites" aria-pressed="false">Sites</button>
+                <button class="segmented__btn" type="button" data-mode="route" aria-pressed="false">Route</button>
+                <button class="segmented__btn" type="button" data-mode="points" aria-pressed="false">Points</button>
               </div>
-              <p class="help">
-                Draw an area of interest on the map — a radius circle or a polygon. Coverage and
-                site recommendations are planned to fill it.
+              <p class="help" id="missionHelp">
+                Define where comms are needed. <strong>Area</strong> draws an AOI to fill;
+                <strong>Sites</strong> places fixed masts; <strong>Route</strong> traces a path for
+                dead-zone analysis; <strong>Points</strong> marks positions that need comms.
               </p>
+
+              <div class="mission-elements" id="missionElements" hidden>
+                <div class="mission-el-row" data-type="sites" hidden>
+                  <span class="mission-el-dot" style="background: var(--feat-site)"></span>
+                  <span class="mission-el-label">Sites</span>
+                  <span class="mission-el-count" id="missionSitesCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="sites">Clear</button>
+                </div>
+                <div class="mission-el-row" data-type="route" hidden>
+                  <span class="mission-el-dot" style="background: var(--feat-track)"></span>
+                  <span class="mission-el-label">Route</span>
+                  <span class="mission-el-count" id="missionRouteCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="route">Clear</button>
+                </div>
+                <div class="mission-el-row" data-type="points" hidden>
+                  <span class="mission-el-dot" style="background: var(--feat-event)"></span>
+                  <span class="mission-el-label">Points</span>
+                  <span class="mission-el-count" id="missionPointsCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="points">Clear</button>
+                </div>
+              </div>
+
+              <details class="disclosure">
+                <summary>Bulk add coordinates</summary>
+                <p class="help">One coordinate per line — decimal, DMS, MGRS or UTM, with an optional name. Bad lines are reported by number.</p>
+                <textarea
+                  class="textarea"
+                  id="bulkInput"
+                  rows="4"
+                  spellcheck="false"
+                  placeholder="52.3676, 4.9041 OP Alpha&#10;31UFU 91733 09227 Relay hill&#10;52 22 03 N 4 54 15 E"
+                ></textarea>
+                <label class="check">
+                  <input type="checkbox" id="bulkAsSites" />
+                  <span>Add as sites (default: demand points)</span>
+                </label>
+                <button class="btn btn--block" type="button" id="bulkAddBtn">Add coordinates</button>
+                <p class="help" id="bulkReport" hidden></p>
+              </details>
+
+              <div class="import-promote" id="importPromote" hidden>
+                <p class="help" id="importPromoteText"></p>
+                <div class="import-promote__btns" id="importPromoteBtns"></div>
+              </div>
             </div>
           </section>
 
@@ -387,8 +432,8 @@
               class="map-search__input"
               id="searchInput"
               type="text"
-              placeholder="Search place, or 52.3676, 4.9041"
-              aria-label="Search a place or enter coordinates"
+              placeholder="Search place, or lat/long · MGRS · UTM"
+              aria-label="Search a place or enter coordinates (decimal, DMS, MGRS or UTM)"
             />
             <button class="map-search__clear" id="searchClear" type="button" aria-label="Clear search" hidden>
               <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>

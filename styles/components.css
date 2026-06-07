@@ -533,6 +533,134 @@
   font-weight: 600;
 }
 
+/* ---- M4 mission: input tools, element list, markers, bulk add ---------- */
+
+.btn--sm {
+  padding: 3px 10px;
+  font-size: 11.5px;
+  border-radius: var(--r-sm);
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+  margin: var(--sp-2) 0;
+  padding: 8px 10px;
+  font-family: var(--ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface2);
+  border: 1px solid var(--hair2);
+  border-radius: var(--r-sm);
+  font-variant-numeric: tabular-nums;
+}
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.mission-elements {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--sp-2) 0;
+}
+.mission-el-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hair);
+  background: var(--surface2);
+  font-size: 12.5px;
+}
+.mission-el-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.mission-el-label {
+  color: var(--ink);
+  flex: 1 1 auto;
+}
+.mission-el-count {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* On-map mission markers — teal site, amber point, azure route vertex. */
+.mission-marker {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--mapbg);
+  cursor: grab;
+  box-sizing: border-box;
+}
+.mission-marker--site {
+  background: var(--feat-site);
+  border-radius: 3px; /* square-ish = fixed infrastructure */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--feat-site) 30%, transparent);
+}
+.mission-marker--point {
+  background: var(--feat-event);
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--feat-event) 30%, transparent);
+}
+.mission-marker--vertex {
+  width: 12px;
+  height: 12px;
+  background: var(--feat-track);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--feat-track) 35%, transparent);
+}
+
+.mission-popup .maplibregl-popup-content,
+.mission-popup.maplibregl-popup .maplibregl-popup-content {
+  display: flex;
+}
+.mission-popup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.mission-popup__name {
+  color: var(--ink);
+  font-weight: 600;
+}
+.mission-popup__del {
+  border: 0;
+  background: transparent;
+  color: var(--bad);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.mission-popup__del:hover {
+  color: color-mix(in srgb, var(--bad) 70%, var(--ink));
+}
+
+.import-promote {
+  margin-top: var(--sp-2);
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--hair2));
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface2));
+}
+.import-promote__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 /* ---- Legend (coverage spectrum + typed features) ----------------------- */
 
 .legend {
