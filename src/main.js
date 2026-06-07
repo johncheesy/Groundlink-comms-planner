@@ -5,6 +5,7 @@ import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
 import { createCoverageController } from './coverage/coverage.js';
 import { createDroneController } from './drone/drone.js';
+import { createRecommendController } from './recommend/recommend.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
@@ -220,6 +221,8 @@ const TX_GAIN_DBI = 2.15;
 let aoi = null;
 let coverage = null;
 let drone = null;
+let recommender = null;
+let currentAoiAreaM2 = 0;
 
 function whenStyleReady(fn) {
   if (map.isStyleLoaded()) fn();
@@ -235,7 +238,11 @@ whenStyleReady(() => {
       fitAoiBtn.disabled = !has;
       clearAoiBtn.disabled = !has;
       computeBtn.disabled = !has;
+      recommendBtn.disabled = !has;
+      currentAoiAreaM2 = has ? s.areaM2 : 0;
       if (!has) {
+        // AOI removed → any recommended sites are stale.
+        recommender?.clear();
         aoiStatus.textContent = 'none drawn';
         aoiReadout.textContent = 'No area defined yet. Pick a tool, then draw on the map.';
         statusAoi.textContent = '—';
@@ -411,6 +418,58 @@ whenStyleReady(() => {
     });
   });
 
+  // ---- Site recommendation (M3) ----------------------------------------
+  recommender = createRecommendController(map, coverage, {
+    onProgress(frac, phase) {
+      siteProgress.hidden = false;
+      siteProgressBar.style.width = `${Math.round(frac * 100)}%`;
+      statusMode.textContent =
+        phase === 'data' ? 'Loading terrain…'
+        : phase === 'score' ? 'Scoring candidate sites…'
+        : phase === 'cover' ? 'Selecting sites…'
+        : 'Working…';
+    },
+    onDone(sites, info) {
+      siteProgress.hidden = true;
+      siteProgressBar.style.width = '0%';
+      if (info?.cleared) {
+        siteResults.hidden = true;
+        siteList.innerHTML = '';
+        return;
+      }
+      if (info?.empty || !sites || !sites.length) {
+        siteResults.hidden = false;
+        siteList.innerHTML = '';
+        siteHelp.textContent = 'AOI too small — fewer than two demand points fit inside. Draw a larger area.';
+        statusMode.textContent = 'No sites';
+        return;
+      }
+      renderSiteList(sites);
+      siteResults.hidden = false;
+      const last = sites[sites.length - 1];
+      const bits = [`${sites.length} site${sites.length > 1 ? 's' : ''} · ${Math.round(last.cumulativeFrac * 100)}% of the AOI covered.`];
+      if (!info.terrain) bits.push('Terrain unavailable — flat estimate.');
+      if (currentAoiAreaM2 > 1e10) bits.push('Large AOI (>10 000 km²) — demand grid capped, results coarse.');
+      bits.push('Sites sit on local high ground; model is talk-in at 1.5 m. Planning-grade — not survey-grade.');
+      siteHelp.textContent = bits.join(' ');
+      statusMode.textContent = 'Sites ready';
+    },
+    onStatus(msg) { statusMode.textContent = msg; },
+  });
+
+  recommendBtn.addEventListener('click', () => {
+    const area = aoi?.getAoi?.();
+    if (!area) return;
+    const params = { ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) };
+    recommender.recommend(area, params, {
+      maxSites: clampNum($('#maxSites').value, 1, 6, 3),
+      targetFrac: clampNum($('#targetCoverage').value, 10, 100, 95) / 100,
+    });
+    coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+    if (mq.matches) closePanel();
+  });
+  clearSitesBtn.addEventListener('click', () => recommender.clear());
+
   // ---- Location search + coordinate entry ------------------------------
   createSearch(map, {
     input: $('#searchInput'),
@@ -488,6 +547,34 @@ const c2Freq = $('#c2Freq');
 const c2Power = $('#c2Power');
 const computeEnvelopeBtn = $('#computeEnvelope');
 const envHelp = $('#envHelp');
+
+// Site recommendation (M3)
+const recommendBtn = $('#recommendBtn');
+const clearSitesBtn = $('#clearSitesBtn');
+const siteProgress = $('#siteProgress');
+const siteProgressBar = $('#siteProgressBar');
+const siteResults = $('#siteResults');
+const siteList = $('#siteList');
+const siteHelp = $('#siteHelp');
+
+/** Render the recommended-site rows; hover highlights the marker, click flies to it. */
+function renderSiteList(sites) {
+  siteList.innerHTML = '';
+  sites.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.className = 'site-list__row';
+    li.innerHTML =
+      `<span class="site-list__n">#${i + 1}</span>` +
+      `<span class="site-list__name">${s.label ?? 'Site'}</span>` +
+      `<span class="site-list__elev" data-numeric>${Math.round(s.elevM)} m</span>` +
+      `<span class="site-list__new" data-numeric>+${Math.round(s.newlyCovered * 100)}% new</span>` +
+      `<span class="site-list__cum" data-numeric>cum ${Math.round(s.cumulativeFrac * 100)}%</span>`;
+    li.addEventListener('mouseenter', () => recommender?.setHighlight(i));
+    li.addEventListener('mouseleave', () => recommender?.setHighlight(null));
+    li.addEventListener('click', () => recommender?.flyTo(i));
+    siteList.appendChild(li);
+  });
+}
 
 function clampNum(v, min, max, fallback) {
   const n = Number.parseFloat(v);
@@ -620,5 +707,10 @@ document.addEventListener('keydown', (e) => {
 
 // Dev-only handle for testing/automation (stripped from production builds).
 if (import.meta.env.DEV) {
-  window.__gl = { map, mapApi, get aoi() { return aoi; }, get coverage() { return coverage; } };
+  window.__gl = {
+    map, mapApi,
+    get aoi() { return aoi; },
+    get coverage() { return coverage; },
+    get recommender() { return recommender; },
+  };
 }
