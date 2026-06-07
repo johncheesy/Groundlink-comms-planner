@@ -391,7 +391,11 @@ whenStyleReady(() => {
     drone.setAltitude(Number(droneAlt.value));
     droneAltVal.textContent = `${droneAlt.value} m`;
   });
-  computeRelayBtn.addEventListener('click', () => drone.computeRelay());
+  computeRelayBtn.addEventListener('click', () => {
+    // Drone relay paints the same shared raster — supersede any recommendation.
+    if (recommender?.hasSites()) recommender.clear();
+    drone.computeRelay();
+  });
   clearDroneBtn.addEventListener('click', () => {
     drone.clear();
     coverage.clear();
