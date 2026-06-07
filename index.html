@@ -361,11 +361,16 @@
         </div>
 
         <div class="map-toolbar">
+          <!-- Basemap switcher: imagery / topo. Long-press / right-click the
+               active chip to open the variant picker. -->
           <div class="basemap-switch" id="basemapSwitch" role="group" aria-label="Basemap">
-            <button class="basemap-switch__btn is-active" type="button" data-basemap="imagery">Imagery</button>
-            <button class="basemap-switch__btn" type="button" data-basemap="topo">Topo</button>
-            <button class="basemap-switch__btn" type="button" data-basemap="dark">Dark</button>
+            <button class="basemap-switch__btn is-active" type="button" data-basemap="imagery"
+              title="Satellite imagery — right-click / hold for variants">Imagery</button>
+            <button class="basemap-switch__btn" type="button" data-basemap="topo"
+              title="Topographic map — right-click / hold for variants">Topo</button>
           </div>
+          <!-- Variant picker dropdown (populated + positioned by JS) -->
+          <div class="basemap-variant-menu" id="basemapVariantMenu" role="menu" hidden></div>
 
           <div class="toolgroup" role="group" aria-label="Import data">
             <button class="toolgroup__btn" type="button" id="importBtn" aria-label="Import KML, KMZ or GPX" title="Import KML / KMZ / GPX">

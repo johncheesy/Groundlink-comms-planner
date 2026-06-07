@@ -1,49 +1,111 @@
 /**
  * MapLibre style + basemaps.
  *
- * One style holds every raster basemap as a separate source/layer; we switch by
- * toggling layer visibility (so runtime-added layers — AOI, coverage — survive,
- * unlike setStyle which would wipe them). A dark background layer keeps the map
- * canvas dark in both UI themes, even before tiles load.
+ * One style holds every raster basemap (and every topo/imagery variant) as
+ * separate hidden layers; switching is a visibility toggle so runtime-added
+ * layers (AOI, coverage) survive — unlike setStyle which would wipe them.
  *
- * All sources are token-free. A raster-dem source (AWS Terrarium) backs 3D
- * terrain and the coverage elevation sampler without a Mapbox token; Mapbox
- * Terrain-RGB can be swapped in at runtime when the user supplies a token.
+ * "Dark" is removed: the canvas background is always the dark mapbg token
+ * (sufficient for operations use). Two primary modes remain:
+ *   imagery — Esri satellite (default)
+ *   topo    — multiple variants, chosen via dropdown
+ *
+ * Zoom-based auto-selection: imagery below AUTO_ZOOM, topo at or above.
+ *
+ * All sources are token-free.
  */
 
-export const BASEMAPS = ['dark', 'imagery', 'topo'];
-export const DEFAULT_BASEMAP = 'imagery'; // satellite by default; users toggle to dark/topo
+export const BASEMAPS = ['imagery', 'topo'];
+export const DEFAULT_BASEMAP = 'imagery';
 
-export const RASTER_BASEMAPS = {
-  dark: {
-    tiles: [
-      'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{ratio}.png',
-      'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{ratio}.png',
-      'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{ratio}.png',
-      'https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{ratio}.png',
-    ],
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxzoom: 20,
-  },
-  imagery: {
-    tiles: [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    ],
-    attribution: 'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
-    maxzoom: 19,
-  },
-  topo: {
-    tiles: [
-      'https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
-      'https://b.tile.opentopomap.org/{z}/{x}/{y}.png',
-      'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
-    ],
-    attribution:
-      'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
-    maxzoom: 17,
-  },
+/** Zoom at which topo is auto-preferred over imagery (when not user-chosen). */
+export const AUTO_ZOOM_THRESHOLD = 10;
+
+/**
+ * Variants for each basemap category. The first entry in each array is the
+ * default. All are free and token-free (Esri AGOL open tiles, OpenTopoMap,
+ * OSM, CARTO). Add more later — only visible layers load tiles.
+ */
+export const BASEMAP_VARIANTS = {
+  imagery: [
+    {
+      id: 'esri-imagery',
+      label: 'Esri Satellite',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      attribution:
+        'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics',
+      maxzoom: 19,
+    },
+    {
+      id: 'esri-natgeo',
+      label: 'Esri National Geographic',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
+      ],
+      attribution:
+        'Map data &copy; <a href="https://www.esri.com/">Esri</a> &amp; National Geographic',
+      maxzoom: 16,
+    },
+  ],
+  topo: [
+    {
+      id: 'opentopomap',
+      label: 'OpenTopoMap',
+      tiles: [
+        'https://a.tile.opentopomap.org/{z}/{x}/{y}.png',
+        'https://b.tile.opentopomap.org/{z}/{x}/{y}.png',
+        'https://c.tile.opentopomap.org/{z}/{x}/{y}.png',
+      ],
+      attribution:
+        'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+      maxzoom: 17,
+    },
+    {
+      id: 'esri-topo',
+      label: 'Esri World Topo',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+      ],
+      attribution: 'Map data &copy; <a href="https://www.esri.com/">Esri</a>',
+      maxzoom: 19,
+    },
+    {
+      id: 'esri-street',
+      label: 'Esri Street Map',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      ],
+      attribution: 'Map data &copy; <a href="https://www.esri.com/">Esri</a>',
+      maxzoom: 19,
+    },
+    {
+      id: 'osm',
+      label: 'OpenStreetMap',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxzoom: 19,
+    },
+    {
+      id: 'carto-voyager',
+      label: 'Carto Voyager',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      ],
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxzoom: 19,
+    },
+  ],
 };
+
+/** Map-layer ID for a given category + variant. */
+export function variantLayerId(category, variantId) {
+  return `base-${category}-${variantId}`;
+}
 
 // AWS Terrarium DEM — free, token-free; encoding 'terrarium'.
 export const TERRARIUM_DEM = {
@@ -54,31 +116,50 @@ export const TERRARIUM_DEM = {
     encoding: 'terrarium',
     tileSize: 256,
     maxzoom: 15,
-    attribution: 'Elevation: <a href="https://registry.opendata.aws/terrain-tiles/">Terrain Tiles (AWS)</a>',
+    attribution:
+      'Elevation: <a href="https://registry.opendata.aws/terrain-tiles/">Terrain Tiles (AWS)</a>',
   },
 };
 
 const MAP_BG = '#0b1018'; // --mapbg, dark in both themes
 
-export function buildStyle(active = DEFAULT_BASEMAP) {
+/**
+ * Build the full MapLibre style. All variant layers are declared up-front;
+ * only the active one is visible (MapLibre doesn't fetch tiles for hidden layers).
+ *
+ * @param {string} activeCategory  'imagery' | 'topo'
+ * @param {Object} activeVariantIds  { imagery: 'esri-imagery', topo: 'opentopomap' }
+ */
+export function buildStyle(
+  activeCategory = DEFAULT_BASEMAP,
+  activeVariantIds = {},
+) {
   const sources = {};
   const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': MAP_BG } }];
 
-  for (const name of BASEMAPS) {
-    const b = RASTER_BASEMAPS[name];
-    sources[`base-${name}`] = {
-      type: 'raster',
-      tiles: b.tiles,
-      tileSize: 256,
-      maxzoom: b.maxzoom,
-      attribution: b.attribution,
-    };
-    layers.push({
-      id: `base-${name}`,
-      type: 'raster',
-      source: `base-${name}`,
-      layout: { visibility: name === active ? 'visible' : 'none' },
-    });
+  for (const category of BASEMAPS) {
+    const variants = BASEMAP_VARIANTS[category];
+    const activeVariantId = activeVariantIds[category] ?? variants[0].id;
+
+    for (const v of variants) {
+      const layerId = variantLayerId(category, v.id);
+      sources[layerId] = {
+        type: 'raster',
+        tiles: v.tiles,
+        tileSize: 256,
+        maxzoom: v.maxzoom,
+        attribution: v.attribution,
+      };
+      layers.push({
+        id: layerId,
+        type: 'raster',
+        source: layerId,
+        layout: {
+          visibility:
+            category === activeCategory && v.id === activeVariantId ? 'visible' : 'none',
+        },
+      });
+    }
   }
 
   // DEM source is declared up-front so setTerrain can reference it on demand.
@@ -86,8 +167,6 @@ export function buildStyle(active = DEFAULT_BASEMAP) {
 
   return {
     version: 8,
-    // MapLibre needs a glyphs URL if any symbol layers use text; we use none,
-    // but provide one so future text layers don't error.
     glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
     sources,
     layers,

@@ -9,6 +9,7 @@ import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { wattsToDbm } from './coverage/model.js';
+import { BASEMAP_VARIANTS, AUTO_ZOOM_THRESHOLD } from './map/basemaps.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -87,15 +88,127 @@ bearingSlider.addEventListener('input', () => map.setBearing(Number(bearingSlide
 map.on('pitch', reflectViewSliders);
 map.on('rotate', reflectViewSliders);
 
-// ---- Basemap switcher ---------------------------------------------------
+// ---- Basemap switcher + variant picker ----------------------------------
 
 const basemapSwitch = $('#basemapSwitch');
+const variantMenu = $('#basemapVariantMenu');
+
+let userChoseBasemap = false; // auto-switch only while user hasn't chosen
+
+/** Reflect the active basemap category in the chip buttons. */
+function reflectBasemap(category) {
+  basemapSwitch.querySelectorAll('.basemap-switch__btn').forEach((b) => {
+    b.classList.toggle('is-active', b.dataset.basemap === category);
+  });
+}
+
+/** Switch category (and optionally variant), mark as user-chosen if explicit. */
+function switchBasemap(category, variantId, explicit = true) {
+  const result = mapApi.setBasemap(category, variantId);
+  reflectBasemap(result.category);
+  if (explicit) userChoseBasemap = true;
+}
+
+// Auto-switch: imagery below threshold, topo above — only when user hasn't chosen.
+const autoSwitch = () => {
+  if (userChoseBasemap) return;
+  const zoom = map.getZoom();
+  const target = zoom >= AUTO_ZOOM_THRESHOLD ? 'topo' : 'imagery';
+  if (target !== mapApi.getBasemap()) switchBasemap(target, undefined, false);
+};
+map.on('zoomend', autoSwitch);
+
+// ---- Variant picker dropdown -------------------------------------------
+let variantMenuOpen = false;
+let variantMenuCategory = null;
+
+function buildVariantMenu(category) {
+  variantMenu.innerHTML = '';
+  const label = document.createElement('div');
+  label.className = 'basemap-variant-menu__label';
+  label.textContent = category === 'topo' ? 'Topo variants' : 'Imagery variants';
+  variantMenu.appendChild(label);
+
+  const currentVariant = mapApi.getVariant(category);
+  for (const v of BASEMAP_VARIANTS[category]) {
+    const btn = document.createElement('button');
+    btn.className = 'basemap-variant-menu__item';
+    btn.textContent = v.label;
+    btn.type = 'button';
+    if (v.id === currentVariant) btn.classList.add('is-active');
+    btn.addEventListener('click', () => {
+      switchBasemap(category, v.id, true);
+      closeVariantMenu();
+    });
+    variantMenu.appendChild(btn);
+  }
+}
+
+function openVariantMenu(category, anchorBtn) {
+  if (variantMenuOpen && variantMenuCategory === category) {
+    closeVariantMenu();
+    return;
+  }
+  buildVariantMenu(category);
+  // Position dropdown below the basemap switch, flush to the right of the toolbar.
+  // The menu uses position:fixed so getBoundingClientRect() values are used directly.
+  const switchRect = anchorBtn.closest('.basemap-switch').getBoundingClientRect();
+  variantMenu.style.right = (window.innerWidth - switchRect.right) + 'px';
+  variantMenu.style.top = (switchRect.bottom + 4) + 'px';
+  variantMenu.style.left = 'auto';
+  variantMenu.removeAttribute('hidden');
+  variantMenuOpen = true;
+  variantMenuCategory = category;
+}
+
+function closeVariantMenu() {
+  variantMenu.setAttribute('hidden', '');
+  variantMenuOpen = false;
+  variantMenuCategory = null;
+}
+
+// Close when clicking outside the menu or the basemap switch
+document.addEventListener('click', (e) => {
+  if (variantMenuOpen && !variantMenu.contains(e.target) && !basemapSwitch.contains(e.target)) {
+    closeVariantMenu();
+  }
+});
+
+// Click on chip: if it's the active one → open variant picker;
+//                if it's a different one → switch category.
 basemapSwitch.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-basemap]');
   if (!btn) return;
-  mapApi.setBasemap(btn.dataset.basemap);
-  basemapSwitch.querySelectorAll('.basemap-switch__btn').forEach((b) => b.classList.toggle('is-active', b === btn));
+  const category = btn.dataset.basemap;
+  if (btn.classList.contains('is-active')) {
+    // second press on active chip → variant picker
+    openVariantMenu(category, btn);
+  } else {
+    closeVariantMenu();
+    switchBasemap(category);
+  }
 });
+
+// Desktop right-click on any chip → variant picker for that category
+basemapSwitch.addEventListener('contextmenu', (e) => {
+  const btn = e.target.closest('[data-basemap]');
+  if (!btn) return;
+  e.preventDefault();
+  openVariantMenu(btn.dataset.basemap, btn);
+});
+
+// Long-press on touch (≥500 ms) → variant picker
+let longPressTimer = null;
+basemapSwitch.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest('[data-basemap]');
+  if (!btn) return;
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null;
+    openVariantMenu(btn.dataset.basemap, btn);
+  }, 500);
+});
+basemapSwitch.addEventListener('pointerup', () => { clearTimeout(longPressTimer); longPressTimer = null; });
+basemapSwitch.addEventListener('pointercancel', () => { clearTimeout(longPressTimer); longPressTimer = null; });
 
 // ---- AOI + coverage (need the style loaded) -----------------------------
 

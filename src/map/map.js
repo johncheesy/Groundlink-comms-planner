@@ -1,19 +1,31 @@
 import maplibregl from 'maplibre-gl';
-import { buildStyle, BASEMAPS, DEFAULT_BASEMAP, TERRARIUM_DEM } from './basemaps.js';
+import {
+  buildStyle,
+  BASEMAPS,
+  BASEMAP_VARIANTS,
+  DEFAULT_BASEMAP,
+  TERRARIUM_DEM,
+  variantLayerId,
+} from './basemaps.js';
 
 /**
  * Initialise the MapLibre GL map.
  *
- * The container background is the dark --mapbg token (CSS) and the style has a
- * dark background layer, so the canvas reads dark in both UI themes and while
- * tiles load. We disable the default controls and drive zoom/3D from our own
- * toolbar. Basemap switching toggles raster-layer visibility (runtime layers
- * such as AOI and coverage are preserved).
+ * Basemap switching toggles raster-layer visibility (runtime layers such as
+ * AOI and coverage are preserved). Each basemap category (imagery, topo) can
+ * have multiple variant tile sources; setBasemap(category, variantId) handles
+ * both category switches and intra-category variant switches.
  */
 export function initMap(container) {
+  // Initial active state
+  let activeCategory = DEFAULT_BASEMAP;
+  const activeVariantIds = Object.fromEntries(
+    BASEMAPS.map((cat) => [cat, BASEMAP_VARIANTS[cat][0].id]),
+  );
+
   const map = new maplibregl.Map({
     container,
-    style: buildStyle(DEFAULT_BASEMAP),
+    style: buildStyle(activeCategory, activeVariantIds),
     center: [4.9041, 52.3676], // [lng, lat] — Amsterdam (public default; OPSEC-safe)
     zoom: 10,
     pitch: 0,
@@ -26,13 +38,33 @@ export function initMap(container) {
 
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
-  let activeBasemap = DEFAULT_BASEMAP;
-  function setBasemap(name) {
-    if (!BASEMAPS.includes(name) || name === activeBasemap) return activeBasemap;
-    map.setLayoutProperty(`base-${activeBasemap}`, 'visibility', 'none');
-    map.setLayoutProperty(`base-${name}`, 'visibility', 'visible');
-    activeBasemap = name;
-    return activeBasemap;
+  /**
+   * Switch to a basemap category (imagery | topo), optionally selecting a
+   * specific variant. If variantId is omitted, the current variant for that
+   * category is kept (or the first variant if none was ever set).
+   *
+   * Returns { category, variantId } for the caller to reflect in UI.
+   */
+  function setBasemap(category, variantId) {
+    if (!BASEMAPS.includes(category)) return { category: activeCategory, variantId: activeVariantIds[activeCategory] };
+
+    const newVariant = variantId ?? activeVariantIds[category];
+
+    // Hide every variant layer across all categories
+    for (const cat of BASEMAPS) {
+      for (const v of BASEMAP_VARIANTS[cat]) {
+        const lid = variantLayerId(cat, v.id);
+        if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', 'none');
+      }
+    }
+
+    // Show only the target variant
+    const targetId = variantLayerId(category, newVariant);
+    if (map.getLayer(targetId)) map.setLayoutProperty(targetId, 'visibility', 'visible');
+
+    activeCategory = category;
+    activeVariantIds[category] = newVariant;
+    return { category: activeCategory, variantId: newVariant };
   }
 
   // ---- 3D terrain --------------------------------------------------------
@@ -52,7 +84,8 @@ export function initMap(container) {
   return {
     map,
     setBasemap,
-    getBasemap: () => activeBasemap,
+    getBasemap: () => activeCategory,
+    getVariant: (cat) => activeVariantIds[cat ?? activeCategory],
     setTerrain,
     toggleTerrain: (opts) => setTerrain(!terrainOn, opts),
     isTerrainOn: () => terrainOn,
@@ -61,8 +94,6 @@ export function initMap(container) {
 
 /**
  * Keep the map sized correctly across panel/orientation/resize changes.
- * MapLibre tracks window resize itself, but the mobile slide-over changes the
- * container box without a window resize — so call this then.
  */
 export function keepMapSized(map) {
   const resize = () => map.resize();

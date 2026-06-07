@@ -807,10 +807,13 @@
 .map-search {
   position: absolute;
   top: var(--sp-3);
+  /* Constrain width so the bar never overlaps the panel-toggle or the
+     map toolbar. 300px accounts for ~50px left (toggle) + ~250px right
+     (basemap chips + zoom group). min() lets it shrink on narrow desktops. */
   left: 50%;
   transform: translateX(-50%);
   z-index: var(--z-toolbar);
-  width: min(420px, calc(100vw - 220px));
+  width: min(420px, calc(100vw - 300px));
 }
 
 .map-search__form {
@@ -947,6 +950,77 @@
   word-break: break-word;
 }
 
+/* ---- Basemap variant picker dropdown ----------------------------------- */
+/* Triggered by right-click (desktop) or second-press on the active chip.  */
+
+.basemap-variant-menu {
+  position: fixed;            /* JS sets top / right from getBoundingClientRect */
+  z-index: calc(var(--z-toolbar) + 1);
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.basemap-variant-menu[hidden] {
+  display: none;
+}
+
+.basemap-variant-menu__item {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  transition: background 0.1s ease;
+}
+
+.basemap-variant-menu__item:hover {
+  background: var(--raise);
+}
+
+.basemap-variant-menu__item.is-active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.basemap-variant-menu__item.is-active::before {
+  content: '✓';
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
+.basemap-variant-menu__item:not(.is-active)::before {
+  content: '';
+  width: 11px;
+  flex: 0 0 auto;
+}
+
+.basemap-variant-menu__label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--faint);
+  letter-spacing: 0.05em;
+  padding: 6px 10px 3px;
+  text-transform: uppercase;
+}
+
 /* ---- Panel collapse (desktop) + expand control ------------------------- */
 
 .app {
@@ -969,9 +1043,12 @@
   .btn.panel-collapse {
     display: none;
   }
-  /* a centred search bar mustn't collide with the left toggle / right toolbar */
+  /* On tablet slide-over (541–760px): search bar anchored between toggle + toolbar */
   .map-search {
-    width: calc(100vw - 112px);
+    left: 52px;          /* right of the 40px panel toggle + sp-3 padding */
+    right: 150px;        /* left of the toolbar (basemap chips + zoom group) */
+    width: auto;
+    transform: none;     /* cancel the desktop translateX(-50%) centering */
   }
 }
 
@@ -1002,11 +1079,13 @@
   }
 
   /* --- Search bar: full width at the top ---------------------------------- */
-  /* The toggle moved to the bottom, so nothing blocks the left edge. */
+  /* The toggle moved to the bottom, so nothing blocks the left edge.
+     The toolbar (3 × 44px zoom group = ~134px + 12px margin = 146px) sits
+     at the top-right, so leave 148px on the right. */
   .map-search {
     top: 12px;
     left: 12px;
-    right: 60px;  /* room for the map toolbar at top-right */
+    right: 148px;
     width: auto;
     transform: none;  /* undo the desktop translateX(-50%) centring */
   }
