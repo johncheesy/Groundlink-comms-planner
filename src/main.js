@@ -472,7 +472,8 @@ whenStyleReady(() => {
     const area = aoi?.getAoi?.();
     if (!area) return;
     const params = { ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) };
-    recommender.recommend(area, params, {
+    const aoiMask = { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring };
+    recommender.recommend({ bounds: area.bounds, aoi: aoiMask, demand: null, lockedSites: [] }, params, {
       maxSites: clampNum($('#maxSites').value, 1, 6, 3),
       targetFrac: clampNum($('#targetCoverage').value, 10, 100, 95) / 100,
     });
