@@ -8,7 +8,7 @@ import { createDroneController } from './drone/drone.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
-import { wattsToDbm } from './coverage/model.js';
+import { wattsToDbm, maxRangeM } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -513,13 +513,50 @@ function coverageParams() {
   };
 }
 
+/**
+ * Compute window for a coverage run: a square centred on the transmitter whose
+ * half-side is the conservative max free-space range, so the raster edge is
+ * shaped by the signal physics (round, via below-floor TRANSPARENT cells) rather
+ * than the AOI rectangle. The AOI bbox is the floor — never smaller than the
+ * drawn area, so the whole AOI always stays visible.
+ */
+// Upper bound on how far past the AOI the compute window may grow, as a
+// multiple of the AOI half-extent. Pure free-space VHF/UHF reaches thousands of
+// km before the conservative −120 dBm floor (terrain, not FSPL, is what limits
+// terrestrial range), so an uncapped FSPL range would yield invalid latitudes
+// and an AOI-dwarfing window. Capping relative to the AOI keeps it prominent
+// while still showing signal that genuinely spills beyond it; when the range is
+// smaller than this the window tightens to the range and the below-floor
+// (TRANSPARENT) cells give the raster its natural round edge.
+const WINDOW_CAP_MULT = 3;
+
+function coverageBounds(area, params) {
+  const tx = area.center;
+  const a = area.bounds;
+  const aoiHalfLat = (a.north - a.south) / 2;
+  const aoiHalfLng = (a.east - a.west) / 2;
+  const rangeM = maxRangeM(params);
+  const dLat = Math.min(rangeM / 111320, WINDOW_CAP_MULT * aoiHalfLat);
+  const dLng = Math.min(
+    rangeM / (111320 * Math.cos((tx.lat * Math.PI) / 180)),
+    WINDOW_CAP_MULT * aoiHalfLng,
+  );
+  return {
+    west: Math.min(tx.lng - dLng, a.west),
+    south: Math.min(tx.lat - dLat, a.south),
+    east: Math.max(tx.lng + dLng, a.east),
+    north: Math.max(tx.lat + dLat, a.north),
+  };
+}
+
 function runCoverage() {
   const area = aoi?.getAoi?.();
   if (!area) return;
-  coverage.compute(area.bounds, area.center, {
+  const params = {
     ...coverageParams(),
     txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
-  });
+  };
+  coverage.compute(coverageBounds(area, params), area.center, params);
   coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
 

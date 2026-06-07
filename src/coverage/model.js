@@ -62,6 +62,23 @@ export function fsplDb(distM, freqMHz) {
 export const wavelengthM = (freqMHz) => LIGHT / (freqMHz * 1e6);
 
 /**
+ * Maximum free-space range (m) — the distance at which FSPL alone drives the
+ * received level down to `floorDbm`. This is a conservative upper bound (no
+ * terrain/diffraction loss), used to size the compute window so the raster is
+ * clipped by the signal physics rather than the AOI bounding box.
+ *
+ * Solve FSPL(d) = eirp + rxGain − floor for d:
+ *   20·log10(d) = budget  →  d = 10^(budget/20)
+ */
+export function maxRangeM({ eirpDbm, freqMHz, rxGainDbi = 0, floorDbm = DEFAULT_FLOOR_DBM }) {
+  const budget =
+    eirpDbm + rxGainDbi - floorDbm
+    - 20 * log10(freqMHz * 1e6)
+    - 20 * log10((4 * Math.PI) / LIGHT);
+  return Math.pow(10, budget / 20);
+}
+
+/**
  * Single dominant knife-edge diffraction loss (Deygout 1st order), in dB.
  *
  * Given the terminal heights and the worst obstruction along the profile,
