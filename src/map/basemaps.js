@@ -83,16 +83,6 @@ export const BASEMAP_VARIANTS = {
         'Imagery &copy; <a href="https://earthdata.nasa.gov/gibs">NASA GIBS</a> / MODIS Terra (250 m)',
       maxzoom: 9,
     },
-    {
-      id: 'esri-natgeo',
-      label: 'Esri National Geographic',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
-      ],
-      attribution:
-        'Map data &copy; <a href="https://www.esri.com/">Esri</a> &amp; National Geographic',
-      maxzoom: 16,
-    },
   ],
   topo: [
     {
@@ -143,6 +133,16 @@ export const BASEMAP_VARIANTS = {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxzoom: 19,
+    },
+    {
+      id: 'esri-natgeo',
+      label: 'Esri National Geographic',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
+      ],
+      attribution:
+        'Map data &copy; <a href="https://www.esri.com/">Esri</a> &amp; National Geographic',
+      maxzoom: 16,
     },
   ],
 };
