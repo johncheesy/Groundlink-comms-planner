@@ -243,6 +243,53 @@ button {
   }
 }
 
+/* ---- Phone: bottom-sheet panel (≤540px) --------------------------------
+   Phones get a bottom sheet instead of the left slide-over that works well
+   on tablets (541–760px). The tablet and desktop breakpoints are unchanged.
+   Detection is viewport-width only — tablets in portrait are ≥768px anyway.
+   -------------------------------------------------------------------------- */
+@media (max-width: 540px) {
+  /* Override slide-over geometry: full-width panel anchored to the bottom */
+  .panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: var(--status-h);
+    width: 100%;
+    height: min(72dvh, 640px);
+    border-right: none;
+    border-top: 1px solid var(--hair);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -6px 32px rgba(0, 0, 0, 0.4);
+    /* slide up from below rather than in from the left */
+    transform: translateY(calc(100% + 2px));
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .app[data-panel='open'] .panel {
+    transform: translateY(0);
+  }
+
+  /* Drag-handle pill: visual affordance that the sheet can be dragged */
+  .panel__head {
+    padding-top: 24px;
+    position: relative;
+  }
+
+  .panel__head::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    background: var(--hair2);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+}
+
 /* Smooth theme change on calm surfaces (not the map, not transforms). */
 .panel,
 .statusbar,

@@ -416,17 +416,17 @@
 
       <!-- ============================ STATUS ============================ -->
       <footer class="statusbar">
-        <span class="statusbar__item">
+        <span class="statusbar__item" id="statusModeItem">
           <span class="statusbar__dot" aria-hidden="true"></span>
           <span class="v" id="statusMode">Ready</span>
         </span>
-        <span class="statusbar__sep" aria-hidden="true"></span>
-        <span class="statusbar__item">
+        <span class="statusbar__sep" id="statusSep1" aria-hidden="true"></span>
+        <span class="statusbar__item" id="statusCursorItem">
           <span class="k">Cursor</span>
           <span class="v" id="statusCoords" data-numeric>—</span>
         </span>
-        <span class="statusbar__sep" aria-hidden="true"></span>
-        <span class="statusbar__item">
+        <span class="statusbar__sep" id="statusSep2" aria-hidden="true"></span>
+        <span class="statusbar__item" id="statusZoomItem">
           <span class="k">Zoom</span>
           <span class="v" id="statusZoom" data-numeric>—</span>
         </span>
@@ -435,12 +435,12 @@
           <span class="badge badge--warn" id="statusPace">PACE: Airborne = Alternate</span>
         </span>
         <span class="statusbar__sep" id="statusPaceSep" aria-hidden="true" hidden></span>
-        <span class="statusbar__item">
+        <span class="statusbar__item" id="statusAoiItem">
           <span class="k">AOI</span>
           <span class="v" id="statusAoi" data-numeric>—</span>
         </span>
-        <span class="statusbar__sep" aria-hidden="true"></span>
-        <span class="statusbar__item">
+        <span class="statusbar__sep" id="statusSep4" aria-hidden="true"></span>
+        <span class="statusbar__item" id="statusTerrainItem">
           <span class="k">Terrain</span>
           <span class="v" id="statusTerrain">flat</span>
         </span>

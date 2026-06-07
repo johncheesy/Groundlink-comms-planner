@@ -422,19 +422,24 @@ function runCoverage() {
   coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
 
-// ---- Mobile slide-over panel -------------------------------------------
+// ---- Mobile slide-over / phone bottom-sheet panel -----------------------
 
 const app = $('#app');
 const panelToggle = $('#panelToggle');
 const panel = $('#panel');
+
+// mq: mobile (slide-over on 541–760px, bottom sheet on ≤540px)
 const mq = window.matchMedia('(max-width: 760px)');
+// mqPhone: true only for actual phones; tablets stay on the desktop layout
+const mqPhone = window.matchMedia('(max-width: 540px)');
 
 const panelCollapse = $('#panelCollapse');
 
 const openPanel = () => {
   app.dataset.panel = 'open';
   panelToggle.setAttribute('aria-expanded', 'true');
-  if (mq.matches) panel.querySelector('button, [tabindex]')?.focus();
+  // On phone the toggle stays visible; focus a panel control on slide-over only
+  if (mq.matches && !mqPhone.matches) panel.querySelector('button, [tabindex]')?.focus();
 };
 const closePanel = () => {
   app.dataset.panel = 'closed';
@@ -451,8 +456,17 @@ const setCollapsed = (collapsed) => {
 };
 
 panelToggle.addEventListener('click', () => {
-  if (mq.matches) openPanel();
-  else setCollapsed(app.dataset.collapsed !== 'true');
+  if (mqPhone.matches) {
+    // Phone: bottom-sheet — toggle fully open / fully closed
+    if (app.dataset.panel === 'open') closePanel();
+    else openPanel();
+  } else if (mq.matches) {
+    // Tablet slide-over: toggle only opens; X / scrim closes
+    openPanel();
+  } else {
+    // Desktop: collapse / expand the side panel
+    setCollapsed(app.dataset.collapsed !== 'true');
+  }
 });
 panelCollapse.addEventListener('click', () => setCollapsed(true));
 $('#scrim').addEventListener('click', closePanel);

@@ -981,3 +981,87 @@
     display: inline-flex;
   }
 }
+
+/* ==========================================================================
+   Phone: touch-friendly sizes + bottom-sheet layout (≤540px)
+   Tablets (≥541 px) keep the slide-over and desktop proportions. True phones
+   get: larger touch targets, bottom-left panel FAB, simplified status bar,
+   and a full-width search bar.
+   ========================================================================== */
+@media (max-width: 540px) {
+  /* --- Panel toggle: move to bottom-left (ergonomic thumb zone) ----------- */
+  .panel-toggle {
+    /* override the default top: var(--sp-3) */
+    top: auto;
+    bottom: 12px;               /* 12px above the status bar */
+    left: 12px;
+    width: 44px;
+    height: 44px;
+    /* must float above the bottom sheet */
+    z-index: calc(var(--z-panel) + 2);
+  }
+
+  /* --- Search bar: full width at the top ---------------------------------- */
+  /* The toggle moved to the bottom, so nothing blocks the left edge. */
+  .map-search {
+    top: 12px;
+    left: 12px;
+    right: 60px;  /* room for the map toolbar at top-right */
+    width: auto;
+    transform: none;  /* undo the desktop translateX(-50%) centring */
+  }
+
+  /* --- Minimum 44 × 44 px tap targets (Apple HIG / Material guidelines) -- */
+  .btn {
+    height: 44px;
+  }
+
+  .btn--icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .toolgroup__btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .segmented__btn {
+    height: 36px;
+  }
+
+  .basemap-switch__btn {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+
+  /* --- Range thumb: easier to grab on a touch screen --------------------- */
+  .range::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  .range::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* --- Statusbar: keep only mode dot + PACE badge ------------------------- */
+  /* Cursor coords, zoom, AOI dims and terrain are secondary on a phone.     */
+  #statusCursorItem,
+  #statusZoomItem,
+  #statusAoiItem,
+  #statusTerrainItem,
+  #statusSep1,
+  #statusSep2,
+  #statusSep4 {
+    display: none;
+  }
+
+  /* --- View sliders (3D): wider to stay usable on narrow screens ---------- */
+  .view-sliders {
+    width: calc(100vw - 80px);
+    min-width: 160px;
+    max-width: 300px;
+  }
+}
