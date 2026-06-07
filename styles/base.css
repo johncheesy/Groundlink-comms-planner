@@ -103,6 +103,7 @@ button {
   gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-4) var(--sp-3);
   border-bottom: 1px solid var(--hair);
+  flex: 0 0 auto; /* never let the header compress; only .panel__body scrolls */
 }
 
 .brand {
@@ -146,10 +147,21 @@ button {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain; /* over-scroll past the ends doesn't chain out */
   padding: var(--sp-4);
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+}
+
+/* Sections must keep their natural height. As a flex column, the body's
+   children default to flex-shrink:1, so when the viewport is short they
+   compress to fit instead of overflowing — and since each .section is
+   overflow:hidden, the squeezed content gets clipped and the body never
+   scrolls. Pinning shrink to 0 lets the content exceed the body so
+   overflow-y:auto produces a real scrollbar. */
+.panel__body > * {
+  flex-shrink: 0;
 }
 
 .panel__body::-webkit-scrollbar {
