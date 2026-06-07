@@ -45,4 +45,13 @@ describe('activeSetToCoverage (talk-in binding link)', () => {
   it('returns null with no radios', () => {
     expect(activeSetToCoverage(null, null)).toBeNull();
   });
+
+  it('flags HF and satcom transmitters as having no meaningful raster', () => {
+    const hf = normalizeRadio({ label: 'HF', role: 'hf', freqRangeMHz: [1.6, 30] });
+    const sat = normalizeRadio({ label: 'Sat', role: 'satcom', freqRangeMHz: [1616, 1626] });
+    const rep = normalizeRadio({ label: 'Rptr', role: 'repeater', freqRangeMHz: [148, 152] });
+    expect(activeSetToCoverage(hf, hf).rasterMeaningful).toBe(false);
+    expect(activeSetToCoverage(sat, sat).rasterMeaningful).toBe(false);
+    expect(activeSetToCoverage(rep, rep).rasterMeaningful).toBe(true);
+  });
 });

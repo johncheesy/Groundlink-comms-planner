@@ -24,6 +24,7 @@
 export const ROLE_DEFAULTS = {
   handheld: { defaultHeightM: 1.5, antennaGainDbi: 2.15, rxSensDbm: -116 },
   manpack: { defaultHeightM: 2, antennaGainDbi: 2.15, rxSensDbm: -116 },
+  manet: { defaultHeightM: 2, antennaGainDbi: 3, rxSensDbm: -95 },
   mobile: { defaultHeightM: 2, antennaGainDbi: 3, rxSensDbm: -116 },
   base: { defaultHeightM: 10, antennaGainDbi: 6, rxSensDbm: -118 },
   repeater: { defaultHeightM: 15, antennaGainDbi: 6, rxSensDbm: -119 },
@@ -99,7 +100,21 @@ export function activeSetToCoverage(infra, field) {
     rxHeightM: rx.defaultHeightM,
     rxSensDbm: rx.rxSensDbm,
     thresholds: thresholdsFromSens(rx.rxSensDbm),
+    txRole: tx.role,
+    // HF and satcom are PACE assets, not terrestrial-LOS bands: HF is a separate
+    // later module (NVIS/ALE, not ITM) and satcom has no coverage raster. The
+    // FSPL plot does not represent them — the UI warns when one is the active tx.
+    rasterMeaningful: tx.role !== 'hf' && tx.role !== 'satcom',
   };
+}
+
+/** Coarse band label from a radio's default operating frequency. */
+export function bandLabel(freqMHz) {
+  if (freqMHz < 30) return 'HF';
+  if (freqMHz < 300) return 'VHF';
+  if (freqMHz < 1000) return 'UHF';
+  if (freqMHz < 3000) return 'L/S-band';
+  return 'SHF';
 }
 
 // ── Persistence (hosted origin only; in-memory fallback) ──────────────────────

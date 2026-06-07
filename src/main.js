@@ -574,9 +574,12 @@ whenStyleReady(() => {
       thGood.value = String(vals.thresholds.good);
       thMarginal.value = String(vals.thresholds.marginal);
       thNone.value = String(vals.thresholds.none);
-      coverageHelp.textContent =
-        `Coverage controls set from the active radio set — talk-in at ${vals.rxHeightM} m, ` +
-        `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`;
+      coverageHelp.textContent = vals.rasterMeaningful
+        ? `Coverage controls set from the active radio set — talk-in at ${vals.rxHeightM} m, ` +
+          `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`
+        : `Active tx is ${vals.txRole.toUpperCase()} — a PACE asset, not a terrestrial line-of-sight band. ` +
+          `The FSPL raster won't represent ${vals.txRole === 'hf' ? 'HF (NVIS/ALE — a separate module)' : 'satcom'}; ` +
+          `use the radio mix for the PACE plan. Controls are set for VHF/UHF comparison only.`;
     },
     onStatus(msg) { statusMode.textContent = msg; },
   });
