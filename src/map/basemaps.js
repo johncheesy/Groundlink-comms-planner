@@ -38,12 +38,17 @@ export const BASEMAP_VARIANTS = {
       // EOX Sentinel-2 cloudless 2024 — free, no token, global coverage.
       // WMS source: uses {bbox-epsg-3857} which MapLibre replaces with tile bounds.
       // License: CC BY-NC-SA 4.0 (non-commercial). 10 m resolution.
+      //
+      // NB: the layer MUST be the Mercator-native `s2cloudless-2024_3857`.
+      // The plain `s2cloudless-2024` layer advertises only EPSG:4326 in the
+      // WMS GetCapabilities, so requesting it with srs=EPSG:3857 returns
+      // HTTP 400 for every tile. `_3857` supports EPSG:3857 / EPSG:900913.
       id: 's2cloudless-2024',
       label: 'Sentinel-2 2024 (climate)',
       wms: true, // flag: tile URL uses {bbox-epsg-3857} instead of {x}/{y}/{z}
       tiles: [
         'https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&version=1.1.1' +
-          '&layers=s2cloudless-2024&styles=&format=image%2Fjpeg' +
+          '&layers=s2cloudless-2024_3857&styles=&format=image%2Fjpeg' +
           '&width=256&height=256&srs=EPSG%3A3857&bbox={bbox-epsg-3857}',
       ],
       attribution:
