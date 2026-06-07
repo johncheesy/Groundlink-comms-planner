@@ -661,6 +661,87 @@
   margin-top: 6px;
 }
 
+/* ---- M5 radios: active set, picker, FCC/manual, mix card --------------- */
+
+.radio-active {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--sp-2);
+}
+.radio-slot {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--hair2);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  flex-wrap: wrap;
+}
+.radio-slot__role {
+  font-size: 11px;
+  color: var(--dim);
+  flex: 0 0 92px;
+}
+.radio-slot__label { font-size: 12.5px; display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.radio-slot__name { color: var(--ink); font-weight: 600; }
+.radio-slot__band { color: var(--dim); font-size: 11px; }
+.radio-slot__empty { color: var(--faint); }
+
+.radio-results {
+  list-style: none;
+  margin: var(--sp-2) 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.radio-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+}
+.radio-result--empty { color: var(--faint); justify-content: center; }
+.radio-result__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.radio-result__name { color: var(--ink); font-size: 12.5px; font-weight: 600; }
+.radio-result__meta { color: var(--dim); font-size: 11px; }
+.radio-result__btns { display: flex; gap: 4px; flex: 0 0 auto; }
+
+.radio-editor { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 6px; }
+.fcc-fallback { margin-top: var(--sp-2); }
+
+.radio-mix {
+  margin-top: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.radio-mix__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+}
+.radio-mix__band {
+  font-family: var(--disp);
+  font-weight: 700;
+  color: var(--ink);
+  flex: 0 0 70px;
+}
+.radio-mix__pace { font-size: 11px; flex: 0 0 auto; }
+.radio-mix__why { font-size: 11.5px; color: var(--dim); flex: 1 1 100%; line-height: 1.4; }
+
 /* ---- Legend (coverage spectrum + typed features) ----------------------- */
 
 .legend {

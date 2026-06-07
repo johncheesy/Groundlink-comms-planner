@@ -9,10 +9,12 @@ import { createRecommendController } from './recommend/recommend.js';
 import { createMission } from './mission/mission.js';
 import { createMissionTools } from './mission/mission-tools.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
+import { createRadios } from './radios/radios.js';
+import { recommendMix } from './radios/mix.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
-import { wattsToDbm, maxRangeM } from './coverage/model.js';
+import { wattsToDbm, maxRangeM, haversineM } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -238,6 +240,7 @@ let drone = null;
 let recommender = null;
 let mission = null;
 let missionTools = null;
+let radios = null;
 let currentAoiAreaM2 = 0;
 
 function whenStyleReady(fn) {
@@ -560,6 +563,29 @@ whenStyleReady(() => {
   });
   clearSitesBtn.addEventListener('click', () => recommender.clear());
 
+  // ---- Radios (M5): active set, picker, FCC/manual, mix ----------------
+  radios = createRadios(radioEls(), {
+    onApply(vals) {
+      freqInput.value = String(Math.round(vals.freqMHz));
+      powerInput.value = String(vals.powerW);
+      txHeightInput.value = String(vals.txHeightM);
+      rxHeightInput.value = String(vals.rxHeightM);
+      thExcellent.value = String(vals.thresholds.excellent);
+      thGood.value = String(vals.thresholds.good);
+      thMarginal.value = String(vals.thresholds.marginal);
+      thNone.value = String(vals.thresholds.none);
+      coverageHelp.textContent =
+        `Coverage controls set from the active radio set — talk-in at ${vals.rxHeightM} m, ` +
+        `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`;
+    },
+    onStatus(msg) { statusMode.textContent = msg; },
+  });
+
+  recommendMixBtn.addEventListener('click', () => {
+    renderMix(recommendMix(gatherMixInput()));
+    statusMode.textContent = 'Radio mix ready';
+  });
+
   // ---- Location search + coordinate entry ------------------------------
   createSearch(map, {
     input: $('#searchInput'),
@@ -805,6 +831,72 @@ function runBulkAdd() {
   if (added && mq.matches) closePanel();
 }
 
+// ---- Radios (M5) --------------------------------------------------------
+
+const recommendMixBtn = $('#recommendMixBtn');
+const radioMix = $('#radioMix');
+
+/** DOM handles the radios controller drives. */
+function radioEls() {
+  return {
+    infraLabel: $('#radioInfraLabel'),
+    fieldLabel: $('#radioFieldLabel'),
+    applyBtn: $('#applyRadios'),
+    searchInput: $('#radioSearchInput'),
+    results: $('#radioResults'),
+    editor: $('#radioEditor'),
+    editorSave: $('#radioEditorSave'),
+    editorCancel: $('#radioEditorCancel'),
+    fccInput: $('#fccInput'),
+    fccBtn: $('#fccLookupBtn'),
+    fccFallback: $('#fccFallback'),
+    fccOfficial: $('#fccOfficial'),
+    fccIo: $('#fccIo'),
+  };
+}
+
+/** Gather the mission + terrain stats the band-mix rules read. */
+function gatherMixInput() {
+  const aoiArea = aoi?.getAoi?.();
+  const aoiAreaKm2 = aoiArea ? currentAoiAreaM2 / 1e6 : 0;
+  const route = mission.getRoute();
+  let routeLengthKm = 0;
+  for (let i = 1; i < route.length; i++) {
+    routeLengthKm += haversineM(route[i - 1].lat, route[i - 1].lng, route[i].lat, route[i].lng) / 1000;
+  }
+  const sites = mission.getSites();
+  let maxSiteDistanceKm = 0;
+  for (let i = 0; i < sites.length; i++) {
+    for (let j = i + 1; j < sites.length; j++) {
+      maxSiteDistanceKm = Math.max(
+        maxSiteDistanceKm,
+        haversineM(sites[i].lat, sites[i].lng, sites[j].lat, sites[j].lng) / 1000,
+      );
+    }
+  }
+  const stats = coverage?.getStats?.();
+  const coverageFrac = stats?.coveredFracAoi ?? stats?.coveredFrac ?? 0;
+  const pointCount = mission.getPoints().length + sites.length;
+  return { aoiAreaKm2, routeLengthKm, maxSiteDistanceKm, coverageFrac, pointCount };
+}
+
+const PACE_BADGE = { Primary: 'badge--ok', Alternate: 'badge--ref', Contingency: 'badge--warn', Emergency: 'badge--bad' };
+
+/** Render the ranked band list into the mix card. */
+function renderMix(result) {
+  radioMix.hidden = false;
+  radioMix.innerHTML = result.bands
+    .map(
+      (b) =>
+        `<div class="radio-mix__row">` +
+        `<span class="radio-mix__band">${b.band}</span>` +
+        `<span class="radio-mix__pace badge ${PACE_BADGE[b.pace] || 'badge--ref'}">${b.pace}</span>` +
+        `<span class="radio-mix__why">${b.why}</span>` +
+        `</div>`,
+    )
+    .join('');
+}
+
 /** Render the recommended-site rows; hover highlights the marker, click flies to it. */
 function renderSiteList(sites) {
   siteList.innerHTML = '';
@@ -993,5 +1085,6 @@ if (import.meta.env.DEV) {
     get recommender() { return recommender; },
     get mission() { return mission; },
     get missionTools() { return missionTools; },
+    get radios() { return radios; },
   };
 }

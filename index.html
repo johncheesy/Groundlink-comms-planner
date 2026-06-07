@@ -174,6 +174,80 @@
             </div>
           </section>
 
+          <!-- Radios (M5) -->
+          <section class="section" aria-labelledby="radioTitle">
+            <div class="section__head">
+              <span class="section__title" id="radioTitle">Radios</span>
+              <span class="section__hint">M5 · import &amp; mix</span>
+            </div>
+            <div class="section__body">
+              <div class="radio-active">
+                <div class="radio-slot">
+                  <span class="radio-slot__role">Infrastructure tx</span>
+                  <span class="radio-slot__label" id="radioInfraLabel"><span class="radio-slot__empty">— none —</span></span>
+                </div>
+                <div class="radio-slot">
+                  <span class="radio-slot__role">Field unit</span>
+                  <span class="radio-slot__label" id="radioFieldLabel"><span class="radio-slot__empty">— none —</span></span>
+                </div>
+              </div>
+              <button class="btn btn--primary btn--block" type="button" id="applyRadios" disabled>
+                Apply to coverage
+              </button>
+              <p class="help">
+                Pick an infrastructure tx (base/repeater) and a field unit (handheld/mobile). Talk-in
+                is the binding link — tx from the infrastructure radio, rx height + sensitivity from the
+                field unit; thresholds derive from sensitivity. Library specs are indicative — check
+                against your radio.
+              </p>
+
+              <input class="input" id="radioSearchInput" type="text" placeholder="Search radios by name, band or role" aria-label="Search radios" />
+              <ul class="radio-results" id="radioResults" aria-label="Radio library"></ul>
+
+              <details class="disclosure">
+                <summary>Add by FCC ID / manual</summary>
+                <div class="input-row">
+                  <input class="input" id="fccInput" type="text" placeholder="FCC ID (e.g. AZ489FT7104)" aria-label="FCC ID" />
+                  <button class="btn" type="button" id="fccLookupBtn">Look up</button>
+                </div>
+                <div class="fcc-fallback" id="fccFallback" hidden>
+                  <p class="help">
+                    Browser lookup of FCC data is usually blocked (CORS). Open the record, then enter the
+                    four numbers below. Grant ≠ channel plan — treat as a strong starting point, edit to
+                    match your config.
+                  </p>
+                  <div class="input-row">
+                    <a class="btn btn--sm" id="fccOfficial" href="#" target="_blank" rel="noopener">Open FCC record</a>
+                    <a class="btn btn--sm" id="fccIo" href="#" target="_blank" rel="noopener">fccid.io</a>
+                  </div>
+                </div>
+                <div class="radio-editor" id="radioEditor" hidden>
+                  <div class="input-row">
+                    <div style="flex:2">
+                      <label class="field-label">Label<input class="input" name="label" type="text" /></label>
+                    </div>
+                    <div style="flex:1">
+                      <label class="field-label">Role<select class="input" name="role"></select></label>
+                    </div>
+                  </div>
+                  <div class="input-row">
+                    <label class="field-label" style="flex:1">Freq lo<input class="input input--mini" name="lo" type="number" step="0.1" /></label>
+                    <label class="field-label" style="flex:1">Freq hi<input class="input input--mini" name="hi" type="number" step="0.1" /></label>
+                    <label class="field-label" style="flex:1">Power W<input class="input input--mini" name="power" type="number" step="0.1" /></label>
+                    <label class="field-label" style="flex:1">Sens dBm<input class="input input--mini" name="sens" type="number" step="1" /></label>
+                  </div>
+                  <div class="input-row">
+                    <button class="btn btn--primary btn--sm" type="button" id="radioEditorSave">Save radio</button>
+                    <button class="btn btn--sm" type="button" id="radioEditorCancel">Cancel</button>
+                  </div>
+                </div>
+              </details>
+
+              <button class="btn btn--block" type="button" id="recommendMixBtn">Recommend radio mix</button>
+              <div class="radio-mix" id="radioMix" hidden></div>
+            </div>
+          </section>
+
           <!-- Coverage compute (M2) -->
           <section class="section" aria-labelledby="coverageTitle">
             <div class="section__head">
