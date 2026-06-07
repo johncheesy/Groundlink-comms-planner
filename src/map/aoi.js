@@ -316,7 +316,15 @@ export function createAoiController(map, { onChange, onHint } = {}) {
       if (!committed) return null;
       const b = bboxOf(committed.ring);
       const center = committed.type === 'radius' ? committed.center : [(b.west + b.east) / 2, (b.south + b.north) / 2];
-      return { type: committed.type, center: { lat: center[1], lng: center[0] }, bounds: b };
+      return {
+        type: committed.type,
+        center: { lat: center[1], lng: center[0] },
+        bounds: b,
+        radiusM: committed.type === 'radius' ? committed.radiusM : null,
+        // ring as [[lng, lat], ...]: the 72-point geodesic circle (radius) or
+        // the polygon vertices. Used for in-AOI masking (coverage stats, M3).
+        ring: committed.ring.map(([lng, lat]) => [lng, lat]),
+      };
     },
     fitBounds(opts = { padding: 60 }) {
       if (!committed) return false;

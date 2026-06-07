@@ -77,7 +77,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     return { rows: TARGET_MAX_DIM, cols: Math.max(8, Math.round((TARGET_MAX_DIM * w) / h)) };
   }
 
-  function paint({ classes, cols, rows, terrain, clutter }) {
+  function paint({ classes, cols, rows, terrain, clutter, inAoi, coveredInAoi, coveredFracAoi }) {
     const bounds = currentBounds;
     if (!bounds) return;
     const canvas = document.createElement('canvas');
@@ -105,7 +105,19 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
       data[o + 3] = 255;
     }
     const total = classes.length;
-    lastStats = { total, covered, byClass, coveredFrac: total ? covered / total : 0, terrain: !!terrain, clutter: !!clutter };
+    lastStats = {
+      total,
+      covered,
+      byClass,
+      coveredFrac: total ? covered / total : 0,
+      // In-AOI fraction (null when no AOI mask was passed — e.g. drone relay):
+      // counts only cells inside the drawn shape, not the bbox corners.
+      inAoi: inAoi ?? null,
+      coveredInAoi: coveredInAoi ?? null,
+      coveredFracAoi: coveredFracAoi ?? null,
+      terrain: !!terrain,
+      clutter: !!clutter,
+    };
     if (!currentRender) return; // stats-only pass (e.g. gain-vs-ground baseline)
     ctx.putImageData(img, 0, 0);
     const url = canvas.toDataURL('image/png');
@@ -156,7 +168,9 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     if (currentMarker) placeTx(tx);
     onStatus?.('computing');
     onProgress?.(0);
-    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params });
+    // opts.aoi (optional) lets the worker report coverage against the drawn
+    // shape rather than the bbox; absent for drone-relay calls.
+    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null });
     return jobId;
   }
 

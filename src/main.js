@@ -290,6 +290,10 @@ whenStyleReady(() => {
             : 'flat';
         }
         const bits = [];
+        const stats = coverage.getStats();
+        if (stats && stats.coveredFracAoi != null) {
+          bits.push(`${Math.round(stats.coveredFracAoi * 100)}% of the AOI is covered (marginal or better).`);
+        }
         bits.push(terrain
           ? 'Terrain-aware (FSPL + Deygout knife-edge over DEM, k=4/3).'
           : (useTerrainInput.checked ? 'Terrain unavailable — flat FSPL fallback.' : 'Flat free-space (FSPL).'));
@@ -556,7 +560,8 @@ function runCoverage() {
     ...coverageParams(),
     txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
   };
-  coverage.compute(coverageBounds(area, params), area.center, params);
+  const aoiMask = { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring };
+  coverage.compute(coverageBounds(area, params), area.center, params, { aoi: aoiMask });
   coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
 
