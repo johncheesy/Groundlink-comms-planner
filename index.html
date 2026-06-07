@@ -205,7 +205,7 @@
 
               <p class="help" id="coverageHelp">
                 Draw an AOI, then compute. The transmitter defaults to the AOI centre.
-                Flat free-space estimate — add a Mapbox token for terrain-aware coverage.
+                Terrain uses AWS elevation tiles — no token needed.
               </p>
             </div>
           </section>
@@ -442,7 +442,7 @@
         <span class="statusbar__sep" aria-hidden="true"></span>
         <span class="statusbar__item">
           <span class="k">Terrain</span>
-          <span class="v">flat (M2)</span>
+          <span class="v" id="statusTerrain">flat</span>
         </span>
       </footer>
 

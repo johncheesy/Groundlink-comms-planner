@@ -243,6 +243,7 @@ export function createDroneController(map, { coverage, getAoi, coverageParams, o
   }
 
   function clear() {
+    clearEnvelope(); // also removes GCS marker + envelope layer
     drone?.marker?.remove();
     drone = null;
     arm(null);

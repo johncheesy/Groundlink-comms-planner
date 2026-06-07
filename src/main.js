@@ -27,6 +27,7 @@ const statusCoords = $('#statusCoords');
 const statusZoom = $('#statusZoom');
 const statusMode = $('#statusMode');
 const statusAoi = $('#statusAoi');
+const statusTerrain = $('#statusTerrain');
 
 const fmtLat = (lat) => `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}`;
 const fmtLng = (lng) => `${Math.abs(lng).toFixed(4)}°${lng >= 0 ? 'E' : 'W'}`;
@@ -181,6 +182,12 @@ whenStyleReady(() => {
         const clutter = info?.clutter;
         coverageEngine.textContent =
           (terrain ? 'FSPL+Deygout' : 'FSPL · flat') + (clutter ? ' · clutter' : '');
+        // update status bar terrain indicator
+        if (statusTerrain) {
+          statusTerrain.textContent = terrain
+            ? (clutter ? 'DEM + clutter' : 'DEM')
+            : 'flat';
+        }
         const bits = [];
         bits.push(terrain
           ? 'Terrain-aware (FSPL + Deygout knife-edge over DEM, k=4/3).'
