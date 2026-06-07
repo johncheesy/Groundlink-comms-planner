@@ -51,34 +51,6 @@ export const BASEMAP_VARIANTS = {
         '<a href="https://www.esa.int/">ESA</a> Sentinel-2 2024 (CC BY-NC-SA)',
       maxzoom: 15,
     },
-    {
-      // NASA GIBS MODIS Terra — free, no token, global, daily archive.
-      // Fixed date 15 Jul 2024: peak-summer vegetation + drought state.
-      // 250 m overview resolution (max zoom 9; pixelated at street level).
-      id: 'modis-summer',
-      label: 'Zomer 2024 (MODIS)',
-      tiles: [
-        'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/' +
-          'MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-07-15/' +
-          'GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
-      ],
-      attribution:
-        'Imagery &copy; <a href="https://earthdata.nasa.gov/gibs">NASA GIBS</a> / MODIS Terra (250 m)',
-      maxzoom: 9,
-    },
-    {
-      // Fixed date 15 Jan 2024: winter — snow cover, bare trees, low vegetation.
-      id: 'modis-winter',
-      label: 'Winter 2024 (MODIS)',
-      tiles: [
-        'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/' +
-          'MODIS_Terra_CorrectedReflectance_TrueColor/default/2024-01-15/' +
-          'GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
-      ],
-      attribution:
-        'Imagery &copy; <a href="https://earthdata.nasa.gov/gibs">NASA GIBS</a> / MODIS Terra (250 m)',
-      maxzoom: 9,
-    },
   ],
   topo: [
     {
