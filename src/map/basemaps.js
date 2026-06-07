@@ -10,16 +10,12 @@
  *   imagery — Esri satellite (default)
  *   topo    — multiple variants, chosen via dropdown
  *
- * Zoom-based auto-selection: imagery below AUTO_ZOOM, topo at or above.
- *
- * All sources are token-free.
+ * The category is chosen explicitly by the user (chips); there is no
+ * zoom-based auto-switching. All sources are token-free.
  */
 
 export const BASEMAPS = ['imagery', 'topo'];
 export const DEFAULT_BASEMAP = 'imagery';
-
-/** Zoom at which topo is auto-preferred over imagery (when not user-chosen). */
-export const AUTO_ZOOM_THRESHOLD = 10;
 
 /**
  * Variants for each basemap category. The first entry in each array is the
