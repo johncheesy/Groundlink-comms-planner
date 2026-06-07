@@ -27,7 +27,7 @@ const FCC_EAS_TRY = (id) =>
 const FCC_OFFICIAL_RECORD = (id) => `https://www.fcc.gov/oet/ea/fccid?fcc_id=${encodeURIComponent(id)}`;
 const FCCIO_RECORD = (id) => `https://fccid.io/${encodeURIComponent(id)}`;
 
-const ROLES = ['handheld', 'mobile', 'base', 'repeater', 'lora', 'satcom', 'hf'];
+const ROLES = ['handheld', 'manpack', 'mobile', 'base', 'repeater', 'lora', 'satcom', 'hf'];
 
 export function createRadios(els, { onApply, onStatus } = {}) {
   let userRadios = []; // added / edited radios (persisted)

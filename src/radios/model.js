@@ -23,6 +23,7 @@
  *  doesn't provide: antenna height, gain, and receiver sensitivity. */
 export const ROLE_DEFAULTS = {
   handheld: { defaultHeightM: 1.5, antennaGainDbi: 2.15, rxSensDbm: -116 },
+  manpack: { defaultHeightM: 2, antennaGainDbi: 2.15, rxSensDbm: -116 },
   mobile: { defaultHeightM: 2, antennaGainDbi: 3, rxSensDbm: -116 },
   base: { defaultHeightM: 10, antennaGainDbi: 6, rxSensDbm: -118 },
   repeater: { defaultHeightM: 15, antennaGainDbi: 6, rxSensDbm: -119 },
