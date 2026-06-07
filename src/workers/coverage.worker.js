@@ -28,9 +28,10 @@
  * against the drawn area, not the bounding box. Without `aoi`, the AOI fields
  * are null and callers fall back to the bbox fraction (drone relay).
  */
-import { receivedDbm, classifyDbm, haversineM, deygoutLossDb, earthBulgeM } from '../coverage/model.js';
+import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
 import { buildDem } from './dem.js';
 import { buildLandcover, clutterDbForClass } from './worldcover.js';
+import { buildProfile } from './profile.js';
 
 self.onmessage = async (e) => {
   const msg = e.data;
@@ -103,25 +104,6 @@ self.onmessage = async (e) => {
     [classes.buffer],
   );
 };
-
-/**
- * Elevation profile between tx and rx, sampled at ~2 km spacing (8–40 points),
- * with the k = 4/3 earth bulge folded into each terrain height so the knife-
- * edge geometry accounts for curvature.
- */
-function buildProfile(tx, rx, totalDist, dem) {
-  const n = Math.max(8, Math.min(40, Math.round(totalDist / 2000)));
-  const profile = [];
-  for (let i = 1; i < n; i++) {
-    const f = i / n;
-    const lng = tx.lng + (rx.lng - tx.lng) * f;
-    const lat = tx.lat + (rx.lat - tx.lat) * f;
-    const d1 = f * totalDist;
-    const h = dem.sample(lng, lat) + earthBulgeM(d1, totalDist - d1);
-    profile.push({ d: d1, h });
-  }
-  return profile;
-}
 
 /** Is (lng, lat) inside the AOI shape? Radius → distance; polygon → ray-cast. */
 function inAoi(aoi, lng, lat) {
