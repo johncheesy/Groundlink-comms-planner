@@ -58,10 +58,15 @@ self.onmessage = async (e) => {
   const latSpan = north - south;
   const reportEvery = Math.max(1, Math.floor(rows / 40));
 
-  const txHeight = params.txHeightM ?? 10;
   const rxHeight = params.rxHeightM ?? 1.5;
-  const txGround = dem ? dem.sample(tx.lng, tx.lat) : 0;
-  const txElev = txGround + txHeight;
+
+  // Transmitter list. Single `tx` is always accepted (backward compatible);
+  // when `txs` is supplied (M3 multi-site) each cell takes the strongest of all
+  // transmitters. A 1-element list reproduces the single-tx result exactly.
+  const txList = msg.txs?.length
+    ? msg.txs
+    : [{ lat: tx.lat, lng: tx.lng, txHeightM: params.txHeightM ?? 10 }];
+  const txElevs = txList.map((t) => (dem ? dem.sample(t.lng, t.lat) : 0) + (t.txHeightM ?? 10));
 
   let inAoiCount = 0;
   let coveredInAoiCount = 0;
@@ -71,16 +76,22 @@ self.onmessage = async (e) => {
     const rowOff = r * cols;
     for (let c = 0; c < cols; c++) {
       const lng = west + ((c + 0.5) / cols) * lngSpan;
-      const dist = haversineM(tx.lat, tx.lng, lat, lng);
-
-      let diffraction = 0;
-      if (dem && dist > 50) {
-        const rxElev = dem.sample(lng, lat) + rxHeight;
-        diffraction = deygoutLossDb(buildProfile(tx, { lng, lat }, dist, dem), txElev, rxElev, params.freqMHz, dist);
-      }
+      // Rx-side terms depend only on the cell, not the transmitter.
+      const rxElev = (dem ? dem.sample(lng, lat) : 0) + rxHeight;
       const clutterDb = landcover ? clutterDbForClass(landcover.sample(lng, lat)) : params.clutterDb || 0;
-      const dbm = receivedDbm(params, dist, diffraction, clutterDb);
-      const cls = classifyDbm(dbm, thresholds, floorDbm);
+
+      let maxDbm = -Infinity;
+      for (let ti = 0; ti < txList.length; ti++) {
+        const t = txList[ti];
+        const dist = haversineM(t.lat, t.lng, lat, lng);
+        let diffraction = 0;
+        if (dem && dist > 50) {
+          diffraction = deygoutLossDb(buildProfile(t, { lng, lat }, dist, dem), txElevs[ti], rxElev, params.freqMHz, dist);
+        }
+        const dbm = receivedDbm(params, dist, diffraction, clutterDb);
+        if (dbm > maxDbm) maxDbm = dbm;
+      }
+      const cls = classifyDbm(maxDbm, thresholds, floorDbm);
       classes[rowOff + c] = cls;
       if (aoi && inAoi(aoi, lng, lat)) {
         inAoiCount += 1;

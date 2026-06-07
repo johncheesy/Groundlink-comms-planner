@@ -170,7 +170,9 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
     onProgress?.(0);
     // opts.aoi (optional) lets the worker report coverage against the drawn
     // shape rather than the bbox; absent for drone-relay calls.
-    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null });
+    // opts.txs (optional) is the M3 multi-site list; when present the worker
+    // paints the combined (max-dBm) coverage across all sites.
+    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null, txs: opts.txs ?? null });
     return jobId;
   }
 
