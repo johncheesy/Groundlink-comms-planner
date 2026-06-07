@@ -210,6 +210,43 @@
             </div>
           </section>
 
+          <!-- Site recommendation (M3) -->
+          <section class="section" aria-labelledby="siteTitle">
+            <div class="section__head">
+              <span class="section__title" id="siteTitle">Site recommendation</span>
+              <span class="section__hint">M3 · masts</span>
+            </div>
+            <div class="section__body">
+              <div class="input-row">
+                <div style="flex:1">
+                  <label class="field-label" for="maxSites">Max sites</label>
+                  <input class="input" id="maxSites" type="number" min="1" max="6" value="3" step="1" />
+                </div>
+                <div style="flex:1">
+                  <label class="field-label" for="targetCoverage">Target coverage</label>
+                  <div class="input-row">
+                    <input class="input" id="targetCoverage" type="number" min="10" max="100" value="95" step="1" />
+                    <span class="input-suffix">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn btn--primary btn--block" type="button" id="recommendBtn" disabled>
+                Recommend sites
+              </button>
+
+              <div class="progress" id="siteProgress" hidden>
+                <div class="progress__bar" id="siteProgressBar"></div>
+              </div>
+
+              <div id="siteResults" hidden>
+                <ul class="site-list" id="siteList" aria-label="Recommended sites"></ul>
+                <p class="help" id="siteHelp"></p>
+                <button class="btn btn--block" type="button" id="clearSitesBtn">Clear sites</button>
+              </div>
+            </div>
+          </section>
+
           <!-- Drone relay (M2.1) -->
           <section class="section" aria-labelledby="droneTitle">
             <div class="section__head">

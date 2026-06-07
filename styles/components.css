@@ -450,6 +450,89 @@
   margin: var(--sp-3) 0 var(--sp-1);
 }
 
+/* ---- M3 site recommendation: numbered markers + site list ------------- */
+
+.site-marker {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 2px solid var(--mapbg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: grab;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.site-marker:hover,
+.site-marker.is-hot {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.site-marker.is-dragging {
+  cursor: grabbing;
+}
+
+.site-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.site-list__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hair);
+  background: var(--surface2);
+  font-size: 12px;
+  color: var(--dim);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.site-list__row:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.site-list__n {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+.site-list__name {
+  color: var(--ink);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site-list__elev,
+.site-list__new,
+.site-list__cum {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.site-list__cum {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 /* ---- Legend (coverage spectrum + typed features) ----------------------- */
 
 .legend {
