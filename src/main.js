@@ -338,6 +338,9 @@ whenStyleReady(() => {
   computeBtn.addEventListener('click', runCoverage);
   opacityInput.addEventListener('input', () => coverage.setOpacity(opacityInput.value / 100));
   clearCoverageBtn.addEventListener('click', () => {
+    // Recommended sites paint into this same raster — clear them too so the
+    // numbered markers and the site list don't linger over a cleared map.
+    if (recommender?.hasSites()) recommender.clear();
     coverage.clear();
     opacityRow.hidden = true;
     progress.hidden = true;
@@ -435,6 +438,10 @@ whenStyleReady(() => {
       if (info?.cleared) {
         siteResults.hidden = true;
         siteList.innerHTML = '';
+        // The combined raster was removed with the sites — drop its opacity row.
+        opacityRow.hidden = true;
+        progress.hidden = true;
+        progressBar.style.width = '0%';
         return;
       }
       if (info?.empty || !sites || !sites.length) {
@@ -643,6 +650,10 @@ function coverageBounds(area, params) {
 function runCoverage() {
   const area = aoi?.getAoi?.();
   if (!area) return;
+  // Single-tx coverage and the M3 multi-site raster share one map layer, so a
+  // fresh coverage run supersedes any recommendation — clear stale site markers
+  // and the list instead of leaving them floating over the new raster.
+  if (recommender?.hasSites()) recommender.clear();
   const params = {
     ...coverageParams(),
     txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
