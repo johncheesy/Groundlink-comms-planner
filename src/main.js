@@ -9,7 +9,7 @@ import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { wattsToDbm } from './coverage/model.js';
-import { BASEMAP_VARIANTS, AUTO_ZOOM_THRESHOLD } from './map/basemaps.js';
+import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -93,8 +93,6 @@ map.on('rotate', reflectViewSliders);
 const basemapSwitch = $('#basemapSwitch');
 const variantMenu = $('#basemapVariantMenu');
 
-let userChoseBasemap = false; // auto-switch only while user hasn't chosen
-
 /** Reflect the active basemap category in the chip buttons. */
 function reflectBasemap(category) {
   basemapSwitch.querySelectorAll('.basemap-switch__btn').forEach((b) => {
@@ -102,21 +100,11 @@ function reflectBasemap(category) {
   });
 }
 
-/** Switch category (and optionally variant), mark as user-chosen if explicit. */
-function switchBasemap(category, variantId, explicit = true) {
+/** Switch category (and optionally variant). */
+function switchBasemap(category, variantId) {
   const result = mapApi.setBasemap(category, variantId);
   reflectBasemap(result.category);
-  if (explicit) userChoseBasemap = true;
 }
-
-// Auto-switch: imagery below threshold, topo above — only when user hasn't chosen.
-const autoSwitch = () => {
-  if (userChoseBasemap) return;
-  const zoom = map.getZoom();
-  const target = zoom >= AUTO_ZOOM_THRESHOLD ? 'topo' : 'imagery';
-  if (target !== mapApi.getBasemap()) switchBasemap(target, undefined, false);
-};
-map.on('zoomend', autoSwitch);
 
 // ---- Variant picker dropdown -------------------------------------------
 let variantMenuOpen = false;
