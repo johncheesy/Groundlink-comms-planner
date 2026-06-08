@@ -1,11 +1,12 @@
 import maplibregl from 'maplibre-gl';
+import { parseCoordinate } from '../geo/coords.js';
 
 /**
  * Location search + coordinate entry, sitting over the map.
  *
  * Two input modes, picked from the text the user types:
- *  - a coordinate pair ("52.3676, 4.9041" or "52.3676 4.9041", lat first) flies
- *    straight there and drops a temporary pin;
+ *  - a coordinate in any supported format — decimal lat/long, DMS, MGRS or UTM
+ *    (parseCoordinate) — flies straight there and drops a temporary pin;
  *  - free text geocodes via Nominatim (OpenStreetMap, token-free) and lists up
  *    to five matches; picking one flies to it (to its bbox when supplied).
  *
@@ -15,18 +16,8 @@ import maplibregl from 'maplibre-gl';
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
-// "52.3676, 4.9041" | "52.3676 4.9041" | "-1.95 30.06" — lat first, lng second.
-const COORD_RE = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
-
-function parseCoords(text) {
-  const m = COORD_RE.exec(text);
-  if (!m) return null;
-  const lat = Number(m[1]);
-  const lng = Number(m[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { lat, lng };
-}
+// Recognise any supported coordinate grammar; null → treat as a place name.
+const parseCoords = (text) => parseCoordinate(text);
 
 export function createSearch(map, { input, form, results, clearBtn, onStatus } = {}) {
   let pin = null;

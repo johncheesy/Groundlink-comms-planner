@@ -311,6 +311,13 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     setMode,
     getMode: () => mode,
     clear: clearAll,
+    /** Programmatically set a polygon AOI from a ring of [lng, lat] (e.g. import). */
+    setPolygon(ring) {
+      if (!Array.isArray(ring) || ring.length < 3) return false;
+      setMode(null);
+      commitPolygon(ring.map(([lng, lat]) => [lng, lat]));
+      return true;
+    },
     summary,
     getAoi() {
       if (!committed) return null;

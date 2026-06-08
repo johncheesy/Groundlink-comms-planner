@@ -91,16 +91,61 @@
               <span class="section__hint">where comms are needed</span>
             </div>
             <div class="section__body">
-              <div class="segmented" role="group" aria-label="Mission input mode">
-                <button class="segmented__btn is-active" type="button" aria-pressed="true">Area</button>
-                <button class="segmented__btn" type="button" aria-pressed="false">Sites</button>
-                <button class="segmented__btn" type="button" aria-pressed="false">Route</button>
-                <button class="segmented__btn" type="button" aria-pressed="false">Points</button>
+              <div class="segmented" role="group" aria-label="Mission input mode" id="missionModes">
+                <button class="segmented__btn is-active" type="button" data-mode="area" aria-pressed="true">Area</button>
+                <button class="segmented__btn" type="button" data-mode="sites" aria-pressed="false">Sites</button>
+                <button class="segmented__btn" type="button" data-mode="route" aria-pressed="false">Route</button>
+                <button class="segmented__btn" type="button" data-mode="points" aria-pressed="false">Points</button>
               </div>
-              <p class="help">
-                Draw an area of interest on the map — a radius circle or a polygon. Coverage and
-                site recommendations are planned to fill it.
+              <p class="help" id="missionHelp">
+                Define where comms are needed. <strong>Area</strong> draws an AOI to fill;
+                <strong>Sites</strong> places fixed masts; <strong>Route</strong> traces a path for
+                dead-zone analysis; <strong>Points</strong> marks positions that need comms.
               </p>
+
+              <div class="mission-elements" id="missionElements" hidden>
+                <div class="mission-el-row" data-type="sites" hidden>
+                  <span class="mission-el-dot" style="background: var(--feat-site)"></span>
+                  <span class="mission-el-label">Sites</span>
+                  <span class="mission-el-count" id="missionSitesCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="sites">Clear</button>
+                </div>
+                <div class="mission-el-row" data-type="route" hidden>
+                  <span class="mission-el-dot" style="background: var(--feat-track)"></span>
+                  <span class="mission-el-label">Route</span>
+                  <span class="mission-el-count" id="missionRouteCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="route">Clear</button>
+                </div>
+                <div class="mission-el-row" data-type="points" hidden>
+                  <span class="mission-el-dot" style="background: var(--feat-event)"></span>
+                  <span class="mission-el-label">Points</span>
+                  <span class="mission-el-count" id="missionPointsCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="points">Clear</button>
+                </div>
+              </div>
+
+              <details class="disclosure">
+                <summary>Bulk add coordinates</summary>
+                <p class="help">One coordinate per line — decimal, DMS, MGRS or UTM, with an optional name. Bad lines are reported by number.</p>
+                <textarea
+                  class="textarea"
+                  id="bulkInput"
+                  rows="4"
+                  spellcheck="false"
+                  placeholder="52.3676, 4.9041 OP Alpha&#10;31UFU 91733 09227 Relay hill&#10;52 22 03 N 4 54 15 E"
+                ></textarea>
+                <label class="check">
+                  <input type="checkbox" id="bulkAsSites" />
+                  <span>Add as sites (default: demand points)</span>
+                </label>
+                <button class="btn btn--block" type="button" id="bulkAddBtn">Add coordinates</button>
+                <p class="help" id="bulkReport" hidden></p>
+              </details>
+
+              <div class="import-promote" id="importPromote" hidden>
+                <p class="help" id="importPromoteText"></p>
+                <div class="import-promote__btns" id="importPromoteBtns"></div>
+              </div>
             </div>
           </section>
 
@@ -126,6 +171,80 @@
               <p class="help" id="aoiReadout">
                 No area defined yet. Pick a tool, then draw on the map.
               </p>
+            </div>
+          </section>
+
+          <!-- Radios (M5) -->
+          <section class="section" aria-labelledby="radioTitle">
+            <div class="section__head">
+              <span class="section__title" id="radioTitle">Radios</span>
+              <span class="section__hint">M5 · import &amp; mix</span>
+            </div>
+            <div class="section__body">
+              <div class="radio-active">
+                <div class="radio-slot">
+                  <span class="radio-slot__role">Infrastructure tx</span>
+                  <span class="radio-slot__label" id="radioInfraLabel"><span class="radio-slot__empty">— none —</span></span>
+                </div>
+                <div class="radio-slot">
+                  <span class="radio-slot__role">Field unit</span>
+                  <span class="radio-slot__label" id="radioFieldLabel"><span class="radio-slot__empty">— none —</span></span>
+                </div>
+              </div>
+              <button class="btn btn--primary btn--block" type="button" id="applyRadios" disabled>
+                Apply to coverage
+              </button>
+              <p class="help">
+                Pick an infrastructure tx (base/repeater) and a field unit (handheld/mobile). Talk-in
+                is the binding link — tx from the infrastructure radio, rx height + sensitivity from the
+                field unit; thresholds derive from sensitivity. Library specs are indicative — check
+                against your radio.
+              </p>
+
+              <input class="input" id="radioSearchInput" type="text" placeholder="Search radios by name, band or role" aria-label="Search radios" />
+              <ul class="radio-results" id="radioResults" aria-label="Radio library"></ul>
+
+              <details class="disclosure">
+                <summary>Add by FCC ID / manual</summary>
+                <div class="input-row">
+                  <input class="input" id="fccInput" type="text" placeholder="FCC ID (e.g. AZ489FT7104)" aria-label="FCC ID" />
+                  <button class="btn" type="button" id="fccLookupBtn">Look up</button>
+                </div>
+                <div class="fcc-fallback" id="fccFallback" hidden>
+                  <p class="help">
+                    Browser lookup of FCC data is usually blocked (CORS). Open the record, then enter the
+                    four numbers below. Grant ≠ channel plan — treat as a strong starting point, edit to
+                    match your config.
+                  </p>
+                  <div class="input-row">
+                    <a class="btn btn--sm" id="fccOfficial" href="#" target="_blank" rel="noopener">Open FCC record</a>
+                    <a class="btn btn--sm" id="fccIo" href="#" target="_blank" rel="noopener">fccid.io</a>
+                  </div>
+                </div>
+                <div class="radio-editor" id="radioEditor" hidden>
+                  <div class="input-row">
+                    <div style="flex:2">
+                      <label class="field-label">Label<input class="input" name="label" type="text" /></label>
+                    </div>
+                    <div style="flex:1">
+                      <label class="field-label">Role<select class="input" name="role"></select></label>
+                    </div>
+                  </div>
+                  <div class="input-row">
+                    <label class="field-label" style="flex:1">Freq lo<input class="input input--mini" name="lo" type="number" step="0.1" /></label>
+                    <label class="field-label" style="flex:1">Freq hi<input class="input input--mini" name="hi" type="number" step="0.1" /></label>
+                    <label class="field-label" style="flex:1">Power W<input class="input input--mini" name="power" type="number" step="0.1" /></label>
+                    <label class="field-label" style="flex:1">Sens dBm<input class="input input--mini" name="sens" type="number" step="1" /></label>
+                  </div>
+                  <div class="input-row">
+                    <button class="btn btn--primary btn--sm" type="button" id="radioEditorSave">Save radio</button>
+                    <button class="btn btn--sm" type="button" id="radioEditorCancel">Cancel</button>
+                  </div>
+                </div>
+              </details>
+
+              <button class="btn btn--block" type="button" id="recommendMixBtn">Recommend radio mix</button>
+              <div class="radio-mix" id="radioMix" hidden></div>
             </div>
           </section>
 
@@ -387,8 +506,8 @@
               class="map-search__input"
               id="searchInput"
               type="text"
-              placeholder="Search place, or 52.3676, 4.9041"
-              aria-label="Search a place or enter coordinates"
+              placeholder="Search place, or lat/long · MGRS · UTM"
+              aria-label="Search a place or enter coordinates (decimal, DMS, MGRS or UTM)"
             />
             <button class="map-search__clear" id="searchClear" type="button" aria-label="Clear search" hidden>
               <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
