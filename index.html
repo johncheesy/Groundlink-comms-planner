@@ -35,7 +35,7 @@
               </g>
             </svg>
             <div>
-              <div class="brand__name">GroundLink</div>
+              <div class="brand__name">GroundLink <span class="badge badge--warn brand__alpha">ALPHA</span></div>
               <div class="brand__sub">Comms Coverage Planner</div>
             </div>
           </div>
@@ -573,6 +573,16 @@
         </div>
 
         <div class="draw-hint" id="drawHint"></div>
+
+        <!-- ALPHA development notice (dismissible) -->
+        <div class="alpha-notice" id="alphaNotice" role="status" hidden>
+          <span class="badge badge--warn alpha-notice__tag">ALPHA</span>
+          <span class="alpha-notice__text">
+            GroundLink is in <strong>alpha development</strong> — features may change and results are
+            planning-grade, not survey-grade. You decide how and where you use it; mind your own OPSEC.
+          </span>
+          <button class="alpha-notice__close" id="alphaNoticeClose" type="button" aria-label="Dismiss notice">×</button>
+        </div>
       </main>
 
       <!-- ============================ STATUS ============================ -->
@@ -604,6 +614,11 @@
         <span class="statusbar__item" id="statusTerrainItem">
           <span class="k">Terrain</span>
           <span class="v" id="statusTerrain">flat</span>
+        </span>
+        <span class="statusbar__sep" aria-hidden="true"></span>
+        <span class="statusbar__item statusbar__item--build" id="statusBuildItem" title="Alpha build">
+          <span class="badge badge--warn statusbar__alpha">ALPHA</span>
+          <span class="v" id="statusBuild" data-numeric>build —</span>
         </span>
       </footer>
 

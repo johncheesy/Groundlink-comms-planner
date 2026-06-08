@@ -1436,3 +1436,61 @@
     max-width: 300px;
   }
 }
+
+/* ---- ALPHA notice + build badge --------------------------------------- */
+
+.brand__alpha {
+  vertical-align: middle;
+  margin-left: 4px;
+  transform: translateY(-1px);
+}
+
+/* Dismissible alpha banner, anchored top-centre over the map. */
+.alpha-notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toolbar);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(620px, calc(100% - 24px));
+  padding: 8px 10px 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--hair2));
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.alpha-notice[hidden] { display: none; }
+.alpha-notice__tag { flex: 0 0 auto; }
+.alpha-notice__text { flex: 1 1 auto; color: var(--dim); }
+.alpha-notice__text strong { color: var(--ink); }
+.alpha-notice__close {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.alpha-notice__close:hover { color: var(--ink); }
+
+/* Build stamp at the right end of the status bar. */
+.statusbar__item--build { gap: 6px; }
+.statusbar__alpha {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+.statusbar__item--build .v { color: var(--dim); }
+
+@media (max-width: 540px) {
+  /* Keep the alpha banner clear of the search bar on phones. */
+  .alpha-notice { top: auto; bottom: 52px; font-size: 12px; }
+}
