@@ -11,6 +11,8 @@ import { createMissionTools } from './mission/mission-tools.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createRadios } from './radios/radios.js';
 import { recommendMix } from './radios/mix.js';
+import { buildPace } from './pace/pace.js';
+import { exportReport } from './pace/report.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
@@ -262,6 +264,7 @@ let mission = null;
 let missionTools = null;
 let radios = null;
 let currentAoiAreaM2 = 0;
+let lastPlan = null; // last PACE plan built (M6) — fed to the report export
 
 function whenStyleReady(fn) {
   if (map.isStyleLoaded()) fn();
@@ -609,6 +612,27 @@ whenStyleReady(() => {
     statusMode.textContent = 'Radio mix ready';
   });
 
+  // ---- Comms plan + report (M6) ----------------------------------------
+  buildPaceBtn.addEventListener('click', () => {
+    lastPlan = buildPace(gatherPaceContext());
+    renderPace(lastPlan);
+    statusMode.textContent = 'Comms plan ready';
+  });
+
+  exportReportBtn.addEventListener('click', () => {
+    if (!lastPlan) return;
+    const formats = { pdf: fmtPdf.checked, word: fmtWord.checked, excel: fmtExcel.checked };
+    if (!formats.pdf && !formats.word && !formats.excel) {
+      exportHelp.textContent = 'Tick at least one format (PDF, Word or Excel) to export.';
+      return;
+    }
+    const { done, popupBlocked } = exportReport(lastPlan, formats);
+    exportHelp.textContent = popupBlocked
+      ? 'Pop-up blocked — the PDF was saved as a standalone HTML file instead. Allow pop-ups for a direct print view.'
+      : `Exported: ${done.join(', ')}. Generated locally — nothing was uploaded.`;
+    statusMode.textContent = 'Report exported';
+  });
+
   // ---- Location search + coordinate entry ------------------------------
   createSearch(map, {
     input: $('#searchInput'),
@@ -920,6 +944,86 @@ function renderMix(result) {
     .join('');
 }
 
+// ---- Comms plan + report (M6) -------------------------------------------
+
+const buildPaceBtn = $('#buildPaceBtn');
+const exportReportBtn = $('#exportReportBtn');
+const paceResults = $('#paceResults');
+const pacePlan = $('#pacePlan');
+const paceStructure = $('#paceStructure');
+const paceSummary = $('#paceSummary');
+const paceHelp = $('#paceHelp');
+const exportHelp = $('#exportHelp');
+const fmtPdf = $('#fmtPdf');
+const fmtWord = $('#fmtWord');
+const fmtExcel = $('#fmtExcel');
+
+const capWord = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** Assemble the mix + sites + coverage + mission snapshot the PACE engine reads. */
+function gatherPaceContext() {
+  const mix = recommendMix(gatherMixInput());
+  const stats = coverage?.getStats?.();
+  const aoiArea = aoi?.getAoi?.();
+  const route = mission.getRoute();
+  let routeLengthKm = 0;
+  for (let i = 1; i < route.length; i++) {
+    routeLengthKm += haversineM(route[i - 1].lat, route[i - 1].lng, route[i].lat, route[i].lng) / 1000;
+  }
+  return {
+    mix,
+    sites: {
+      fixed: mission.getSites(),
+      recommended: recommender?.getSites?.() ?? [],
+    },
+    coverage: stats
+      ? { coveredFrac: stats.coveredFracAoi ?? stats.coveredFrac ?? 0, terrain: !!stats.terrain, clutter: !!stats.clutter }
+      : null,
+    drone: { relay: !!drone?.hasDrone?.(), altitudeM: drone?.getAltitude?.() ?? null },
+    params: {
+      freqMHz: clampNum(freqInput.value, 30, 6000, 150),
+      powerW: clampNum(powerInput.value, 0.01, 100, 5),
+      txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
+      rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
+      useTerrain: useTerrainInput.checked,
+      engine: useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat',
+    },
+    mission: {
+      hasAoi: !!aoiArea,
+      aoiType: aoiArea?.type ?? null,
+      aoiAreaKm2: aoiArea ? currentAoiAreaM2 / 1e6 : 0,
+      routeLengthKm,
+      points: mission.getPoints().length,
+    },
+    build: BUILD,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+/** Render the four PACE legs + structure + summary into the comms-plan card. */
+function renderPace(plan) {
+  paceResults.hidden = false;
+  paceHelp.hidden = true;
+  pacePlan.innerHTML = plan.legs
+    .map((l) => {
+      const bearer = l.status === 'gap' ? '— not filled —' : l.band || l.asset;
+      const tag = l.status === 'separate' ? ' · separate module' : l.status === 'asset' ? ' · asset' : '';
+      return (
+        `<div class="pace-row${l.status === 'gap' ? ' pace-row--gap' : ''}">` +
+        `<span class="pace-tier badge ${PACE_BADGE[l.tier] || 'badge--ref'}">${l.tier}</span>` +
+        `<span class="pace-bearer">${bearer}<span class="pace-tag">${tag}</span></span>` +
+        `<span class="pace-why">${l.role} — ${l.why}</span>` +
+        `</div>`
+      );
+    })
+    .join('');
+  const overlay = plan.overlays.length ? ` Overlay: ${plan.overlays.map((o) => o.band).join(', ')}.` : '';
+  paceStructure.textContent = `${capWord(plan.structure.topology)} — ${plan.structure.note}${overlay}`;
+  paceSummary.textContent = plan.summary;
+  exportHelp.textContent =
+    'PDF opens a print view (Save as PDF). Word and Excel download to your computer. Generated locally — nothing is uploaded.';
+}
+
 /** Render the recommended-site rows; hover highlights the marker, click flies to it. */
 function renderSiteList(sites) {
   siteList.innerHTML = '';
@@ -1109,5 +1213,7 @@ if (import.meta.env.DEV) {
     get mission() { return mission; },
     get missionTools() { return missionTools; },
     get radios() { return radios; },
+    get drone() { return drone; },
+    pace: { build: () => buildPace(gatherPaceContext()), get last() { return lastPlan; } },
   };
 }
