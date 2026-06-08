@@ -29,8 +29,9 @@ const FCCIO_RECORD = (id) => `https://fccid.io/${encodeURIComponent(id)}`;
 
 const ROLES = ['handheld', 'manpack', 'manet', 'mobile', 'base', 'repeater', 'lora', 'satcom', 'hf'];
 
-export function createRadios(els, { onApply, onStatus } = {}) {
+export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   let userRadios = []; // added / edited radios (persisted)
+  let arsenal = []; // the radios you carry — drives node-role assignment (M7)
   let activeInfraId = null;
   let activeFieldId = null;
 
@@ -38,10 +39,11 @@ export function createRadios(els, { onApply, onStatus } = {}) {
   const persisted = loadRadioSet();
   if (persisted) {
     userRadios = (persisted.userRadios || []).map(normalizeRadio);
+    arsenal = (persisted.arsenal || []).map(normalizeRadio);
     activeInfraId = persisted.activeInfraId || null;
     activeFieldId = persisted.activeFieldId || null;
   }
-  const persist = () => saveRadioSet({ userRadios, activeInfraId, activeFieldId });
+  const persist = () => saveRadioSet({ userRadios, arsenal, activeInfraId, activeFieldId });
 
   // ── Working list (library overlaid by user radios) ─────────────────────
   function workingList() {
@@ -108,6 +110,7 @@ export function createRadios(els, { onApply, onStatus } = {}) {
       const li = document.createElement('li');
       li.className = 'radio-result';
       li.innerHTML =
+        `<label class="radio-result__pick" title="Select for the arsenal"><input type="checkbox" class="radio-result__check" data-id="${esc(r.id)}" /></label>` +
         `<div class="radio-result__main">` +
         `<span class="radio-result__name">${esc(r.label)}</span>` +
         `<span class="radio-result__meta" data-numeric>${r.role} · ${trimNum(r.freqRangeMHz[0])}–${trimNum(r.freqRangeMHz[1])} MHz · ${r.powerW} W · ${Math.round(r.rxSensDbm)} dBm</span>` +
@@ -165,6 +168,53 @@ export function createRadios(els, { onApply, onStatus } = {}) {
     persist();
   }
 
+  // ── Arsenal (M7) — the radios you carry; drives node-role assignment ───
+  const getArsenal = () => arsenal.map((r) => ({ ...r }));
+
+  function addCheckedToArsenal() {
+    let added = 0;
+    els.results.querySelectorAll('.radio-result__check:checked').forEach((c) => {
+      const r = findRadio(c.dataset.id);
+      if (r && !arsenal.some((a) => a.id === r.id)) { arsenal.push(r); added += 1; }
+      c.checked = false;
+    });
+    if (added) {
+      persist();
+      renderArsenal();
+      onArsenalChange?.(getArsenal());
+      onStatus?.(`Added ${added} radio${added > 1 ? 's' : ''} to the arsenal`);
+    } else {
+      onStatus?.('Tick radios in the list, then add them to the arsenal');
+    }
+  }
+
+  function removeFromArsenal(id) {
+    arsenal = arsenal.filter((a) => a.id !== id);
+    persist();
+    renderArsenal();
+    onArsenalChange?.(getArsenal());
+  }
+
+  function renderArsenal() {
+    if (!els.arsenalList) return;
+    els.arsenalList.innerHTML = '';
+    if (!arsenal.length) {
+      els.arsenalList.innerHTML =
+        '<li class="arsenal__empty">No radios yet — tick radios above, then “Add to arsenal”.</li>';
+      return;
+    }
+    for (const r of arsenal) {
+      const li = document.createElement('li');
+      li.className = 'arsenal__row';
+      li.innerHTML =
+        `<span class="arsenal__name">${esc(r.label)}</span>` +
+        `<span class="arsenal__meta" data-numeric>${r.role} · ${trimNum(r.freqRangeMHz[0])}–${trimNum(r.freqRangeMHz[1])} MHz · ${r.powerW} W</span>` +
+        `<button type="button" class="arsenal__del" aria-label="Remove from arsenal" data-id="${esc(r.id)}">×</button>`;
+      li.querySelector('.arsenal__del').addEventListener('click', () => removeFromArsenal(r.id));
+      els.arsenalList.appendChild(li);
+    }
+  }
+
   // ── FCC ID lookup (best-effort) ────────────────────────────────────────
   async function fccLookup(rawId) {
     const id = (rawId || '').trim();
@@ -194,19 +244,23 @@ export function createRadios(els, { onApply, onStatus } = {}) {
   els.editorCancel.addEventListener('click', () => { els.editor.hidden = true; });
   els.fccBtn.addEventListener('click', () => fccLookup(els.fccInput.value));
   els.fccInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fccLookup(els.fccInput.value); } });
+  els.addArsenalBtn?.addEventListener('click', addCheckedToArsenal);
 
   // Populate the role <select> once.
   els.editor.querySelector('[name="role"]').innerHTML = ROLES.map((r) => `<option value="${r}">${r}</option>`).join('');
 
   // Initial render + restore.
   renderResults('');
+  renderArsenal();
   reflectActive();
   if (activeInfraId || activeFieldId) apply(); // restore the persisted set into coverage
 
   return {
     getActive,
     apply,
+    getArsenal,
     hasActive: () => !!(activeInfraId || activeFieldId),
+    hasArsenal: () => arsenal.length > 0,
     destroy() {},
   };
 }
