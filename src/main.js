@@ -22,6 +22,26 @@ const $ = (sel) => document.querySelector(sel);
 // First paint follows the OS colour scheme (light default otherwise).
 applyInitialTheme();
 
+// ---- Build stamp + ALPHA notice -----------------------------------------
+// __GL_BUILD__ is injected by vite (see vite.config.js).
+const BUILD = __GL_BUILD__;
+const buildLabel = `build ${BUILD.version}+${BUILD.sha} · ${BUILD.date}`;
+$('#statusBuild').textContent = buildLabel;
+$('#statusBuildItem').title = `${BUILD.channel.toUpperCase()} · ${buildLabel}`;
+
+(() => {
+  const notice = $('#alphaNotice');
+  if (!notice) return;
+  const KEY = 'gl.alpha.dismissed.v1';
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(KEY) === '1'; } catch { /* embedded preview */ }
+  if (!dismissed) notice.hidden = false;
+  $('#alphaNoticeClose').addEventListener('click', () => {
+    notice.hidden = true;
+    try { localStorage.setItem(KEY, '1'); } catch { /* in-memory only */ }
+  });
+})();
+
 // ---- Map ----------------------------------------------------------------
 
 const mapApi = initMap($('#map'));
