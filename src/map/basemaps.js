@@ -35,6 +35,23 @@ export const BASEMAP_VARIANTS = {
       maxzoom: 19,
     },
     {
+      // PDOK Luchtfoto Actueel (HR) — Netherlands only, ~8–25 cm RGB ortho.
+      // Free, no token (Dutch national geodata, CC BY 4.0). WMS, EPSG:3857 —
+      // same {bbox-epsg-3857} mechanism as the Sentinel-2 layer below. Far
+      // higher detail than Esri/Sentinel over NL; blank outside the Netherlands.
+      id: 'pdok-nl-ortho',
+      label: 'NL Luchtfoto (HR · PDOK)',
+      wms: true,
+      tiles: [
+        'https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?service=WMS&request=GetMap&version=1.1.1' +
+          '&layers=Actueel_orthoHR&styles=&format=image%2Fjpeg' +
+          '&width=256&height=256&srs=EPSG%3A3857&bbox={bbox-epsg-3857}',
+      ],
+      attribution:
+        'Imagery &copy; <a href="https://www.pdok.nl/">PDOK</a> / Beeldmateriaal Nederland (CC BY 4.0)',
+      maxzoom: 20,
+    },
+    {
       // EOX Sentinel-2 cloudless 2024 — free, no token, global coverage.
       // WMS source: uses {bbox-epsg-3857} which MapLibre replaces with tile bounds.
       // License: CC BY-NC-SA 4.0 (non-commercial). 10 m resolution.
@@ -44,7 +61,7 @@ export const BASEMAP_VARIANTS = {
       // WMS GetCapabilities, so requesting it with srs=EPSG:3857 returns
       // HTTP 400 for every tile. `_3857` supports EPSG:3857 / EPSG:900913.
       id: 's2cloudless-2024',
-      label: 'Sentinel-2 2024 (climate)',
+      label: 'Sentinel-2 (10 m · cloudless)',
       wms: true, // flag: tile URL uses {bbox-epsg-3857} instead of {x}/{y}/{z}
       tiles: [
         'https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&version=1.1.1' +

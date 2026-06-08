@@ -34,7 +34,7 @@ const lineFeat = (coords) => ({
 });
 const fc = (features) => ({ type: 'FeatureCollection', features });
 
-export function createMissionTools(map, mission, { onHint, onModeChange, onStatus } = {}) {
+export function createMissionTools(map, mission, { onHint, onModeChange, onStatus, formatCoord } = {}) {
   const track = cssVar('--feat-track', '#46a6ff');
 
   if (!map.getSource(SRC_ROUTE)) {
@@ -113,6 +113,11 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       openDeletePopup([site.lng, site.lat], site.name || 'Site', () => {
         mission.removeSite(site.id);
         refresh();
+      }, {
+        editable: true,
+        name: site.name || '',
+        placeholder: 'Site name',
+        onRename: (v) => { mission.renameSite(site.id, v); el.title = v || 'Site'; },
       });
     });
     siteMarkers.set(site.id, m);
@@ -132,6 +137,11 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       openDeletePopup([pt.lng, pt.lat], pt.name || 'Demand point', () => {
         mission.removePoint(pt.id);
         refresh();
+      }, {
+        editable: true,
+        name: pt.name || '',
+        placeholder: 'Point name',
+        onRename: (v) => { mission.renamePoint(pt.id, v); el.title = v || 'Demand point'; },
       });
     });
     pointMarkers.set(pt.id, m);
@@ -182,19 +192,36 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
   }
 
   // ── Delete popup ──────────────────────────────────────────────────────
-  function openDeletePopup(lngLat, label, onDelete) {
+  function openDeletePopup(lngLat, label, onDelete, opts = {}) {
     closePopup();
+    const coordText = formatCoord ? formatCoord(lngLat) : `${lngLat[1].toFixed(5)}, ${lngLat[0].toFixed(5)}`;
     const wrap = document.createElement('div');
     wrap.className = 'mission-popup';
-    wrap.innerHTML = `<span class="mission-popup__name"></span>`;
-    wrap.querySelector('.mission-popup__name').textContent = label;
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'mission-popup__del';
-    del.setAttribute('aria-label', `Delete ${label}`);
-    del.textContent = '×';
-    del.addEventListener('click', () => { closePopup(); onDelete(); });
-    wrap.appendChild(del);
+    wrap.innerHTML =
+      (opts.editable
+        ? `<input type="text" class="mission-popup__edit" aria-label="Name" />`
+        : `<span class="mission-popup__name"></span>`) +
+      `<button type="button" class="mission-popup__del" aria-label="Delete">×</button>` +
+      `<span class="mission-popup__coord" data-numeric></span>` +
+      `<button type="button" class="mission-popup__copy" title="Copy coordinate">Copy</button>`;
+    if (opts.editable) {
+      const input = wrap.querySelector('.mission-popup__edit');
+      input.value = opts.name || '';
+      input.placeholder = opts.placeholder || 'Name';
+      input.addEventListener('change', () => opts.onRename?.(input.value.trim()));
+      input.addEventListener('keydown', (e) => {
+        e.stopPropagation(); // don't reach the map's route keys (Enter / Backspace / Esc)
+        if (e.key === 'Enter') { e.preventDefault(); opts.onRename?.(input.value.trim()); closePopup(); }
+        else if (e.key === 'Escape') closePopup();
+      });
+    } else {
+      wrap.querySelector('.mission-popup__name').textContent = label;
+    }
+    wrap.querySelector('.mission-popup__coord').textContent = coordText;
+    wrap.querySelector('.mission-popup__del').addEventListener('click', () => { closePopup(); onDelete(); });
+    wrap.querySelector('.mission-popup__copy').addEventListener('click', () => {
+      try { navigator.clipboard?.writeText(coordText); onStatus?.('Coordinate copied'); } catch { /* clipboard unavailable */ }
+    });
     popup = new maplibregl.Popup({ closeButton: false, offset: 16 })
       .setLngLat(lngLat)
       .setDOMContent(wrap)

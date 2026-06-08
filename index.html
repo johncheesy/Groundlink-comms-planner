@@ -245,6 +245,27 @@
 
               <button class="btn btn--block" type="button" id="recommendMixBtn">Recommend radio mix</button>
               <div class="radio-mix" id="radioMix" hidden></div>
+
+              <div class="arsenal">
+                <div class="arsenal__head">
+                  <span class="field-label">Arsenal — the radios you carry</span>
+                  <button class="btn btn--sm" type="button" id="addArsenalBtn">Add ticked</button>
+                </div>
+                <ul class="arsenal__list" id="arsenalList" aria-label="Radio arsenal"></ul>
+              </div>
+            </div>
+          </section>
+
+          <!-- Node roles — best radio per platform role (M7) -->
+          <section class="section" aria-labelledby="rolesTitle">
+            <div class="section__head">
+              <span class="section__title" id="rolesTitle">Node roles</span>
+              <span class="section__hint">M7 · arsenal</span>
+            </div>
+            <div class="section__body">
+              <button class="btn btn--primary btn--block" type="button" id="assignRolesBtn">Assign roles from arsenal</button>
+              <div class="roles-list" id="rolesList" hidden></div>
+              <p class="help" id="rolesHelp">Picks the best radio from your arsenal for each node role — Operator (manpack), Mobile CP (vehicle), HQ (static), Rebro mobile/static. Add radios to the arsenal first.</p>
             </div>
           </section>
 

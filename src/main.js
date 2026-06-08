@@ -1,4 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
+import maplibregl from 'maplibre-gl';
 import '../styles/index.css';
 
 import { initMap, keepMapSized } from './map/map.js';
@@ -11,6 +12,7 @@ import { createMissionTools } from './mission/mission-tools.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createRadios } from './radios/radios.js';
 import { recommendMix } from './radios/mix.js';
+import { assignRoles } from './radios/roles.js';
 import { buildPace } from './pace/pace.js';
 import { exportReport } from './pace/report.js';
 import { createSearch } from './ui/search.js';
@@ -78,6 +80,28 @@ statusCoords.addEventListener('click', () => {
 });
 statusCoords.style.cursor = 'pointer';
 statusCoords.title = 'Click to cycle lat/long · MGRS · UTM';
+
+// Right-click anywhere on the map → coordinate readout + copy, in the active
+// format (same lat/long · MGRS · UTM cycle as the status bar).
+let coordPopup = null;
+map.on('contextmenu', (e) => {
+  e.preventDefault?.();
+  const text = formatCoordinate({ lat: e.lngLat.lat, lng: e.lngLat.lng }, COORD_CYCLE[coordFmtIndex]);
+  coordPopup?.remove();
+  const wrap = document.createElement('div');
+  wrap.className = 'coord-popup';
+  wrap.innerHTML =
+    `<span class="coord-popup__text" data-numeric></span>` +
+    `<button type="button" class="coord-popup__copy" title="Copy coordinate">Copy</button>`;
+  wrap.querySelector('.coord-popup__text').textContent = text;
+  wrap.querySelector('.coord-popup__copy').addEventListener('click', () => {
+    try { navigator.clipboard?.writeText(text); statusMode.textContent = 'Coordinate copied'; } catch { /* clipboard unavailable */ }
+  });
+  coordPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 12 })
+    .setLngLat(e.lngLat)
+    .setDOMContent(wrap)
+    .addTo(map);
+});
 
 const updateZoom = () => {
   statusZoom.textContent = map.getZoom().toFixed(1);
@@ -377,6 +401,7 @@ whenStyleReady(() => {
       if (m) statusMode.textContent = `Placing ${m}`;
     },
     onStatus(msg) { statusMode.textContent = msg; },
+    formatCoord: (ll) => formatCoordinate({ lat: ll[1], lng: ll[0] }, COORD_CYCLE[coordFmtIndex]),
   });
 
   // Mission input-mode segmented buttons (Area / Sites / Route / Points).
@@ -605,11 +630,18 @@ whenStyleReady(() => {
           `use the radio mix for the PACE plan. Controls are set for VHF/UHF comparison only.`;
     },
     onStatus(msg) { statusMode.textContent = msg; },
+    onArsenalChange() { if (rolesList && !rolesList.hidden) renderRoles(); },
   });
 
   recommendMixBtn.addEventListener('click', () => {
     renderMix(recommendMix(gatherMixInput()));
     statusMode.textContent = 'Radio mix ready';
+  });
+
+  // ---- Node roles (M7) -------------------------------------------------
+  assignRolesBtn.addEventListener('click', () => {
+    renderRoles();
+    statusMode.textContent = 'Node roles assigned';
   });
 
   // ---- Comms plan + report (M6) ----------------------------------------
@@ -899,6 +931,8 @@ function radioEls() {
     fccFallback: $('#fccFallback'),
     fccOfficial: $('#fccOfficial'),
     fccIo: $('#fccIo'),
+    addArsenalBtn: $('#addArsenalBtn'),
+    arsenalList: $('#arsenalList'),
   };
 }
 
@@ -941,6 +975,47 @@ function renderMix(result) {
         `<span class="radio-mix__why">${b.why}</span>` +
         `</div>`,
     )
+    .join('');
+}
+
+// ---- Node roles (M7) ----------------------------------------------------
+
+const assignRolesBtn = $('#assignRolesBtn');
+const rolesList = $('#rolesList');
+const rolesHelp = $('#rolesHelp');
+
+const htmlEsc = (s) =>
+  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/** Mission/terrain context for the role rules (reach drives band tie-breakers). */
+function gatherRoleContext() {
+  const m = gatherMixInput();
+  const reachKm = Math.max(
+    m.maxSiteDistanceKm || 0,
+    m.routeLengthKm || 0,
+    m.aoiAreaKm2 ? Math.sqrt(m.aoiAreaKm2) : 0,
+  );
+  return { reachKm, urbanFrac: 0, ruggednessM: 0 };
+}
+
+/** Assign each node role its best arsenal radio and render the list. */
+function renderRoles() {
+  const rows = assignRoles(radios.getArsenal(), gatherRoleContext());
+  rolesList.hidden = false;
+  rolesHelp.hidden = true;
+  rolesList.innerHTML = rows
+    .map((r) => {
+      const has = !!r.radio;
+      const bearer = has ? htmlEsc(r.radio.label) : '— none —';
+      const alt = r.alternatives.length ? ` · alt: ${htmlEsc(r.alternatives.join(', '))}` : '';
+      return (
+        `<div class="role-row${has ? '' : ' role-row--gap'}">` +
+        `<span class="role-row__name">${htmlEsc(r.label)}</span>` +
+        `<span class="role-row__radio">${bearer}<span class="role-row__h"> · ${r.heightM} m AGL</span></span>` +
+        `<span class="role-row__why">${htmlEsc(r.why)}${alt}</span>` +
+        `</div>`
+      );
+    })
     .join('');
 }
 
