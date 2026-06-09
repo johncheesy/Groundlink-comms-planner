@@ -53,4 +53,14 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
+  // vitest 4's default `forks` pool times out spawning a worker per test file
+  // here — the repo path has spaces ("THE GROUNDLINK/…") and each worker re-
+  // imports maplibre-gl (~6 s), so under load the per-file spawn races the
+  // pool timeout and files fail to start. Run the whole suite in one persistent
+  // threads worker: heavy modules import once, nothing is repeatedly spawned,
+  // and the actual test bodies take ~40 ms. Reliable and faster.
+  test: {
+    pool: 'threads',
+    poolOptions: { threads: { singleThread: true } },
+  },
 });
