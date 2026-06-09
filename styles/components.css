@@ -2493,3 +2493,26 @@ select.input--sm { text-align: left; padding-right: 6px; }
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* ---- M18 coverage backend (built-in / CloudRF) ---- */
+.backend-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
+}
+.backend-key-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.backend-key-row .input { flex: 1; }
+.backend-test-status {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--dim);
+}
+.backend-test-status.ok { color: var(--ok); }
+.backend-test-status.fail { color: var(--bad); }

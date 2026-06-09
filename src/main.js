@@ -8,6 +8,8 @@ import { createProfileTool } from './map/profile-tool.js';
 import { createProfilePanel } from './ui/profile-panel.js';
 import { createCoverageController } from './coverage/coverage.js';
 import { updateCliffLayer, clearCliffLayer } from './coverage/dual-contour.js';
+import { createBackendSettings } from './ui/backend-settings.js';
+import { runCloudRFCoverage } from './backends/cloudrf.js';
 import { createDroneController } from './drone/drone.js';
 import { createRecommendController } from './recommend/recommend.js';
 import { createMission } from './mission/mission.js';
@@ -453,6 +455,7 @@ let waypoints = null;
 let radios = null;
 let cellular = null; // M9 cellular controller (own coverage layer)
 let hfPanel = null; // M12 HF ionosphere panel
+let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
 let teams = null; // M13 per-team/operator model
 let teamsPanel = null; // M13 teams panel UI
 let currentAoiAreaM2 = 0;
@@ -520,6 +523,17 @@ whenStyleReady(() => {
     hf = createHfPanel(host, { onParamsChange: refresh });
     hfPanel = { refresh };
     refresh();
+  })();
+
+  // Coverage backend selector (M18) — built-in engine or hosted CloudRF ITM.
+  (() => {
+    const host = $('#backendSettingsInner');
+    if (!host) return;
+    backendSettings = createBackendSettings(host, {
+      onBackendChange(b) {
+        coverageEngine.textContent = b === 'cloudrf' ? 'CloudRF ITM' : 'FSPL+Deygout';
+      },
+    });
   })();
 
   coverage = createCoverageController(map, {
@@ -719,12 +733,17 @@ whenStyleReady(() => {
     applyModeThresholds(digitalModeSelect.value);
     if (coverage?.hasCoverage()) runCoverage();
   });
-  opacityInput.addEventListener('input', () => coverage.setOpacity(opacityInput.value / 100));
+  opacityInput.addEventListener('input', () => {
+    const v = opacityInput.value / 100;
+    coverage.setOpacity(v);
+    if (map.getLayer(CLOUDRF_LAYER)) map.setPaintProperty(CLOUDRF_LAYER, 'raster-opacity', v);
+  });
   clearCoverageBtn.addEventListener('click', () => {
     // Recommended sites paint into this same raster — clear them too so the
     // numbered markers and the site list don't linger over a cleared map.
     if (recommender?.hasSites()) recommender.clear();
     coverage.clear();
+    clearCloudRFResult();
     clearCliffLayer(map);
     opacityRow.hidden = true;
     progress.hidden = true;
@@ -1790,13 +1809,109 @@ function runCoverage() {
     return;
   }
 
+  const compBounds = coverageBoundsFor(bbox, center, params);
   const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
-  coverage.compute(coverageBoundsFor(bbox, center, params), center, params, {
-    aoi: aoiMask,
-    txs,
-    marker: !txs, // multi-site markers stand in for the single tx marker
-  });
-  coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+
+  const runBuiltin = () => {
+    clearCloudRFResult(); // drop any stale CloudRF raster before the built-in paint
+    coverage.compute(compBounds, center, params, {
+      aoi: aoiMask,
+      txs,
+      marker: !txs, // multi-site markers stand in for the single tx marker
+    });
+    coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+  };
+
+  // M18: when the CloudRF backend is selected (and a key is set), run the hosted
+  // ITM job; transparently fall back to the built-in engine on any failure.
+  if (backendSettings?.getBackend?.() === 'cloudrf' && backendSettings.getApiKey()) {
+    runCloudRF(compBounds, center, params, runBuiltin);
+    return;
+  }
+  runBuiltin();
+}
+
+const CLOUDRF_SRC = 'cloudrf';
+const CLOUDRF_LAYER = 'cloudrf-layer';
+
+/** Run a CloudRF coverage job and paint it; fall back to built-in on null. */
+async function runCloudRF(compBounds, center, params, fallback) {
+  const radio = {
+    freqMHz: params.freqMHz,
+    powerW: clampNum(powerInput.value, 0.01, 100, 5),
+    txHeightM: params.txHeightM,
+    rxHeightM: params.rxHeightM,
+    rxSensDbm: params.thresholds.marginal,
+  };
+  coverage.clear(); // remove the built-in raster while the hosted job runs
+  progress.hidden = false;
+  progressBar.style.width = '0%';
+  statusMode.textContent = 'CloudRF…';
+  let result = null;
+  try {
+    result = await runCloudRFCoverage({
+      apiKey: backendSettings.getApiKey(),
+      bounds: compBounds,
+      tx: { lat: center.lat, lng: center.lng, txHeightM: params.txHeightM },
+      radio,
+      onProgress: (frac) => {
+        progress.hidden = false;
+        progressBar.style.width = `${Math.round(frac * 100)}%`;
+        statusMode.textContent = frac >= 1 ? 'Coverage ready' : 'CloudRF…';
+      },
+    });
+  } catch {
+    result = null;
+  }
+  if (!result) {
+    // Auth/transport failure — note it and run the built-in engine instead.
+    coverageHelp.textContent = 'CloudRF unavailable (check key / network) — using built-in engine.';
+    progress.hidden = true;
+    progressBar.style.width = '0%';
+    fallback();
+    return;
+  }
+  paintCloudRFResult(result);
+  progress.hidden = true;
+  progressBar.style.width = '0%';
+  opacityRow.hidden = false;
+  coverageEngine.textContent = 'CloudRF ITM';
+  coverageHelp.textContent = 'Hosted CloudRF ITM coverage (Longley-Rice over SRTM). Planning-grade, not survey-grade.';
+}
+
+/**
+ * Paint a CloudRF result PNG as a MapLibre image source, reusing the image-source
+ * pattern from coverage.js (TL, TR, BR, BL corner coordinates), sitting just
+ * below the AOI outline like the built-in raster.
+ */
+function paintCloudRFResult({ imageUrl, bounds }) {
+  const coordinates = [
+    [bounds.west, bounds.north],
+    [bounds.east, bounds.north],
+    [bounds.east, bounds.south],
+    [bounds.west, bounds.south],
+  ];
+  if (map.getSource(CLOUDRF_SRC)) {
+    map.getSource(CLOUDRF_SRC).updateImage({ url: imageUrl, coordinates });
+  } else {
+    map.addSource(CLOUDRF_SRC, { type: 'image', url: imageUrl, coordinates });
+    const beforeId = map.getLayer('aoi-fill') ? 'aoi-fill' : undefined;
+    map.addLayer(
+      {
+        id: CLOUDRF_LAYER,
+        type: 'raster',
+        source: CLOUDRF_SRC,
+        paint: { 'raster-opacity': coverage?.getOpacity?.() ?? 0.7, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
+      },
+      beforeId,
+    );
+  }
+}
+
+/** Remove the CloudRF raster (e.g. before a built-in run or on clear). */
+function clearCloudRFResult() {
+  if (map.getLayer(CLOUDRF_LAYER)) map.removeLayer(CLOUDRF_LAYER);
+  if (map.getSource(CLOUDRF_SRC)) map.removeSource(CLOUDRF_SRC);
 }
 
 /**
