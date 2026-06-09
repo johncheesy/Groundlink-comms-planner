@@ -839,6 +839,89 @@
 }
 .check--inline { flex: 0 0 auto; }
 
+/* ---- Power & endurance (M8) ------------------------------------------- */
+
+.input--sm { width: auto; min-width: 56px; max-width: 84px; flex: 0 0 auto; text-align: right; }
+select.input--sm { text-align: left; padding-right: 6px; }
+
+.power-nodes {
+  margin-top: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.power-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+}
+.power-row--ext { opacity: 0.82; }
+.power-row__name {
+  font-family: var(--disp);
+  font-weight: 700;
+  color: var(--ink);
+  flex: 1 1 auto;
+}
+.power-row__badge { flex: 0 0 auto; }
+.power-row__metrics {
+  flex: 1 1 100%;
+  font-size: 11.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
+.power-row__metrics b { color: var(--ink); font-weight: 600; }
+
+.power-atak {
+  margin-top: var(--sp-2);
+  padding: 8px 9px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  font-size: 11.5px;
+  color: var(--dim);
+  line-height: 1.45;
+}
+.power-atak b { color: var(--ink); font-weight: 600; }
+
+.power-bom { margin-top: var(--sp-3); }
+.power-bom__title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+  letter-spacing: 0.01em;
+  margin-bottom: 4px;
+}
+.power-bom table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.power-bom th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--faint);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--hair);
+}
+.power-bom td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink);
+  vertical-align: top;
+}
+.power-bom td.power-bom__qty { font-weight: 600; white-space: nowrap; }
+.power-bom td.power-bom__why { color: var(--dim); font-size: 11px; }
+
 /* ---- Arsenal + node roles (M7) ---------------------------------------- */
 
 .radio-result__pick { flex: 0 0 auto; display: flex; align-items: center; }

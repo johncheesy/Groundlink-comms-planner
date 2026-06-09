@@ -12,7 +12,12 @@ import { createMissionTools } from './mission/mission-tools.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createRadios } from './radios/radios.js';
 import { recommendMix } from './radios/mix.js';
-import { assignRoles } from './radios/roles.js';
+import { assignRoles, NODE_ROLES } from './radios/roles.js';
+import {
+  operatorEndurance, timingsToDuty, siteEnergyWh, solarPanelW,
+  networkBom, profileForRadioRole,
+} from './power/power.js';
+import { atakConsumedMah, powerbankRecommendation } from './power/atak.js';
 import { buildPace } from './pace/pace.js';
 import { exportReport } from './pace/report.js';
 import { createSearch } from './ui/search.js';
@@ -665,6 +670,9 @@ whenStyleReady(() => {
     statusMode.textContent = 'Report exported';
   });
 
+  // ---- Power & endurance (M8) ------------------------------------------
+  buildPowerBtn.addEventListener('click', buildPowerPlan);
+
   // ---- Location search + coordinate entry ------------------------------
   createSearch(map, {
     input: $('#searchInput'),
@@ -1070,6 +1078,7 @@ function gatherPaceContext() {
       routeLengthKm,
       points: mission.getPoints().length,
     },
+    bom: lastPowerBom,
     build: BUILD,
     generatedAt: new Date().toISOString(),
   };
@@ -1097,6 +1106,146 @@ function renderPace(plan) {
   paceSummary.textContent = plan.summary;
   exportHelp.textContent =
     'PDF opens a print view (Save as PDF). Word and Excel download to your computer. Generated locally — nothing is uploaded.';
+}
+
+// ---- Power & endurance (M8) ---------------------------------------------
+
+const buildPowerBtn = $('#buildPowerBtn');
+const powerResults = $('#powerResults');
+const powerNodes = $('#powerNodes');
+const powerAtak = $('#powerAtak');
+const powerBom = $('#powerBom');
+const powerHelp = $('#powerHelp');
+const powerHours = $('#powerHours');
+const powerEveryMin = $('#powerEveryMin');
+const powerTxMin = $('#powerTxMin');
+const powerContinuousH = $('#powerContinuousH');
+const powerBankV = $('#powerBankV');
+const powerDroneWh = $('#powerDroneWh');
+const powerAtakMa = $('#powerAtakMa');
+const powerAtakMah = $('#powerAtakMah');
+
+let lastPowerBom = [];
+
+const ROLE_SUPPLY = Object.fromEntries(NODE_ROLES.map((r) => [r.key, r.power]));
+const ROLE_STATIC = Object.fromEntries(NODE_ROLES.map((r) => [r.key, r.mobility === 'static']));
+const SUPPLY_BADGE = { battery: 'badge--ref', vehicle: 'badge--warn', mains: 'badge--ok' };
+const fmtH = (h) => (Number.isFinite(h) ? (h >= 100 ? String(Math.round(h)) : h.toFixed(1)) : '∞');
+const pct = (f) => Math.round((Number.isFinite(f) ? f : 0) * 100);
+
+/**
+ * Build the per-node power plan (reusing the M7 role assignment), the ATAK
+ * powerbank line and the mission BOM; render them and stash the BOM so the M6
+ * report (plan.bom) can pick it up.
+ */
+function buildPowerPlan() {
+  const missionHours = clampNum(powerHours.value, 1, 720, 8);
+  const everyMin = clampNum(powerEveryMin.value, 1, 240, 30);
+  const txMin = clampNum(powerTxMin.value, 0, 60, 2);
+  const continuousOnHours = clampNum(powerContinuousH.value, 0, 72, 0);
+  const bankV = clampNum(powerBankV.value, 12, 24, 12);
+  const droneWh = clampNum(powerDroneWh.value, 20, 2000, 370);
+  const atakMa = clampNum(powerAtakMa.value, 50, 3000, 600);
+  const atakMah = clampNum(powerAtakMah.value, 1000, 20000, 5000);
+  const lat = map.getCenter().lat;
+
+  const duty = timingsToDuty({ missionHours, windows: [{ everyMin, txMin }], continuousOnHours });
+  const nodes = assignRoles(radios.getArsenal(), gatherRoleContext());
+
+  const battNodes = []; // operator DC profiles → BOM operator batteries
+  const siteRadios = []; // static mains radios → BOM solar
+
+  const rows = nodes.map((n) => {
+    const supply = ROLE_SUPPLY[n.key] || 'battery';
+    if (!n.radio) {
+      return powerRow(n.label, '— none —', supply, 'No radio assigned — add the radios you carry to the Arsenal.');
+    }
+    if (supply === 'battery') {
+      const profile = profileForRadioRole(n.radio.role);
+      const e = operatorEndurance(profile, missionHours, duty);
+      battNodes.push(profile);
+      const metrics =
+        `<b>${fmtH(e.enduranceHours)} h</b> endurance · ` +
+        `<b>${e.batteriesWithSpare}</b> batteries (${e.batteries} + ${e.spare} spare) · ` +
+        `recharge ~<b>${fmtH(e.rechargeIntervalH)} h</b> · ` +
+        `${profile.className}, ${pct(duty.tx)}/${pct(duty.rx)}/${pct(duty.standby)} duty`;
+      return powerRow(n.label, n.radio.label, supply, metrics);
+    }
+    if (supply === 'vehicle') {
+      return powerRow(n.label, n.radio.label, supply,
+        'Vehicle-powered (alternator) — no spare battery required; endurance follows the platform.');
+    }
+    // mains / static → solar/charge budget instead of batteries
+    if (ROLE_STATIC[n.key]) siteRadios.push(n.radio);
+    const daily = siteEnergyWh(n.radio, 24, 0.3);
+    const solar = solarPanelW(daily.energyWh, lat);
+    const missionE = siteEnergyWh(n.radio, missionHours, 0.3);
+    const bankAh = bankV >= 24 ? missionE.batteryAh24V : missionE.batteryAh12V;
+    const metrics =
+      `<b>${solar.panelW_rounded} W</b> solar panel · ` +
+      `<b>${Math.round(daily.energyWh)} Wh/day</b> (${solar.peakSunHours} h sun @ lat ${lat.toFixed(0)}°) · ` +
+      `bank <b>${bankAh.toFixed(1)} Ah</b> @ ${bankV} V buffer for ${missionHours} h`;
+    return powerRow(n.label, n.radio.label, supply, metrics);
+  });
+
+  powerNodes.innerHTML = rows.join('');
+
+  // ATAK EUD + powerbank
+  const consumed = atakConsumedMah(atakMa, missionHours);
+  const rec = powerbankRecommendation(consumed, atakMah);
+  powerAtak.innerHTML =
+    `<b>ATAK EUD</b> — ${atakMa} mA over ${missionHours} h draws <b>${Math.round(consumed)} mAh</b> ` +
+    `(device ${atakMah} mAh). Carry <b>${rec.fullOffBankSizeMah} mAh × ${rec.fullOffBankCount}</b> ` +
+    `powerbank${rec.fullOffBankCount === 1 ? '' : 's'} (65% usable). ${htmlEsc(rec.note)}`;
+
+  // Mission BOM roll-up (the M6 report contract → plan.bom)
+  const hasDrone = !!drone?.hasDrone?.();
+  lastPowerBom = networkBom({
+    sites: siteRadios,
+    operators: battNodes,
+    drone: hasDrone ? { batteryWh: droneWh } : null,
+    ataks: [{ drawMa: atakMa, deviceMah: atakMah }],
+    missionHours,
+    lat,
+    duty,
+  });
+  powerBom.innerHTML = renderBomTable(lastPowerBom, hasDrone);
+
+  powerResults.hidden = false;
+  powerHelp.hidden = true;
+  statusMode.textContent = 'Power plan ready';
+  return lastPowerBom;
+}
+
+function powerRow(name, radioLabel, supply, metricsHtml) {
+  const badge = SUPPLY_BADGE[supply] || 'badge--ref';
+  const supplyLabel = supply === 'battery' ? 'Battery' : supply === 'vehicle' ? 'Vehicle' : 'Solar/mains';
+  const ext = supply !== 'battery' ? ' power-row--ext' : '';
+  return (
+    `<div class="power-row${ext}">` +
+    `<span class="power-row__name">${htmlEsc(name)}</span>` +
+    `<span class="power-row__badge badge ${badge}">${supplyLabel}</span>` +
+    `<span class="power-row__metrics"><b>${htmlEsc(radioLabel)}</b> — ${metricsHtml}</span>` +
+    `</div>`
+  );
+}
+
+function renderBomTable(bom, hasDrone) {
+  if (!bom.length) return '<p class="help">No nodes to roll up yet — add radios to the Arsenal and build the plan.</p>';
+  const note = hasDrone ? '' : '<p class="help">Place a drone relay to include airborne-relay batteries.</p>';
+  const rows = bom
+    .map(
+      (l) =>
+        `<tr><td>${htmlEsc(l.item)}</td>` +
+        `<td class="power-bom__qty">${l.qty}</td>` +
+        `<td>${htmlEsc(l.unitSpec)}</td>` +
+        `<td class="power-bom__why">${htmlEsc(l.rationale)}</td></tr>`,
+    )
+    .join('');
+  return (
+    `<div class="power-bom__title">Mission bill of materials</div>` +
+    `<table><thead><tr><th>Item</th><th>Qty</th><th>Spec</th><th>Rationale</th></tr></thead><tbody>${rows}</tbody></table>${note}`
+  );
 }
 
 /** Render the recommended-site rows; hover highlights the marker, click flies to it. */
@@ -1290,5 +1439,7 @@ if (import.meta.env.DEV) {
     get radios() { return radios; },
     get drone() { return drone; },
     pace: { build: () => buildPace(gatherPaceContext()), get last() { return lastPlan; } },
+    power: { build: () => buildPowerPlan() },
+    get powerBom() { return lastPowerBom; },
   };
 }
