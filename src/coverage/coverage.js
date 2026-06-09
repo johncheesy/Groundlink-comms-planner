@@ -27,7 +27,10 @@ function hexToRgb(hex, fallback = [255, 255, 255]) {
 
 const TARGET_MAX_DIM = 220;
 
-export function createCoverageController(map, { onProgress, onStatus } = {}) {
+export function createCoverageController(
+  map,
+  { onProgress, onStatus, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.7 } = {},
+) {
   const palette = [
     hexToRgb(cssVar('--s1', '#34e6c2')),
     hexToRgb(cssVar('--s2', '#86e6a0')),
@@ -38,7 +41,7 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
 
   let worker = null;
   let jobId = 0;
-  let opacity = 0.7;
+  let opacity = initialOpacity;
   let txMarker = null;
   let hasLayer = false;
   let currentBounds = null; // bbox of the in-flight / last job (worker omits it)
@@ -129,16 +132,18 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
       [bounds.west, bounds.south],
     ];
 
-    if (hasLayer && map.getSource(SRC)) {
-      map.getSource(SRC).updateImage({ url, coordinates });
+    if (hasLayer && map.getSource(src)) {
+      map.getSource(src).updateImage({ url, coordinates });
     } else {
-      map.addSource(SRC, { type: 'image', url, coordinates });
-      const beforeId = map.getLayer(BEFORE) ? BEFORE : undefined;
+      map.addSource(src, { type: 'image', url, coordinates });
+      // Sit before the configured layer; fall back to the AOI outline so the
+      // raster always stays beneath it (and above the basemap).
+      const beforeId = map.getLayer(before) ? before : (map.getLayer(BEFORE) ? BEFORE : undefined);
       map.addLayer(
         {
-          id: LAYER,
+          id: layer,
           type: 'raster',
-          source: SRC,
+          source: src,
           paint: { 'raster-opacity': opacity, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
         },
         beforeId,
@@ -186,13 +191,13 @@ export function createCoverageController(map, { onProgress, onStatus } = {}) {
 
   function setOpacity(v) {
     opacity = Math.max(0, Math.min(1, v));
-    if (hasLayer && map.getLayer(LAYER)) map.setPaintProperty(LAYER, 'raster-opacity', opacity);
+    if (hasLayer && map.getLayer(layer)) map.setPaintProperty(layer, 'raster-opacity', opacity);
   }
 
   function clear() {
     jobId += 1;
-    if (map.getLayer(LAYER)) map.removeLayer(LAYER);
-    if (map.getSource(SRC)) map.removeSource(SRC);
+    if (map.getLayer(layer)) map.removeLayer(layer);
+    if (map.getSource(src)) map.removeSource(src);
     hasLayer = false;
     txMarker?.remove();
     txMarker = null;

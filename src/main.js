@@ -12,6 +12,7 @@ import { createMissionTools } from './mission/mission-tools.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createRadios } from './radios/radios.js';
 import { recommendMix } from './radios/mix.js';
+import { createCellularController, CELL_BANDS, bandPreset, cellDefaults } from './connectivity/cellular.js';
 import { assignRoles, NODE_ROLES } from './radios/roles.js';
 import {
   operatorEndurance, timingsToDuty, siteEnergyWh, solarPanelW,
@@ -143,11 +144,11 @@ function reflectViewSliders() {
 }
 
 toggle3dBtn?.addEventListener('click', () => {
-  const on = mapApi.toggleTerrain({ exaggeration: 1.5, pitch: 45 });
+  const on = mapApi.toggle3D({ exaggeration: 1.5, pitch: 45 });
   toggle3dBtn.classList.toggle('is-active', on);
   toggle3dBtn.setAttribute('aria-pressed', String(on));
   viewSliders.hidden = !on;
-  statusMode.textContent = on ? '3D terrain on' : '3D terrain off';
+  statusMode.textContent = on ? '3D terrain + buildings on' : '3D off';
 });
 
 // Live slider control (instant), and keep sliders synced with drag-rotate/pitch.
@@ -292,6 +293,8 @@ let recommender = null;
 let mission = null;
 let missionTools = null;
 let radios = null;
+let cellular = null; // M9 cellular controller (own coverage layer)
+let cellularLoaded = false; // snapshot fetched lazily on first enable
 let currentAoiAreaM2 = 0;
 let lastPlan = null; // last PACE plan built (M6) — fed to the report export
 
@@ -388,6 +391,29 @@ whenStyleReady(() => {
       }
     },
   });
+
+  // ---- Cellular coverage (M9) ------------------------------------------
+  // A second coverage instance on its own layer ('cellular'), beneath the RF
+  // coverage raster. Independent of mission radio coverage — both can be on.
+  const cellularCoverage = createCoverageController(map, {
+    src: 'cellular',
+    layer: 'cellular-layer',
+    before: 'coverage-layer',
+    opacity: 0.6,
+    onStatus(state) {
+      if (state === 'error') cellHelp.textContent = 'Cellular worker failed — see console.';
+    },
+  });
+  cellular = createCellularController(map, cellularCoverage, {
+    onStatus(state, info) {
+      if (state === 'empty') {
+        cellReadout.textContent = 'No towers of this type in view — pan/zoom to a populated area or switch network.';
+      } else if (state === 'computing') {
+        cellReadout.textContent = `Modelled from ${info.count} OpenCelliD tower${info.count === 1 ? '' : 's'} in view.`;
+      }
+    },
+  });
+  initCellularControls();
 
   // ---- Mission tools (M4): Sites / Route / Points ----------------------
   missionTools = createMissionTools(map, mission, {
@@ -1248,6 +1274,73 @@ function renderBomTable(bom, hasDrone) {
   );
 }
 
+// ---- Cellular coverage (M9) ---------------------------------------------
+
+const cellEnabled = $('#cellEnabled');
+const cellPanel = $('#cellPanel');
+const cellRadio = $('#cellRadio');
+const cellBand = $('#cellBand');
+const cellFreq = $('#cellFreq');
+const cellEirp = $('#cellEirp');
+const cellHeight = $('#cellHeight');
+const computeCellBtn = $('#computeCellBtn');
+const cellReadout = $('#cellReadout');
+const cellAttribution = $('#cellAttribution');
+const cellHelp = $('#cellHelp');
+
+async function ensureCells() {
+  if (cellularLoaded) return true;
+  try {
+    const meta = await cellular.load('nl');
+    cellularLoaded = true;
+    cellAttribution.textContent = meta.attribution;
+    cellReadout.textContent = `${meta.count} towers loaded (${meta.region}). Set network + band, then compute.`;
+    return true;
+  } catch {
+    cellReadout.textContent = 'Could not load the cell snapshot.';
+    return false;
+  }
+}
+
+/** Wire the cellular layer toggle, band presets and compute button. */
+function initCellularControls() {
+  cellBand.innerHTML = CELL_BANDS.map((b) => `<option value="${b.key}">${b.label} · ${b.freqMHz} MHz</option>`).join('');
+  cellBand.value = 'b20-800'; // LTE 800 default
+  const d = cellDefaults();
+  cellEirp.value = d.eirpDbm;
+  cellHeight.value = d.txHeightM;
+  cellFreq.value = bandPreset(cellBand.value).freqMHz;
+
+  cellBand.addEventListener('change', () => {
+    cellFreq.value = bandPreset(cellBand.value).freqMHz;
+  });
+
+  cellEnabled.addEventListener('change', async () => {
+    const on = cellEnabled.checked;
+    cellPanel.hidden = !on;
+    cellular.setVisible(on);
+    if (on) await ensureCells();
+  });
+
+  computeCellBtn.addEventListener('click', async () => {
+    if (!(await ensureCells())) return;
+    cellEnabled.checked = true;
+    cellPanel.hidden = false;
+    cellular.setVisible(true);
+    cellular.compute({
+      radio: cellRadio.value,
+      freqMHz: clampNum(cellFreq.value, 300, 6000, 800),
+      eirpDbm: clampNum(cellEirp.value, 20, 75, 58),
+      txHeightM: clampNum(cellHeight.value, 5, 200, 30),
+      rxHeightM: 1.5,
+      useTerrain: useTerrainInput.checked,
+      useClutter: useClutterInput.checked,
+      maxN: 80,
+    });
+    statusMode.textContent = 'Cellular coverage computing';
+  });
+}
+
 /** Render the recommended-site rows; hover highlights the marker, click flies to it. */
 function renderSiteList(sites) {
   siteList.innerHTML = '';
@@ -1438,6 +1531,7 @@ if (import.meta.env.DEV) {
     get missionTools() { return missionTools; },
     get radios() { return radios; },
     get drone() { return drone; },
+    get cellular() { return cellular; },
     pace: { build: () => buildPace(gatherPaceContext()), get last() { return lastPlan; } },
     power: { build: () => buildPowerPlan() },
     get powerBom() { return lastPowerBom; },

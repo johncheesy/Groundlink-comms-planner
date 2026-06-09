@@ -5,6 +5,7 @@ import {
   BASEMAP_VARIANTS,
   DEFAULT_BASEMAP,
   TERRARIUM_DEM,
+  BUILDINGS_LAYER,
   variantLayerId,
 } from './basemaps.js';
 
@@ -81,6 +82,23 @@ export function initMap(container) {
     return terrainOn;
   }
 
+  // ---- 3D buildings (M10) ------------------------------------------------
+  // Show/hide the OpenFreeMap extrusion layer. When shown, lift it to the top
+  // so it sits above the coverage raster (z-order: basemap → coverage → buildings).
+  function setBuildings(on) {
+    if (!map.getLayer(BUILDINGS_LAYER)) return on;
+    map.setLayoutProperty(BUILDINGS_LAYER, 'visibility', on ? 'visible' : 'none');
+    if (on) map.moveLayer(BUILDINGS_LAYER);
+    return on;
+  }
+
+  // Combined 3D control: terrain relief + extruded buildings together.
+  function set3D(on, opts) {
+    setTerrain(on, opts);
+    setBuildings(on);
+    return on;
+  }
+
   return {
     map,
     setBasemap,
@@ -89,6 +107,10 @@ export function initMap(container) {
     setTerrain,
     toggleTerrain: (opts) => setTerrain(!terrainOn, opts),
     isTerrainOn: () => terrainOn,
+    setBuildings,
+    set3D,
+    toggle3D: (opts) => set3D(!terrainOn, opts),
+    is3DOn: () => terrainOn,
   };
 }
 
