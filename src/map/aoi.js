@@ -286,6 +286,7 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     if (!mode) return;
     if (e.key === 'Enter' && mode === 'polygon' && polyPoints.length >= 3) commitPolygon(polyPoints);
     else if (e.key === 'Backspace') {
+      if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
       e.preventDefault();
       undoPoint();
     } else if (e.key === 'Escape') {

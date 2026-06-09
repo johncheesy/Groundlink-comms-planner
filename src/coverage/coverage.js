@@ -72,7 +72,14 @@ export function createCoverageController(
         }
       }
     };
-    worker.onerror = () => onStatus?.('error');
+    worker.onerror = () => {
+      onStatus?.('error');
+      if (pendingResolve) {
+        const r = pendingResolve;
+        pendingResolve = null;
+        r(null);
+      }
+    };
     return worker;
   }
 
@@ -170,6 +177,11 @@ export function createCoverageController(
   function compute(bounds, tx, params, opts = {}) {
     const w = ensureWorker();
     const { cols, rows } = gridDims(bounds);
+    if (pendingResolve) {
+      const r = pendingResolve;
+      pendingResolve = null;
+      r(null);
+    }
     jobId += 1;
     currentBounds = bounds;
     currentRender = opts.render !== false;
@@ -188,8 +200,10 @@ export function createCoverageController(
   /** Promise variant — resolves with the result stats after the job completes. */
   function computeAsync(bounds, tx, params, opts = {}) {
     return new Promise((resolve) => {
-      pendingResolve = resolve;
+      // compute() resolves any prior orphaned pending promise with null and
+      // clears it before bumping jobId, so install ours afterwards.
       compute(bounds, tx, params, opts);
+      pendingResolve = resolve;
     });
   }
 
@@ -205,6 +219,11 @@ export function createCoverageController(
   }
 
   function clear() {
+    if (pendingResolve) {
+      const r = pendingResolve;
+      pendingResolve = null;
+      r(null);
+    }
     jobId += 1;
     if (map.getLayer(layer)) map.removeLayer(layer);
     if (map.getSource(src)) map.removeSource(src);

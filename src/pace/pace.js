@@ -51,7 +51,6 @@ function inferBandFromFreq(freqRange) {
   const lo = freqRange[0];
   if (lo < 30) return 'HF NVIS';
   if (lo < 88) return 'VHF';
-  if (lo < 512) return 'UHF';
   if (lo < 1000) return 'UHF';
   return null; // L/S band and above → not handled by the raster model
 }

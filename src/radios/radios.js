@@ -5,6 +5,7 @@ import {
   loadRadioSet,
   saveRadioSet,
 } from './model.js';
+import { renderRadarChart, radarSvg } from '../ui/radar-chart.js';
 
 /**
  * Radios controller (M5, main thread) — owns the radio set, the searchable
@@ -96,6 +97,8 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   }
 
   // ── Library search + results ───────────────────────────────────────────
+  let lastResults = []; // the radios shown by the most recent search (for the overlay)
+
   function renderResults(q = '') {
     const needle = q.trim().toLowerCase();
     const list = workingList()
@@ -106,6 +109,7 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
         bandWord(r).includes(needle),
       )
       .sort((a, b) => a.label.localeCompare(b.label));
+    lastResults = list;
 
     els.results.innerHTML = '';
     if (!list.length) {
@@ -116,7 +120,7 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       const li = document.createElement('li');
       li.className = 'radio-result';
       li.innerHTML =
-        `<label class="radio-result__pick" title="Select for the arsenal"><input type="checkbox" class="radio-result__check" data-id="${esc(r.id)}" /></label>` +
+        `<label class="radio-result__pick" title="Select for available equipment"><input type="checkbox" class="radio-result__check" data-id="${esc(r.id)}" /></label>` +
         `<div class="radio-result__main">` +
         `<span class="radio-result__name">${esc(r.label)}</span>` +
         `<span class="radio-result__meta" data-numeric>${r.role} · ${trimNum(r.freqRangeMHz[0])}–${trimNum(r.freqRangeMHz[1])} MHz · ${r.powerW} W · ${Math.round(r.rxSensDbm)} dBm</span>` +
@@ -129,9 +133,40 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       li.querySelector('[data-act="infra"]').addEventListener('click', () => assign('infra', r.id));
       li.querySelector('[data-act="field"]').addEventListener('click', () => assign('field', r.id));
       li.querySelector('[data-act="edit"]').addEventListener('click', () => openEditor(r));
+      // Click the row body (name/meta) to inspect — specs + capability radar.
+      li.querySelector('.radio-result__main').addEventListener('click', () => inspectRadio(r));
       els.results.appendChild(li);
     }
     updateSelCount();
+  }
+
+  // ── Inspect (detail panel + full-screen radar grid) ────────────────────
+  function inspectRadio(r) {
+    if (!els.detailPanel) return;
+    renderRadarChart(r, els.detailPanel);
+    els.detailPanel.hidden = false;
+  }
+
+  function openEquipmentOverlay() {
+    if (!els.overlay || !els.overlayGrid) return;
+    const list = lastResults.length ? lastResults : workingList();
+    els.overlayGrid.innerHTML = list
+      .map((r) => {
+        const band = `${trimNum(r.freqRangeMHz[0])}–${trimNum(r.freqRangeMHz[1])} MHz`;
+        return (
+          `<div class="equipment-card">` +
+          `<div class="equipment-card__name">${esc(r.label)}</div>` +
+          `<div class="equipment-card__meta" data-numeric>${esc(r.role)} · ${band} · ${r.powerW} W</div>` +
+          `<div class="equipment-card__chart">${radarSvg(r, 160)}</div>` +
+          `</div>`
+        );
+      })
+      .join('');
+    els.overlay.hidden = false;
+  }
+
+  function closeEquipmentOverlay() {
+    if (els.overlay) els.overlay.hidden = true;
   }
 
   // ── Editor / manual form ───────────────────────────────────────────────
@@ -193,11 +228,11 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       persist();
       renderArsenal();
       onArsenalChange?.(getArsenal());
-      onStatus?.(`Added ${added} radio${added > 1 ? 's' : ''} to the arsenal`);
+      onStatus?.(`Added ${added} radio${added > 1 ? 's' : ''} to available equipment`);
     } else if (checked.length) {
-      onStatus?.('Those radios are already in the arsenal');
+      onStatus?.('Those radios are already in available equipment');
     } else {
-      onStatus?.('Tick radios in the list, then add them to the arsenal');
+      onStatus?.('Tick radios in the list, then add them to available equipment');
     }
   }
 
@@ -222,7 +257,7 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     els.arsenalList.innerHTML = '';
     if (!arsenal.length) {
       els.arsenalList.innerHTML =
-        '<li class="arsenal__empty">No radios yet — tick radios above, then “Add to arsenal”.</li>';
+        '<li class="arsenal__empty">No radios yet — tick radios above, then “Add ticked”.</li>';
       return;
     }
     for (const r of arsenal) {
@@ -341,6 +376,10 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   els.fccInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fccLookup(els.fccInput.value); } });
   els.addArsenalBtn?.addEventListener('click', addCheckedToArsenal);
   els.selectAll?.addEventListener('click', toggleSelectAll);
+  els.expandEquipment?.addEventListener('click', openEquipmentOverlay);
+  els.overlayClose?.addEventListener('click', closeEquipmentOverlay);
+  els.overlay?.addEventListener('click', (e) => { if (e.target === els.overlay) closeEquipmentOverlay(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && els.overlay && !els.overlay.hidden) closeEquipmentOverlay(); });
   els.clearInfraBtn?.addEventListener('click', () => assign('infra', null));
   els.clearFieldBtn?.addEventListener('click', () => assign('field', null));
   // Keep the "N selected" counter live as the user ticks results.

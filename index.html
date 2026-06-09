@@ -22,6 +22,7 @@
     <div class="app" id="app">
       <!-- ============================= PANEL ============================= -->
       <aside class="panel" id="panel">
+        <button id="collapsePanel" class="panel__collapse-btn" type="button" aria-label="Toggle panel" title="Hide / show panel">‹</button>
         <header class="panel__head">
           <div class="brand">
             <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
@@ -216,6 +217,9 @@
               </div>
               <ul class="radio-results" id="radioResults" aria-label="Radio library"></ul>
 
+              <!-- Inspect panel: a clicked search result's specs + capability radar -->
+              <div id="radioDetailPanel" class="radio-detail" hidden></div>
+
               <details class="disclosure">
                 <summary>Add by FCC ID / manual</summary>
                 <div class="input-row">
@@ -260,10 +264,11 @@
 
               <div class="arsenal">
                 <div class="arsenal__head">
-                  <span class="field-label">Arsenal — the radios you carry</span>
+                  <span class="field-label">Available Equipment — the radios you carry</span>
+                  <button class="btn btn--icon btn--sm" type="button" id="expandEquipment" aria-label="Expand equipment" title="Expand to full-screen grid">⤢</button>
                   <button class="btn btn--sm" type="button" id="addArsenalBtn">Add ticked</button>
                 </div>
-                <ul class="arsenal__list" id="arsenalList" aria-label="Radio arsenal"></ul>
+                <ul class="arsenal__list" id="arsenalList" aria-label="Available equipment"></ul>
               </div>
             </div>
           </section>
@@ -272,12 +277,12 @@
           <section class="section" aria-labelledby="rolesTitle">
             <div class="section__head">
               <span class="section__title" id="rolesTitle">Node roles</span>
-              <span class="section__hint">M7 · arsenal</span>
+              <span class="section__hint">M7 · equipment</span>
             </div>
             <div class="section__body">
-              <button class="btn btn--primary btn--block" type="button" id="assignRolesBtn">Assign roles from arsenal</button>
+              <button class="btn btn--primary btn--block" type="button" id="assignRolesBtn">Assign roles from equipment</button>
               <div class="roles-list" id="rolesList" hidden></div>
-              <p class="help" id="rolesHelp">Picks the best radio from your arsenal for each node role — Operator (manpack), Mobile CP (vehicle), HQ (static), Rebro mobile/static. Add radios to the arsenal first.</p>
+              <p class="help" id="rolesHelp">Picks the best radio from your available equipment for each node role — Operator (manpack), Mobile CP (vehicle), HQ (static), Rebro mobile/static. Add radios to the available equipment first.</p>
             </div>
           </section>
 
@@ -554,7 +559,7 @@
                 <div class="power-bom" id="powerBom" aria-label="Mission bill of materials"></div>
               </div>
 
-              <p class="help" id="powerHelp">Budgets battery life, spares, recharge intervals, a solar budget for static sites and an ATAK powerbank — per node, from the M7 role assignment. Every figure is an indicative, editable default. Add radios in the Arsenal first for radio-specific profiles.</p>
+              <p class="help" id="powerHelp">Budgets battery life, spares, recharge intervals, a solar budget for static sites and an ATAK powerbank — per node, from the M7 role assignment. Every figure is an indicative, editable default. Add radios in the Available Equipment first for radio-specific profiles.</p>
             </div>
           </section>
 
@@ -806,6 +811,15 @@
 
       <!-- mobile slide-over scrim -->
       <div class="scrim" id="scrim" aria-hidden="true"></div>
+
+      <!-- Full-screen Available Equipment grid (radar cards) -->
+      <div id="equipmentOverlay" class="equipment-overlay" role="dialog" aria-label="Available equipment" hidden>
+        <div class="equipment-overlay__head">
+          <h2 class="equipment-overlay__title">Available Equipment</h2>
+          <button id="equipmentOverlayClose" class="equipment-overlay__close" type="button" aria-label="Close">×</button>
+        </div>
+        <div id="equipmentGrid" class="equipment-grid"></div>
+      </div>
     </div>
 
     <script type="module" src="/src/main.js"></script>

@@ -26,6 +26,12 @@ function cssVar(name, fallback) {
   return v || fallback;
 }
 
+// Escape user-supplied text before it goes into popup innerHTML (imported KML
+// names/descriptions are untrusted).
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ---- Parsers ------------------------------------------------------------
 
 function parseDoc(text, type) {
@@ -197,8 +203,8 @@ export function createImportController(map, { onStatus } = {}) {
       const f = e.features?.[0];
       if (!f) return;
       const p = f.properties || {};
-      const name = p.name || 'Imported feature';
-      const desc = p.description ? `<div class="import-popup__desc">${p.description}</div>` : '';
+      const name = esc(p.name || 'Imported feature');
+      const desc = p.description ? `<div class="import-popup__desc">${esc(p.description)}</div>` : '';
       if (popup) popup.remove();
       popup = new maplibregl.Popup({ closeButton: true, offset: 10 })
         .setLngLat(e.lngLat)

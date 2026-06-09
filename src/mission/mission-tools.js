@@ -283,6 +283,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
     } else if (mode === 'route' && e.key === 'Enter' && routeDraw.length >= 2) {
       finishRoute();
     } else if (mode === 'route' && e.key === 'Backspace') {
+      if (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
       e.preventDefault();
       routeDraw.pop();
       previewRoute();

@@ -218,6 +218,7 @@ function applyDayNight() {
   const ctr = map.getCenter();
   const { azimuth, altitude } = sunPosition(dt, ctr.lat, ctr.lng);
   mapApi.setSkyForSun(azimuth, altitude);
+  mapApi.setHillshadeDirection(azimuth);
   if (altitude < -6) {
     statusMode.textContent = `Night (sun ${altitude.toFixed(0)}° below horizon)`;
   } else if (altitude < 6) {
@@ -1053,6 +1054,11 @@ function radioEls() {
     arsenalList: $('#arsenalList'),
     selectAll: $('#radioSelectAll'),
     selCount: $('#radioSelCount'),
+    detailPanel: $('#radioDetailPanel'),
+    expandEquipment: $('#expandEquipment'),
+    overlay: $('#equipmentOverlay'),
+    overlayGrid: $('#equipmentGrid'),
+    overlayClose: $('#equipmentOverlayClose'),
   };
 }
 
@@ -1616,6 +1622,8 @@ panelToggle.addEventListener('click', () => {
   }
 });
 panelCollapse.addEventListener('click', () => setCollapsed(true));
+// Edge-tab handle on the panel border collapses the panel (over-map toggle reopens).
+$('#collapsePanel')?.addEventListener('click', () => setCollapsed(app.dataset.collapsed !== 'true'));
 $('#scrim').addEventListener('click', closePanel);
 $('#panelClose').addEventListener('click', closePanel);
 document.addEventListener('keydown', (e) => {

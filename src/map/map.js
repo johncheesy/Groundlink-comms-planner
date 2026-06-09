@@ -135,6 +135,24 @@ export function initMap(container) {
     map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', intensity);
   }
 
+  // ---- Hillshade sun direction -------------------------------------------
+  // Point every hillshade layer's illumination at the sun's compass azimuth so
+  // terrain relief is lit consistently with the day/night sky. Anchor 'map'
+  // makes the direction compass-absolute (0 = north) rather than viewport-
+  // relative, so it stays correct as the map rotates.
+  function setHillshadeDirection(azimuthDeg) {
+    if (!map.isStyleLoaded()) {
+      map.once('styledata', () => setHillshadeDirection(azimuthDeg));
+      return;
+    }
+    const dir = ((Math.round(azimuthDeg) % 360) + 360) % 360; // 0–359
+    const layers = map.getStyle().layers.filter((l) => l.type === 'hillshade');
+    for (const l of layers) {
+      map.setPaintProperty(l.id, 'hillshade-illumination-direction', dir);
+      map.setPaintProperty(l.id, 'hillshade-illumination-anchor', 'map');
+    }
+  }
+
   return {
     map,
     setBasemap,
@@ -148,6 +166,7 @@ export function initMap(container) {
     toggle3D: (opts) => set3D(!terrainOn, opts),
     is3DOn: () => terrainOn,
     setSkyForSun,
+    setHillshadeDirection,
   };
 }
 

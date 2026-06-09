@@ -161,16 +161,6 @@ async function fetchTowersFromOSM(bbox) {
   return towers;
 }
 
-/** True if two bboxes differ by more than ~10 km in any direction. */
-function bboxChangedSignificantly(a, b) {
-  return (
-    Math.abs(a.west - b.west) > 0.1 ||
-    Math.abs(a.east - b.east) > 0.1 ||
-    Math.abs(a.south - b.south) > 0.1 ||
-    Math.abs(a.north - b.north) > 0.1
-  );
-}
-
 /**
  * @param {maplibregl.Map} map
  * @param {Record<'GSM'|'UMTS'|'LTE'|'NR', ReturnType<import('../coverage/coverage.js').createCoverageController>>} coverages
@@ -288,10 +278,10 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     // fall back to the viewport so coverage fills the visible area.
     const fetchBbox = o.aoi?.bounds ?? viewportBbox();
 
-    // Re-fetch if we have no data or the area has moved significantly.
-    // Skip re-fetch when the cached bbox already fully contains the new area.
-    const needFetch = !cachedBbox ||
-      (!bboxContains(cachedBbox, fetchBbox) && bboxChangedSignificantly(cachedBbox, fetchBbox));
+    // Re-fetch whenever the cached bbox does not fully contain the new area —
+    // bboxContains is the correct gate (a nearby but uncovered area still needs
+    // its towers).
+    const needFetch = !cachedBbox || !bboxContains(cachedBbox, fetchBbox);
     if (needFetch) {
       onStatus?.('loading', { count: 0, totals: {} });
       try {
