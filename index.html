@@ -18,7 +18,7 @@
       rel="stylesheet"
     />
   </head>
-  <body>
+  <body data-mode="user">
     <div class="app" id="app">
       <!-- ============================= PANEL ============================= -->
       <aside class="panel" id="panel">
@@ -42,6 +42,21 @@
           </div>
 
           <div class="panel__head-actions">
+            <button
+              class="btn btn--ghost mode-toggle"
+              id="modeToggle"
+              type="button"
+              title="Switch between User and Advanced mode"
+              aria-label="Switch between user and advanced mode"
+              aria-pressed="false"
+            >
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <circle cx="8" cy="8" r="3" /><line x1="8" y1="1" x2="8" y2="3" /><line x1="8" y1="13" x2="8" y2="15" />
+                <line x1="1" y1="8" x2="3" y2="8" /><line x1="13" y1="8" x2="15" y2="8" />
+              </svg>
+              <span class="mode-toggle__label">USR</span>
+            </button>
+
             <button
               class="btn btn--icon btn--ghost theme-toggle"
               id="themeToggle"
@@ -310,7 +325,7 @@
                 </div>
               </div>
 
-              <div class="input-row">
+              <div class="input-row adv-flex">
                 <div style="flex:1">
                   <label class="field-label" for="txHeight">Tx height (repeater)</label>
                   <div class="input-row">
@@ -331,12 +346,12 @@
                 <input type="checkbox" id="useTerrain" checked />
                 <span>Use terrain (DEM) — talk-in binding link</span>
               </label>
-              <label class="check">
+              <label class="check adv-flex">
                 <input type="checkbox" id="useClutter" checked />
                 <span>Clutter — <span title="ESA WorldCover 2021, 10 m (CC-BY-4.0) via Digital Earth Africa">ESA WorldCover 10 m</span></span>
               </label>
 
-              <details class="disclosure">
+              <details class="disclosure adv-block">
                 <summary>Thresholds (dBm)</summary>
                 <div class="threshold-grid">
                   <label class="field-label"><span>Excellent &ge;</span><input class="input input--mini" id="thExcellent" type="number" value="-85" step="1" /></label>
@@ -364,6 +379,8 @@
                 Draw an AOI, then compute. The transmitter defaults to the AOI centre.
                 Terrain uses AWS elevation tiles — no token needed.
               </p>
+
+              <p class="adv-hint" id="coverageAdvHint">Switch to <strong>ADV</strong> mode for clutter, antenna heights &amp; custom thresholds.</p>
             </div>
           </section>
 
@@ -465,7 +482,7 @@
               <span class="section__hint">M6 · PACE</span>
             </div>
             <div class="section__body">
-              <div class="input-row">
+              <div class="input-row adv-flex">
                 <label class="field-label" for="ewThreat" style="flex:0 0 auto">EW threat</label>
                 <select class="input input--sm" id="ewThreat">
                   <option value="none">None — permissive</option>
@@ -502,6 +519,8 @@
               </div>
 
               <p class="help" id="paceHelp">Synthesises the radio mix, your sites and the last coverage run into a PACE plan — Primary · Alternate · Contingency · Emergency. Run the radio mix and a coverage compute first for a complete plan.</p>
+
+              <p class="adv-hint" id="paceAdvHint">Switch to <strong>ADV</strong> mode to set the EW threat level.</p>
             </div>
           </section>
 
@@ -526,13 +545,13 @@
                 <input class="input input--sm" type="number" id="powerTxMin" min="0" max="60" step="0.5" value="2" />
                 <span class="input-suffix">min TX</span>
               </div>
-              <div class="input-row">
+              <div class="input-row adv-flex">
                 <span class="input-suffix">Continuous-on (action phase)</span>
                 <input class="input input--sm" type="number" id="powerContinuousH" min="0" max="72" step="0.5" value="0" />
                 <span class="input-suffix">h</span>
               </div>
 
-              <div class="input-row">
+              <div class="input-row adv-flex">
                 <label class="field-label" for="powerBankV">Site battery bank</label>
                 <select class="input input--sm" id="powerBankV">
                   <option value="12" selected>12 V</option>
@@ -543,7 +562,7 @@
                 <span class="input-suffix">Wh</span>
               </div>
 
-              <div class="input-row">
+              <div class="input-row adv-flex">
                 <label class="field-label" for="powerAtakMa">ATAK EUD draw</label>
                 <input class="input input--sm" type="number" id="powerAtakMa" min="50" max="3000" step="10" value="600" />
                 <span class="input-suffix">mA ·</span>
@@ -560,6 +579,8 @@
               </div>
 
               <p class="help" id="powerHelp">Budgets battery life, spares, recharge intervals, a solar budget for static sites and an ATAK powerbank — per node, from the M7 role assignment. Every figure is an indicative, editable default. Add radios in the Available Equipment first for radio-specific profiles.</p>
+
+              <p class="adv-hint" id="powerAdvHint">Switch to <strong>ADV</strong> mode for continuous-on tempo, battery bank, drone pack &amp; ATAK draw.</p>
             </div>
           </section>
 

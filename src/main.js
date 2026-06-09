@@ -112,6 +112,28 @@ map.on('zoom', updateZoom);
 
 initThemeToggle($('#themeToggle'), () => resize());
 
+// ---- User / Advanced mode (M10) -----------------------------------------
+// User mode (default) shows only the core 5-click workflow; advanced mode
+// reveals fine-tuning controls in place. Choice is tab-local (sessionStorage),
+// never localStorage — per CLAUDE.md OPSEC / persistence rules.
+
+const modeToggleBtn = $('#modeToggle');
+let advancedMode = false;
+try { advancedMode = sessionStorage.getItem('glMode') === 'advanced'; } catch { /* sandboxed preview: no storage */ }
+
+function applyMode(adv) {
+  advancedMode = adv;
+  document.body.dataset.mode = adv ? 'advanced' : 'user';
+  modeToggleBtn?.classList.toggle('is-active', adv);
+  modeToggleBtn?.setAttribute('aria-pressed', String(adv));
+  const label = modeToggleBtn?.querySelector('.mode-toggle__label');
+  if (label) label.textContent = adv ? 'ADV' : 'USR';
+  try { sessionStorage.setItem('glMode', adv ? 'advanced' : 'user'); } catch { /* sandboxed preview: no storage */ }
+}
+
+modeToggleBtn?.addEventListener('click', () => applyMode(!advancedMode));
+applyMode(advancedMode); // reflect persisted choice on load
+
 // ---- Zoom + 3D toolbar --------------------------------------------------
 
 $('#zoomIn').addEventListener('click', () => map.zoomIn());

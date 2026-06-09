@@ -1134,6 +1134,51 @@ select.input--sm { text-align: left; padding-right: 6px; }
   display: none;
 }
 
+/* ---- User / Advanced mode (M10) ---------------------------------------- */
+
+/* Advanced-only content is hidden in user mode, revealed in advanced mode.
+   Three variants so we restore the correct display value (never use bare
+   `revert` on flex/block containers — it would discard the author display
+   and fall back to the UA inline default). */
+.adv { display: none !important; }
+[data-mode='advanced'] .adv { display: revert !important; }
+
+.adv-block { display: none !important; }
+[data-mode='advanced'] .adv-block { display: block !important; }
+
+.adv-flex { display: none !important; }
+[data-mode='advanced'] .adv-flex { display: flex !important; }
+
+/* User-mode hint pointing at the hidden advanced controls (opposite of .adv). */
+.adv-hint {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--dim);
+  margin-top: var(--sp-2);
+  border-top: 1px solid var(--hair);
+  padding-top: var(--sp-1);
+}
+[data-mode='advanced'] .adv-hint { display: none !important; }
+
+/* Mode toggle button — muted in user mode, teal when advanced is active. */
+.mode-toggle {
+  gap: 5px;
+  width: auto;
+  padding: 0 8px;
+  color: var(--dim);
+}
+.mode-toggle__label {
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.mode-toggle.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ---- Status bar -------------------------------------------------------- */
 
 .statusbar {
