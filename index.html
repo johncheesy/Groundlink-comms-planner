@@ -548,6 +548,15 @@
                   <button class="btn btn--block" type="button" id="exportReportBtn">Export report</button>
                   <p class="help" id="exportHelp">PDF opens a print view (use “Save as PDF”). Word and Excel download to your computer. Generated locally — nothing is uploaded.</p>
                 </div>
+
+                <!-- Coverage / interop export (M16) -->
+                <div class="export" id="dataExport" hidden>
+                  <span class="field-label">Export coverage &amp; data</span>
+                  <button class="btn btn--block" type="button" id="exportGeotiffBtn">Export GeoTIFF / PNG+World</button>
+                  <button class="btn btn--block" type="button" id="exportKmzBtn">Export KMZ</button>
+                  <button class="btn btn--block" type="button" id="exportTakBtn">Export TAK package</button>
+                  <p class="help" id="dataExportHelp">GeoTIFF for QGIS, KMZ for Google Earth, CivTAK data package for ATAK. Carries the last coverage raster + your sites and waypoints. Generated locally — nothing is uploaded.</p>
+                </div>
               </div>
 
               <p class="help" id="paceHelp">Synthesises the radio mix, your sites and the last coverage run into a PACE plan — Primary · Alternate · Contingency · Emergency. Run the radio mix and a coverage compute first for a complete plan.</p>

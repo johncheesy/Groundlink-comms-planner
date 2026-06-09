@@ -52,6 +52,8 @@ export function createCoverageController(
   let currentRender = true; // whether the current job paints to the map
   let currentMarker = true; // whether the current job (re)places the tx marker
   let lastStats = null; // { total, covered, byClass:[5], coveredFrac }
+  let lastCanvas = null; // last rendered coverage canvas (for M16 raster export)
+  let lastPaintBounds = null; // bbox of that canvas (for georeferencing exports)
   let pendingResolve = null; // for computeAsync()
 
   function ensureWorker() {
@@ -135,6 +137,8 @@ export function createCoverageController(
     };
     if (!currentRender) return; // stats-only pass (e.g. gain-vs-ground baseline)
     ctx.putImageData(img, 0, 0);
+    lastCanvas = canvas; // keep a reference for raster export (GeoTIFF/KMZ/TAK)
+    lastPaintBounds = bounds;
     const url = canvas.toDataURL('image/png');
     // image-source coordinates: TL, TR, BR, BL
     const coordinates = [
@@ -232,6 +236,8 @@ export function createCoverageController(
     if (map.getLayer(layer)) map.removeLayer(layer);
     if (map.getSource(src)) map.removeSource(src);
     hasLayer = false;
+    lastCanvas = null;
+    lastPaintBounds = null;
     txMarker?.remove();
     txMarker = null;
     onStatus?.('cleared');
@@ -244,6 +250,8 @@ export function createCoverageController(
     setVisible,
     getOpacity: () => opacity,
     getStats: () => lastStats,
+    getLastCanvas: () => lastCanvas,
+    getLastBounds: () => lastPaintBounds,
     hasCoverage: () => hasLayer,
     clear,
     destroy() {

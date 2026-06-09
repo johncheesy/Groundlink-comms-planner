@@ -30,6 +30,7 @@ import { exportReport } from './pace/report.js';
 import { createHfPanel } from './hf/hf-panel.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
+import { createExportPanel } from './export/export-panel.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
@@ -442,6 +443,7 @@ const computeBtn = $('#computeCoverage');
 const TX_GAIN_DBI = 2.15;
 let aoi = null;
 let coverage = null;
+let exportPanel = null; // M16 coverage/interop export panel
 let drone = null;
 let recommender = null;
 let mission = null;
@@ -534,9 +536,11 @@ whenStyleReady(() => {
       }
     },
     onStatus(state, info) {
+      if (state === 'cleared') exportPanel?.refresh(false);
       if (state === 'error') {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
       } else if (state === 'done') {
+        exportPanel?.refresh(coverage.hasCoverage());
         const terrain = info?.terrain;
         const clutter = info?.clutter;
         coverageEngine.textContent =
@@ -570,6 +574,30 @@ whenStyleReady(() => {
       const mode = digitalModeSelect?.value ?? 'Analogue';
       updateCliffLayer(map, classes, cols, rows, bounds, mode !== 'Analogue');
     },
+  });
+
+  // ---- Coverage / interop export (M16) ---------------------------------
+  // Exposes the last-rendered coverage raster plus the mission's sites and
+  // waypoints to the GeoTIFF / KMZ / CivTAK exporters. Shown only while a
+  // coverage raster is on the map.
+  exportPanel = createExportPanel({
+    els: {
+      wrap: $('#dataExport'),
+      geotiffBtn: $('#exportGeotiffBtn'),
+      kmzBtn: $('#exportKmzBtn'),
+      takBtn: $('#exportTakBtn'),
+      help: $('#dataExportHelp'),
+    },
+    getExport: () => {
+      const canvas = coverage?.getLastCanvas?.();
+      const bounds = coverage?.getLastBounds?.();
+      if (!canvas || !bounds) return null;
+      // Combine fixed mission sites, recommended masts and named waypoints.
+      const sites = [...(mission?.getSites?.() ?? []), ...(recommender?.getSites?.() ?? [])];
+      const wpts = waypoints?.getAll?.() ?? [];
+      return { canvas, bounds, sites, waypoints: wpts, missionName: 'GroundLink mission' };
+    },
+    onStatus: (msg) => { statusMode.textContent = msg; },
   });
 
   // ---- Cellular coverage (M9) ------------------------------------------
