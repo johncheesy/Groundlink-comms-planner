@@ -14,11 +14,12 @@
     "deploy": "gh workflow run deploy.yml --ref main && echo \"Triggered the GitHub Pages deploy of main → https://johncheesy.github.io/Groundlink-comms-planner/ (watch with: gh run watch). Note: Pages publishes the latest main, not local uncommitted changes.\""
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "maplibre-gl": "^5.24.0",
     "mgrs": "^2.1.0"
   },
   "devDependencies": {
     "vite": "^6.0.0",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.8"
   }
 }

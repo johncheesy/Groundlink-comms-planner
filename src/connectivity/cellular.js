@@ -3,14 +3,16 @@
  *
  * Models cellular (2G/3G/4G/5G) coverage from cell-tower locations through the
  * SAME terrain engine the RF coverage uses (FSPL + Deygout in the coverage
- * worker) — not a third-party coverage overlay. Towers come from a shipped
- * OpenCelliD snapshot (CC BY-SA 4.0), so there is no runtime key.
+ * worker) — not a third-party coverage overlay. Towers are fetched live from
+ * OpenStreetMap via the Overpass API (no key needed). A shipped OpenCelliD
+ * snapshot pipeline exists (scripts/fetch-opencellid.mjs) but is not wired in
+ * yet.
  *
  * The pure parts (band presets, macro defaults, tower selection) are unit-
  * tested; the controller wraps a dedicated coverage instance painted on its own
  * map layer, independent of the mission radio coverage.
  *
- * Honesty: OpenCelliD is crowdsourced; cells are really sectorised + downtilted
+ * Honesty: OSM tower data is crowdsourced; cells are really sectorised + downtilted
  * and this models them as omni transmitters — planning-grade, not an operator
  * map. See docs/M9-connectivity-layers.md.
  */

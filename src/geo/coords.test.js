@@ -137,4 +137,23 @@ describe('parse → format round-trips', () => {
       expect(near(reparsed.lng, p.lng, 2e-3)).toBe(true);
     }
   });
+
+  // Regression: band letters that look like hemisphere flags. Band S is
+  // 32–40°N — Athens used to come back as −52° because "S" was parsed as
+  // the southern hemisphere.
+  const bandCases = [
+    { name: 'band S (Athens, 37.97N)', lat: 37.9715, lng: 23.7257 },
+    { name: 'band N (near-equator north, ~2N)', lat: 2.0, lng: 10.0 },
+    { name: 'band M (near-equator south, ~-5)', lat: -5.0, lng: 10.0 },
+  ];
+
+  for (const c of bandCases) {
+    it(`round-trips UTM ${c.name}`, () => {
+      const text = formatCoordinate({ lat: c.lat, lng: c.lng }, 'utm');
+      const reparsed = parseCoordinate(text);
+      expect(reparsed, `utm → "${text}"`).not.toBeNull();
+      expect(near(reparsed.lat, c.lat, 2e-3)).toBe(true);
+      expect(near(reparsed.lng, c.lng, 2e-3)).toBe(true);
+    });
+  }
 });

@@ -1,14 +1,16 @@
 /**
- * M16 export panel wiring — GeoTIFF, KMZ and CivTAK data package.
+ * M16 export panel wiring — GeoTIFF, KMZ, GeoJSON and CivTAK data package.
  *
- * The three buttons live under the comms-plan export block. They build their
- * payloads entirely client-side (see geotiff/kml/tak + zip) and trigger a
- * download. They are shown only while a coverage raster is on the map, since
- * each export carries that raster.
+ * The buttons live in their own "Data export" section. They build their
+ * payloads entirely client-side (see geotiff/kml/geojson/tak + zip) and
+ * trigger a download. The panel is shown as soon as there is anything to
+ * export — a coverage raster or mission data; the raster exports still
+ * require a computed coverage run.
  */
 
 import { encodeCoverageGeoTIFF, worldFile } from './geotiff.js';
 import { buildKmz } from './kml.js';
+import { buildMissionGeoJSON } from './geojson.js';
 import { buildTakPackage } from './tak.js';
 import { makeZip, dataUrlToBytes } from './zip.js';
 
@@ -34,12 +36,13 @@ function stamp() {
 
 /**
  * @param {object} deps
- *   els       { wrap, geotiffBtn, kmzBtn, takBtn, help }  DOM elements
- *   getExport () => { canvas, bounds, sites, waypoints, missionName } | null
+ *   els       { wrap, geotiffBtn, kmzBtn, geojsonBtn, takBtn, help }  DOM elements
+ *   getExport () => { canvas, bounds, sites, waypoints, points, route, aoi, missionName } | null
+ *             canvas/bounds are null until a coverage raster has been computed.
  *   onStatus  (msg) => void
  */
 export function createExportPanel({ els, getExport, onStatus }) {
-  const { wrap, geotiffBtn, kmzBtn, takBtn, help } = els;
+  const { wrap, geotiffBtn, kmzBtn, geojsonBtn, takBtn, help } = els;
 
   function setHelp(msg) {
     if (help) help.textContent = msg;
@@ -81,20 +84,45 @@ export function createExportPanel({ els, getExport, onStatus }) {
     const data = requireCoverage();
     if (!data) return;
     try {
-      const { canvas, bounds, sites, waypoints, missionName } = data;
+      const { canvas, bounds, sites, waypoints, points, route, aoi, missionName } = data;
       const kmz = await buildKmz({
         overlayPng: canvas.toDataURL('image/png'),
         bounds,
         sites,
         waypoints,
+        points,
+        route,
+        aoi,
         missionName,
       });
       downloadBytes(kmz, 'application/vnd.google-earth.kmz', `groundlink-${stamp()}.kmz`);
-      setHelp('Exported KMZ (sites, waypoints + coverage overlay) — opens in Google Earth. Generated locally.');
+      setHelp('Exported KMZ (sites, waypoints, points, route, AOI + coverage overlay) — opens in Google Earth. Generated locally.');
       onStatus?.('KMZ exported');
     } catch (err) {
       console.warn('[export] kmz failed', err);
       setHelp(`KMZ export failed: ${err.message}`);
+    }
+  });
+
+  geojsonBtn?.addEventListener('click', () => {
+    const data = getExport?.();
+    const hasVector = data && (
+      data.sites?.length || data.waypoints?.length || data.points?.length ||
+      (data.route?.length >= 2) || data.aoi
+    );
+    if (!hasVector) {
+      setHelp('Nothing to export yet — add sites, waypoints, points, a route or an AOI first.');
+      return;
+    }
+    try {
+      const fc = buildMissionGeoJSON(data);
+      const bytes = new TextEncoder().encode(JSON.stringify(fc, null, 2));
+      downloadBytes(bytes, 'application/geo+json', `groundlink-${stamp()}.geojson`);
+      setHelp('Exported GeoJSON (sites, waypoints, points, route, AOI) — opens in any GIS. Generated locally.');
+      onStatus?.('GeoJSON exported');
+    } catch (err) {
+      console.warn('[export] geojson failed', err);
+      setHelp(`GeoJSON export failed: ${err.message}`);
     }
   });
 
@@ -119,9 +147,10 @@ export function createExportPanel({ els, getExport, onStatus }) {
     }
   });
 
-  /** Show/hide the export block based on whether a coverage raster exists. */
-  function refresh(hasCoverage) {
-    if (wrap) wrap.hidden = !hasCoverage;
+  /** Show/hide the export section — visible once there is anything to export
+   * (a coverage raster or any mission data). */
+  function refresh(hasExportable) {
+    if (wrap) wrap.hidden = !hasExportable;
   }
 
   return { refresh };

@@ -134,16 +134,16 @@ export function buildPace(input = {}) {
     const tierIdx = cellForPace === 'alternate' ? 1 : 2; // Alternate=1, Contingency=2
     const tierName = PACE_TIERS[tierIdx];
     const cellRole = ewThreat === 'high'
-      ? 'RAP 4G encrypted only (e.g. AN/PRC-117G, AN/PRC-167)'
+      ? 'Encrypted private/tactical LTE only — exclude commercial cellular for sensitive traffic'
       : ewThreat === 'medium'
         ? 'Commercial LTE — monitor for jamming/exploitation'
         : 'Commercial LTE — voice/data (low EW environment)';
     const cellWhy = ewThreat === 'high'
-      ? `High EW threat: unencrypted cellular excluded; RAP 4G encrypted terminal only (e.g. AN/PRC-117G). ELINT/jamming risk is high — use as last resort ${tierName} path.`
+      ? `High EW threat: commercial cellular excluded; encrypted private/tactical LTE only. ELINT/jamming risk is high — use as last resort ${tierName} path.`
       : `Cellular ${tierName.toLowerCase()} path — ${cellRole}. EW threat: ${ewThreat}.`;
     const cellLeg = {
       tier: tierName,
-      band: ewThreat === 'high' ? 'Cellular (RAP 4G)' : 'Cellular (LTE/4G)',
+      band: ewThreat === 'high' ? 'Cellular (private LTE)' : 'Cellular (LTE/4G)',
       asset: null,
       role: cellRole,
       why: cellWhy,

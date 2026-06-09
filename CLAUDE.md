@@ -10,12 +10,12 @@ A terrain-aware **communications coverage and planning** web app. Define where c
 
 ## Status
 
-Greenfield. A single-file prototype exists separately as design/behaviour reference (FSPL + knife-edge coverage, AOI draw, site recommendation, KML import/export, mobile slide-over). We are rebuilding it as a maintainable project — keep the proven behaviour, raise the engineering and design quality.
+**M1–M18 built and shipping** (June 2026). The app is live on GitHub Pages. Shipped: shell & map (M1), terrain + FSPL/Deygout coverage (M2), drone relay (M2.1), site recommendation (M3), mission input modes (M4), radio import & mix (M5), PACE + comms-plan report (M6), radio arsenal + node roles (M7), power & endurance incl. ATAK powerbank (M8), cellular connectivity layer (M9, live Overpass/OSM towers), 3D fill-extrusion view (M10), waypoints (M11), HF/ionosphere (M12), teams + Erlang (M13), path profile / Fresnel / link budget (M14), digital-mode coverage DMR/P25/dPMR (M15), data export GeoTIFF/KMZ/GeoJSON/CivTAK (M16), offline PWA (M17), optional CloudRF ITM backend (M18). Specs in `docs/` cover M2–M10; M11–M18 are documented in commit messages — write a short spec in `docs/` when touching those modules.
 
-## Tech stack (proposed — confirm before scaffolding)
+## Tech stack (in use)
 
-- **Build:** Vite. **Language:** modern vanilla JS (ES modules) + TypeScript if/when useful. No heavy UI framework to start.
-- **Map:** lean to **MapLibre GL JS** — vector basemaps + **3D terrain** (terrain-RGB DEM source) + **building extrusion** + pitch/tilt, so a **3D view is native**. Leaflet 1.9 (prototype) is 2D-only and acceptable only if 3D is dropped. Raster bases: Esri World Imagery + OpenTopoMap; elevation via Mapbox Terrain-RGB.
+- **Build:** Vite + Vitest. **Language:** modern vanilla JS (ES modules). No heavy UI framework.
+- **Map:** **MapLibre GL JS** — raster basemaps (Esri World Imagery, PDOK NL ortho, EOX Sentinel-2, OpenTopoMap, OpenFreeMap) + 3D terrain + building fill-extrusion. **Elevation via AWS Terrarium tiles — token-free** (the free/no-key decision of 8 Jun 2026 supersedes the old Mapbox Terrain-RGB plan). Optional CloudRF ITM backend via user-entered API key (sessionStorage only).
 - **Styling:** plain CSS with the design tokens in `docs/design-tokens.md` (CSS custom properties, light + dark via `:root[data-theme="dark"]`).
 - **Deploy:** GitHub Pages (public-safe build).
 - Keep it dependency-light; justify every added dependency.
@@ -30,15 +30,9 @@ Greenfield. A single-file prototype exists separately as design/behaviour refere
 
 ## Capabilities & milestones
 
-- **M1 — Shell & map:** layout (panel · map · status), basemaps, light/dark, AOI draw (radius + polygon), mobile slide-over. Match mood board.
-- **M2 — Terrain & coverage:** see **`docs/M2-propagation.md`** (authoritative). Summary: core model = Longley-Rice/ITM compiled to **WASM in a Web Worker** (prefer the public-domain NTIA reference; FSPL+Deygout as fallback); terrain via Mapbox Terrain-RGB (GLO-30/SRTM optional); clutter from ESA WorldCover + canopy height; talk-in as binding link; coverage raster with the signal scale. HF is a separate later module (not ITM). Optional Phase-B backend (signal-server / ITU-R P.1812) for heavy/offline-edge.
-- **M2.1 - Drone / airborne relay (branch of M2):** see **`docs/M2.1-drone-relay.md`**. Drone/UAS as an elevated repeater (tx at altitude -> coverage gain; airborne relay as a PACE path, multi-hop chaining) + a drone operating/link envelope from a position (terrain LOS + link budget by altitude band, with terrain-shadow zones). Reuses the M2 terrain + engine; payload/endurance/tether caveats surfaced; regulatory/BVLOS overlays later.
-- **M3 — Site recommendation:** candidate generation from DEM local maxima within AOI; greedy set-cover over demand points; draggable sites; recompute.
-- **M4 — Mission input modes:** area / fixed sites / route / points; coordinate entry in lat/long, MGRS, UTM; click-to-place.
-- **M5 — Radio import & mix:** search + import radios; pull specs from FCC OET/FCC ID (+ ETSI/CE, datasheets); user-editable; multi-band radio-mix recommendations.
-- **M6 — PACE & comms plan + report:** generate PACE and a comms-structure summary; exportable report (PDF/Word) with sites, link budget, bands.
-- **M7 — Export/interop:** KML + GeoJSON, Google Earth + ATAK round-trip.
-- **Later:** Longley-Rice/ITM engine (or signal-server backend), clutter/landcover + tree height, calibration with field RSSI, project save/share, best-server + interference views, offline/edge, auto-cost BOM, power/solar budgeting; 3D map view (terrain relief + extruded buildings + coverage drape on the terrain).
+M1–M18 are **built** — see Status above for the list. Specs: `docs/M2-propagation.md`, `docs/M2.1-drone-relay.md`, `docs/M3-site-recommendation.md`, `docs/M4-mission-inputs.md`, `docs/M5-radio-import.md`, `docs/M6-pace-report.md`, `docs/M7-node-roles.md`, `docs/M8-power-endurance.md`, `docs/M9-connectivity-layers.md`, `docs/M10-3d-view.md`; design decisions in `docs/decisions/`.
+
+- **Open / later:** Longley-Rice/ITM in-browser engine (WASM; CloudRF backend covers ITM today), clutter/landcover + tree height in the core model, calibration with field RSSI, project save/share, best-server + interference views, auto-cost BOM from priced inventory, real OpenCelliD snapshot for the cellular layer (`scripts/fetch-opencellid.mjs` exists but is not wired up), photorealistic 3D tiles (gated: paid key), worker cancellation, code-splitting of the >1 MB main bundle.
 
 ## Proposed repo structure
 
@@ -64,7 +58,7 @@ GROUNDLINK CODE/
 
 - **OPSEC:** never commit real site coordinates. Public build ships with an empty reference network; users import their network at runtime (client-side only, never uploaded). Keep any coordinate-bearing build local/private.
 - **No secrets** in the repo or in chat. Use local credentials for deploy. Tokens (e.g. Mapbox) are user-entered at runtime, not stored in source.
-- **No `localStorage`/`sessionStorage` assumptions in embedded previews;** in-memory state is safe everywhere, persistence only on the hosted origin.
+- **No `localStorage`/`sessionStorage` assumptions in embedded previews;** in-memory state is safe everywhere, persistence only on the hosted origin. Policy: API keys (CloudRF) are sessionStorage-only; non-sensitive user state (radio arsenal `gl.radioset.v1`, theme) may use localStorage with try/catch fallback.
 - Respect data-source licensing (FCC/ETSI/manufacturer); attribute map/tile providers.
 
 ## Commands (fill in once scaffolded)

@@ -480,6 +480,7 @@ whenStyleReady(() => {
       currentAoiAreaM2 = has ? s.areaM2 : 0;
       // Feed the AOI into the mission (drives compute/recommend enablement).
       mission.setAoi(has ? aoi.getAoi() : null);
+      refreshExportPanel();
       hfPanel?.refresh(); // HF planning follows the AOI centre
       if (!has) {
         // AOI removed → any recommended sites are stale.
@@ -551,11 +552,11 @@ whenStyleReady(() => {
       }
     },
     onStatus(state, info) {
-      if (state === 'cleared') exportPanel?.refresh(false);
+      if (state === 'cleared') refreshExportPanel();
       if (state === 'error') {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
       } else if (state === 'done') {
-        exportPanel?.refresh(coverage.hasCoverage());
+        refreshExportPanel();
         const terrain = info?.terrain;
         const clutter = info?.clutter;
         coverageEngine.textContent =
@@ -600,17 +601,27 @@ whenStyleReady(() => {
       wrap: $('#dataExport'),
       geotiffBtn: $('#exportGeotiffBtn'),
       kmzBtn: $('#exportKmzBtn'),
+      geojsonBtn: $('#exportGeojsonBtn'),
       takBtn: $('#exportTakBtn'),
       help: $('#dataExportHelp'),
     },
     getExport: () => {
-      const canvas = coverage?.getLastCanvas?.();
-      const bounds = coverage?.getLastBounds?.();
-      if (!canvas || !bounds) return null;
-      // Combine fixed mission sites, recommended masts and named waypoints.
+      const canvas = coverage?.getLastCanvas?.() ?? null;
+      const bounds = coverage?.getLastBounds?.() ?? null;
+      // Combine fixed mission sites, recommended masts and named waypoints,
+      // plus demand points, the route and the real AOI ring (KML/GeoJSON).
       const sites = [...(mission?.getSites?.() ?? []), ...(recommender?.getSites?.() ?? [])];
       const wpts = waypoints?.getAll?.() ?? [];
-      return { canvas, bounds, sites, waypoints: wpts, missionName: 'GroundLink mission' };
+      return {
+        canvas,
+        bounds,
+        sites,
+        waypoints: wpts,
+        points: mission?.getPoints?.() ?? [],
+        route: mission?.getRoute?.() ?? [],
+        aoi: aoi?.getAoi?.() ?? null,
+        missionName: 'GroundLink mission',
+      };
     },
     onStatus: (msg) => { statusMode.textContent = msg; },
   });
@@ -625,6 +636,7 @@ whenStyleReady(() => {
       layer: `cellular-${type}-layer`,
       before: 'coverage-layer',
       opacity: 0.55,
+      tint: CELL_TYPE_DEFAULTS[type].color, // one flat colour per network type
       onStatus(state) {
         if (state === 'error') cellHelp.textContent = 'Cellular worker failed — see console.';
       },
@@ -672,7 +684,7 @@ whenStyleReady(() => {
   waypoints = createWaypointController(map, {
     formatCoord: (pt, fmt) => formatCoordinate(pt, fmt),
     coordCycle: COORD_CYCLE,
-    onUpdate(all) { renderWaypointList(all); },
+    onUpdate(all) { renderWaypointList(all); refreshExportPanel(); },
   });
 
   const placeWaypointBtn = $('#placeWaypointBtn');
@@ -736,6 +748,7 @@ whenStyleReady(() => {
   opacityInput.addEventListener('input', () => {
     const v = opacityInput.value / 100;
     coverage.setOpacity(v);
+    for (const c of Object.values(cellCoverages)) c.setOpacity(v);
     if (map.getLayer(CLOUDRF_LAYER)) map.setPaintProperty(CLOUDRF_LAYER, 'raster-opacity', v);
   });
   clearCoverageBtn.addEventListener('click', () => {
@@ -748,7 +761,7 @@ whenStyleReady(() => {
     opacityRow.hidden = true;
     progress.hidden = true;
     progressBar.style.width = '0%';
-    coverageHelp.textContent = 'Draw an AOI, then compute. The transmitter defaults to the AOI centre. Flat free-space estimate for now.';
+    coverageHelp.textContent = 'Draw an AOI, then compute. The transmitter defaults to the AOI centre. Terrain uses AWS elevation tiles — no token needed.';
   });
 
   // ---- Drone relay (M2.1) ----------------------------------------------
@@ -916,6 +929,7 @@ whenStyleReady(() => {
       thGood.value = String(vals.thresholds.good);
       thMarginal.value = String(vals.thresholds.marginal);
       thNone.value = String(vals.thresholds.none);
+      updateSignalLegend();
       coverageHelp.textContent = vals.rasterMeaningful
         ? `Coverage controls set from the active radio set — talk-in at ${vals.rxHeightM} m, ` +
           `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`
@@ -1096,6 +1110,11 @@ const progressBar = $('#coverageProgressBar');
 const coverageHelp = $('#coverageHelp');
 const coverageEngine = $('#coverageEngine');
 
+// Manual threshold edits should move the Signal legend too (B8).
+for (const el of [thExcellent, thGood, thMarginal, thNone]) {
+  el?.addEventListener('input', () => updateSignalLegend());
+}
+
 // Drone (M2.1)
 const addDroneBtn = $('#addDrone');
 const dronePanel = $('#dronePanel');
@@ -1158,7 +1177,25 @@ function armMissionMode(key) {
 }
 
 /** Drive the panel element list + compute/recommend enablement from the model. */
+/**
+ * Show the Data export section once there is anything to export — a coverage
+ * raster, mission data (sites/points/route), waypoints or an AOI (M16/B1).
+ */
+function refreshExportPanel() {
+  const hasCoverage = Boolean(coverage?.hasCoverage?.());
+  const hasMission = Boolean(
+    (mission?.getSites?.().length ?? 0) ||
+    (mission?.getPoints?.().length ?? 0) ||
+    (mission?.getRoute?.().length ?? 0) ||
+    (waypoints?.getAll?.().length ?? 0) ||
+    (recommender?.getSites?.().length ?? 0) ||
+    aoi?.getAoi?.(),
+  );
+  exportPanel?.refresh(hasCoverage || hasMission);
+}
+
 function onMissionChange(s) {
+  refreshExportPanel();
   if (!missionElements) return;
   const showRow = (type, n) => {
     const row = missionElements.querySelector(`[data-type="${type}"]`);
@@ -1715,6 +1752,23 @@ function applyModeThresholds(mode) {
   if (thGood) thGood.value = String(t[1]);
   if (thMarginal) thMarginal.value = String(t[2]);
   if (thNone) thNone.value = String(t[3]);
+  updateSignalLegend();
+}
+
+/**
+ * Keep the Signal legend's dBm labels in sync with the threshold fields —
+ * they change via mode presets, "Apply to coverage" and manual edits.
+ */
+function updateSignalLegend() {
+  const set = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+  const v = (input, fallback) => clampNum(input?.value, -200, 0, fallback);
+  set('legendValExcellent', `≥ ${v(thExcellent, -85)} dBm`);
+  set('legendValGood', `≥ ${v(thGood, -95)} dBm`);
+  set('legendValMarginal', `≥ ${v(thMarginal, -103)} dBm`);
+  set('legendValNone', `< ${v(thNone, -110)} dBm`);
 }
 
 /** Shared link/engine params (everything except bounds/tx/txHeightM). */

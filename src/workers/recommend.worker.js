@@ -30,11 +30,23 @@ import { buildProfile } from './profile.js';
 import { buildDem } from './dem.js';
 import { buildLandcover, clutterDbForClass } from './worldcover.js';
 import { demandGrid, padBounds, diagonalM } from '../geo/aoi-mask.js';
+import { createYielder } from './yield.js';
+
+// Cancellation — mirrors coverage.worker.js: a newer 'recommend' bumps
+// `activeId`, a 'cancel' (clear()) sets `cancelled`; the scoring loop yields so
+// they're delivered, then early-exits instead of finishing a superseded job.
+let activeId = 0;
+let cancelled = false;
+const yieldToEventLoop = createYielder();
 
 self.onmessage = async (e) => {
   const msg = e.data;
+  if (msg?.type === 'cancel') { cancelled = true; return; }
   if (msg?.type !== 'recommend') return;
   const { id, bounds, aoi, params } = msg;
+  activeId = id;
+  cancelled = false;
+  const aborted = () => id !== activeId || cancelled;
   const lockedSites = msg.lockedSites || [];
 
   try {
@@ -54,6 +66,7 @@ self.onmessage = async (e) => {
       params.useClutter ? buildLandcover(padded).catch(() => null) : Promise.resolve(null),
     ]);
     const terrain = !!dem;
+    if (aborted()) return; // superseded/cancelled while fetching tiles
     self.postMessage({ type: 'progress', id, done: 1, total: 1, phase: 'data' });
 
     // Centroid source — the AOI centre when present, else the bbox centre so
@@ -85,12 +98,20 @@ self.onmessage = async (e) => {
 
     // ── 3. Candidate generation (DEM local maxima + centroid) ──────────
     const candidates = generateCandidates(padded, centre, dem);
+    if (aborted()) return;
 
     // ── 4. Point-to-point scoring (candidate × demand coverage matrix) ──
+    // The heaviest phase (profile build per candidate × demand); yield a few
+    // times so a superseded run aborts instead of scoring the whole matrix.
     const coverageMatrix = new Array(candidates.length);
+    const scoreYieldEvery = Math.max(1, Math.floor(candidates.length / 8));
     for (let ci = 0; ci < candidates.length; ci++) {
       coverageMatrix[ci] = coverageRow(candidates[ci].lng, candidates[ci].lat);
       self.postMessage({ type: 'progress', id, done: ci + 1, total: candidates.length, phase: 'score' });
+      if ((ci + 1) % scoreYieldEvery === 0 && ci < candidates.length - 1) {
+        await yieldToEventLoop();
+        if (aborted()) return;
+      }
     }
 
     // ── 5. Greedy set-cover — seed from locked (fixed) sites first ─────
@@ -112,6 +133,7 @@ self.onmessage = async (e) => {
 
     if (baseFrac < targetFrac) {
       for (let pick = 0; pick < maxSites; pick++) {
+        if (aborted()) return;
         let bestIdx = -1;
         let bestNew = 0;
         for (let ci = 0; ci < candidates.length; ci++) {

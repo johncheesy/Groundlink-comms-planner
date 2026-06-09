@@ -1,11 +1,13 @@
 import maplibregl from 'maplibre-gl';
 
 /**
- * Import KML / KMZ / GPX and render it on the map.
+ * Import KML / KMZ / GPX / GeoJSON and render it on the map.
  *
- * Parsing is done in the browser with DOMParser — no build-time dependency.
- * KMZ is a zip with a KML inside; JSZip is loaded lazily from a CDN only when a
- * .kmz is actually opened, so it never weighs down the main bundle. Imported
+ * XML parsing is done in the browser with DOMParser; GeoJSON is JSON.parsed
+ * and normalised (FeatureCollection / Feature / bare geometry all accepted).
+ * KMZ is a zip with a KML inside; JSZip is bundled locally (npm dependency)
+ * and dynamically imported so Vite code-splits it out of the main bundle —
+ * it only loads when a .kmz is actually opened, and works offline. Imported
  * features land in one accumulating GeoJSON source with three typed layers
  * (polygons, lines, points) and a click popup carrying the name/description.
  *
@@ -19,9 +21,6 @@ const OUTLINE = 'imported-outline';
 const POINTS = 'imported-points';
 const LABELS = 'imported-labels';
 
-// Security note: JSZip loaded from esm.sh (version-pinned). For production
-// hardening, vendor this file locally or add subresource integrity verification.
-const JSZIP_CDN = 'https://esm.sh/jszip@3.10.1';
 
 function cssVar(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -115,12 +114,61 @@ function feat(type, coordinates, properties) {
   return { type: 'Feature', geometry: { type, coordinates }, properties };
 }
 
+// ---- GeoJSON normalisation -----------------------------------------------
+
+// Renderable geometry types (MapLibre's geometry-type collapses Multi* onto
+// the base type, so the typed layers pick these up unchanged).
+const GEOJSON_GEOMETRY_TYPES = new Set([
+  'Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon',
+]);
+
+function isValidGeoJSONFeature(f) {
+  return Boolean(
+    f && f.type === 'Feature' && f.geometry &&
+    GEOJSON_GEOMETRY_TYPES.has(f.geometry.type) &&
+    Array.isArray(f.geometry.coordinates),
+  );
+}
+
+/**
+ * Accept a parsed GeoJSON FeatureCollection, single Feature or bare geometry
+ * and normalise it into the FeatureCollection shape the import pipeline uses.
+ * Invalid features are dropped; properties are guaranteed to be an object.
+ */
+function normalizeGeoJSON(obj) {
+  let features;
+  if (obj && obj.type === 'FeatureCollection') {
+    if (!Array.isArray(obj.features)) throw new Error('FeatureCollection without a features array');
+    features = obj.features.filter(isValidGeoJSONFeature);
+  } else if (obj && obj.type === 'Feature') {
+    features = isValidGeoJSONFeature(obj) ? [obj] : [];
+  } else if (obj && GEOJSON_GEOMETRY_TYPES.has(obj.type) && Array.isArray(obj.coordinates)) {
+    features = [{ type: 'Feature', geometry: obj, properties: {} }];
+  } else {
+    throw new Error('Not a GeoJSON FeatureCollection, Feature or geometry');
+  }
+  return {
+    type: 'FeatureCollection',
+    features: features.map((f) => ({ ...f, properties: f.properties ?? {} })),
+  };
+}
+
 async function fileToGeoJSON(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext === 'kml') return kmlToGeoJSON(parseDoc(await file.text(), 'KML'));
   if (ext === 'gpx') return gpxToGeoJSON(parseDoc(await file.text(), 'GPX'));
+  if (ext === 'geojson' || ext === 'json') {
+    let obj;
+    try {
+      obj = JSON.parse(await file.text());
+    } catch {
+      throw new Error('Malformed JSON');
+    }
+    return normalizeGeoJSON(obj);
+  }
   if (ext === 'kmz') {
-    const { default: JSZip } = await import(/* @vite-ignore */ JSZIP_CDN);
+    // Bundled locally; the dynamic import keeps it out of the main chunk.
+    const { default: JSZip } = await import('jszip');
     const zip = await JSZip.loadAsync(await file.arrayBuffer());
     const entry = Object.keys(zip.files).find((n) => n.toLowerCase().endsWith('.kml'));
     if (!entry) throw new Error('No .kml inside the .kmz');
@@ -269,7 +317,7 @@ function countByType(features) {
   const t = { points: 0, lines: 0, polygons: 0 };
   for (const f of features) {
     const g = f.geometry?.type;
-    if (g === 'Point') t.points += 1;
+    if (g === 'Point' || g === 'MultiPoint') t.points += 1;
     else if (g === 'LineString' || g === 'MultiLineString') t.lines += 1;
     else if (g === 'Polygon' || g === 'MultiPolygon') t.polygons += 1;
   }

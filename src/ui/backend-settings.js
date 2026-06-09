@@ -46,7 +46,7 @@ export function createBackendSettings(container, { onBackendChange } = {}) {
     `<button class="btn" type="button" id="cloudrfClear">Clear</button>` +
     `<span class="backend-test-status" id="cloudrfStatus" role="status" aria-live="polite"></span>` +
     `</div>` +
-    `<p class="help">Your key is held in this browser session only — never uploaded or saved to disk.</p>`;
+    `<p class="help">Your key is held in this browser session only — never uploaded or saved to disk. Note: running CloudRF sends the transmitter position and area to api.cloudrf.com.</p>`;
 
   const radios = container.querySelectorAll('input[name="glBackend"]');
   const keyInput = container.querySelector('#cloudrfKey');
