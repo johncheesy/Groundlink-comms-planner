@@ -99,6 +99,42 @@ export function initMap(container) {
     return on;
   }
 
+  // ---- Day/night sky layer ------------------------------------------------
+  // Adds or updates a MapLibre sky layer driven by the sun's azimuth + altitude.
+  // altitudeDeg: degrees above (+) or below (−) the horizon; azimuthDeg: 0=N, CW.
+  let skyLayerAdded = false;
+
+  function ensureSkyLayer() {
+    if (skyLayerAdded) return;
+    if (!map.isStyleLoaded()) return; // caller checks before every call
+    if (map.getLayer('sky')) { skyLayerAdded = true; return; }
+    map.addLayer({
+      id: 'sky',
+      type: 'sky',
+      paint: {
+        'sky-type': 'atmosphere',
+        'sky-atmosphere-sun': [180, 45],
+        'sky-atmosphere-sun-intensity': 5,
+      },
+    });
+    skyLayerAdded = true;
+  }
+
+  function setSkyForSun(azimuthDeg, altitudeDeg) {
+    if (!map.isStyleLoaded()) {
+      map.once('styledata', () => setSkyForSun(azimuthDeg, altitudeDeg));
+      return;
+    }
+    ensureSkyLayer();
+    if (!map.getLayer('sky')) return;
+    map.setPaintProperty('sky', 'sky-atmosphere-sun', [azimuthDeg, altitudeDeg]);
+    // Intensity: full sun in daylight, dim at civil twilight, 0 at night
+    const intensity = altitudeDeg > 6 ? 10
+      : altitudeDeg > -6 ? Math.max(0, (altitudeDeg + 6) / 12 * 10)
+      : 0;
+    map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', intensity);
+  }
+
   return {
     map,
     setBasemap,
@@ -111,6 +147,7 @@ export function initMap(container) {
     set3D,
     toggle3D: (opts) => set3D(!terrainOn, opts),
     is3DOn: () => terrainOn,
+    setSkyForSun,
   };
 }
 

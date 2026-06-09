@@ -719,7 +719,7 @@
 }
 .radio-slot {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   padding: 7px 9px;
   border: 1px solid var(--hair2);
@@ -727,6 +727,24 @@
   background: var(--surface2);
   flex-wrap: wrap;
 }
+.radio-slot__clear {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.radio-slot__clear:hover { color: var(--ink); background: var(--surface3); }
 .radio-slot__role {
   font-size: 11px;
   color: var(--dim);
@@ -736,6 +754,32 @@
 .radio-slot__name { color: var(--ink); font-weight: 600; }
 .radio-slot__band { color: var(--dim); font-size: 11px; }
 .radio-slot__empty { color: var(--faint); }
+
+/* Saved coverage structures (named radio pairs → PACE tiers) */
+.structure-list {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.structure-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+}
+.structure-item__name { font-weight: 600; color: var(--ink); font-size: 12px; flex: 0 0 auto; }
+.structure-item__radios { color: var(--dim); font-size: 11px; flex: 1 1 auto; min-width: 0; }
+.structure-item__remove {
+  border: 0; background: transparent; color: var(--bad);
+  font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; flex: 0 0 auto;
+}
+.structure-item__remove:hover { color: color-mix(in srgb, var(--bad) 70%, var(--ink)); }
 
 .radio-results {
   list-style: none;
@@ -946,6 +990,45 @@ select.input--sm { text-align: left; padding-right: 6px; }
 
 .radio-result__pick { flex: 0 0 auto; display: flex; align-items: center; }
 .radio-result__check { cursor: pointer; }
+
+/* Coverage structures list */
+.structure-list {
+  list-style: none;
+  margin: var(--sp-1) 0 var(--sp-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.structure-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--surface2);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+}
+.structure-item__name { font-weight: 600; flex-shrink: 0; color: var(--accent); }
+.structure-item__radios { color: var(--dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.structure-item__remove {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: var(--r-sm);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.structure-item__remove:hover { color: var(--ink); background: var(--surface3); }
 
 .arsenal { margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px solid var(--hair); }
 .arsenal__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -1159,6 +1242,38 @@ select.input--sm { text-align: left; padding-right: 6px; }
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.02em;
+}
+
+/* Operation date/time chip in the map toolbar */
+.toolgroup--datetime {
+  padding: 0 6px;
+  gap: 4px;
+  align-items: center;
+}
+.toolgroup__label {
+  display: flex;
+  align-items: center;
+  color: var(--dim);
+  flex-shrink: 0;
+  padding: 2px 0;
+}
+.toolgroup__label .ico { width: 14px; height: 14px; }
+.toolgroup__datetime {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 0 2px;
+  cursor: pointer;
+  min-width: 0;
+  width: 10.5rem;
+  outline: none;
+}
+.toolgroup__datetime:focus-visible {
+  outline: 2px solid var(--accent);
+  border-radius: var(--r-sm);
 }
 
 /* 3D view sliders (tilt + bearing) — live in the map toolbar */

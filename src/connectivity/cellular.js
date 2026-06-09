@@ -104,6 +104,73 @@ function dist2(c, ctr) {
 
 const CELL_ORDER = ['GSM', 'UMTS', 'LTE', 'NR'];
 
+// Overpass API endpoint — free, no key, global OSM tower data.
+const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
+
+/**
+ * Infer the network type (GSM/UMTS/LTE/NR) from an OSM node's tags.
+ * Falls back to 'LTE' (most common macro) when no tag matches.
+ */
+function inferRadioTypeFromTags(tags) {
+  if (!tags) return 'LTE';
+  if (tags['communication:nr'] === 'yes' || tags['communication:5g'] === 'yes') return 'NR';
+  if (tags['communication:lte'] === 'yes' || tags['communication:4g'] === 'yes') return 'LTE';
+  if (tags['communication:umts'] === 'yes' || tags['communication:3g'] === 'yes') return 'UMTS';
+  if (tags['communication:gsm'] === 'yes' || tags['communication:2g'] === 'yes') return 'GSM';
+  // operator tag + generation patterns
+  const op = (tags.operator || '').toLowerCase();
+  if (/5g|nr/.test(op)) return 'NR';
+  if (/lte|4g/.test(op)) return 'LTE';
+  if (/umts|3g/.test(op)) return 'UMTS';
+  if (/gsm|2g/.test(op)) return 'GSM';
+  return 'LTE'; // default: LTE macro cell
+}
+
+/**
+ * Fetch cell-tower nodes from OSM via Overpass API for the given bounding box.
+ * Returns an array of { lat, lon, radio } objects compatible with selectTowers().
+ */
+async function fetchTowersFromOSM(bbox) {
+  const { south, west, north, east } = bbox;
+  // Three node selectors that cover most macro-cell towers in OSM tagging practice:
+  //   1. communication:mobile_phone=yes  (common general tag)
+  //   2. tower:type=communication        (structural tag)
+  //   3. man_made=mast + communication:* (masts explicitly tagged with any network)
+  const query =
+    `[out:json][timeout:25];(` +
+    `node["communication:mobile_phone"="yes"](${south},${west},${north},${east});` +
+    `node["tower:type"="communication"](${south},${west},${north},${east});` +
+    `node["man_made"="mast"]["communication:mobile_phone"](${south},${west},${north},${east});` +
+    `);out body;`;
+  const res = await fetch(OVERPASS_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(query),
+  });
+  if (!res.ok) throw new Error(`Overpass API ${res.status} ${res.statusText}`);
+  const data = await res.json();
+  // Deduplicate by lat/lon (some nodes match multiple selectors)
+  const seen = new Set();
+  const towers = [];
+  for (const el of (data.elements || [])) {
+    const key = `${el.lat},${el.lon}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    towers.push({ lat: el.lat, lon: el.lon, radio: inferRadioTypeFromTags(el.tags) });
+  }
+  return towers;
+}
+
+/** True if two bboxes differ by more than ~10 km in any direction. */
+function bboxChangedSignificantly(a, b) {
+  return (
+    Math.abs(a.west - b.west) > 0.1 ||
+    Math.abs(a.east - b.east) > 0.1 ||
+    Math.abs(a.south - b.south) > 0.1 ||
+    Math.abs(a.north - b.north) > 0.1
+  );
+}
+
 /**
  * @param {maplibregl.Map} map
  * @param {Record<'GSM'|'UMTS'|'LTE'|'NR', ReturnType<import('../coverage/coverage.js').createCoverageController>>} coverages
@@ -111,23 +178,14 @@ const CELL_ORDER = ['GSM', 'UMTS', 'LTE', 'NR'];
  * @param {{onStatus?:Function}} opts
  */
 export function createCellularController(map, coverages, { onStatus } = {}) {
-  let cells = [];
-  let meta = { region: null, attribution: null, generated: null };
+  let cachedTowers = [];
+  let cachedBbox = null;
   let lastCount = 0;
-
-  async function load(file = 'nl') {
-    const url = `${import.meta.env.BASE_URL}cells/${file}.json`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`cells ${file}: ${res.status}`);
-    const data = await res.json();
-    cells = Array.isArray(data.cells) ? data.cells : [];
-    meta = {
-      region: data.region ?? file,
-      attribution: data.attribution ?? 'OpenCelliD (CC BY-SA 4.0)',
-      generated: data.generated ?? null,
-    };
-    return { count: cells.length, ...meta };
-  }
+  const meta = {
+    region: 'OpenStreetMap',
+    attribution: '© OpenStreetMap contributors (ODbL) · Overpass API',
+    generated: null,
+  };
 
   function viewportBbox() {
     const b = map.getBounds();
@@ -138,7 +196,7 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     const cov = coverages[type];
     const def = CELL_TYPE_DEFAULTS[type];
     if (!cov || !def) return 0;
-    const towers = selectTowers(cells, { radio: type, bbox, center, maxN: o.maxN ?? 80 });
+    const towers = selectTowers(cachedTowers, { radio: type, bbox, center, maxN: o.maxN ?? 80 });
     if (!towers.length) { cov.clear(); return 0; }
     const txHeightM = CELL_DEFAULTS.txHeightM;
     const params = {
@@ -158,14 +216,28 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
   }
 
   /**
-   * Paint coverage for each checked network type on its own coloured layer over
-   * the current viewport. Types not listed are cleared.
+   * Fetch towers from Overpass (if needed) then paint coverage for each
+   * checked network type on its own coloured layer. Now async.
    * @param {Array<'GSM'|'UMTS'|'LTE'|'NR'>} types
    * @param {{useTerrain?:boolean, useClutter?:boolean, maxN?:number}} o
    */
-  function showCoverage(types = [], o = {}) {
-    const want = new Set(types);
+  async function showCoverage(types = [], o = {}) {
     const bbox = viewportBbox();
+
+    // Re-fetch if we have no data or the viewport has moved significantly
+    if (!cachedBbox || bboxChangedSignificantly(cachedBbox, bbox)) {
+      onStatus?.('loading', { count: 0, totals: {} });
+      try {
+        cachedTowers = await fetchTowersFromOSM(bbox);
+        cachedBbox = bbox;
+        meta.generated = new Date().toISOString();
+      } catch (err) {
+        onStatus?.('error', { message: err.message });
+        return { count: 0, totals: {} };
+      }
+    }
+
+    const want = new Set(types);
     const c = map.getCenter();
     const center = { lat: c.lat, lng: c.lng };
     const totals = {};
@@ -187,16 +259,17 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
 
   function clear() {
     for (const type of CELL_ORDER) coverages[type]?.clear();
+    cachedTowers = [];
+    cachedBbox = null;
     lastCount = 0;
   }
 
   return {
-    load,
     showCoverage,
     setVisible,
     clear,
     getCount: () => lastCount,
     getMeta: () => ({ ...meta }),
-    hasData: () => cells.length > 0,
+    hasData: () => cachedTowers.length > 0,
   };
 }

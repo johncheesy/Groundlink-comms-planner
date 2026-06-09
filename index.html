@@ -185,15 +185,23 @@
                 <div class="radio-slot">
                   <span class="radio-slot__role">Infrastructure tx</span>
                   <span class="radio-slot__label" id="radioInfraLabel"><span class="radio-slot__empty">— none —</span></span>
+                  <button class="radio-slot__clear" type="button" id="clearInfraBtn" aria-label="Clear infrastructure tx" hidden title="Clear">×</button>
                 </div>
                 <div class="radio-slot">
                   <span class="radio-slot__role">Field unit</span>
                   <span class="radio-slot__label" id="radioFieldLabel"><span class="radio-slot__empty">— none —</span></span>
+                  <button class="radio-slot__clear" type="button" id="clearFieldBtn" aria-label="Clear field unit" hidden title="Clear">×</button>
                 </div>
               </div>
-              <button class="btn btn--primary btn--block" type="button" id="applyRadios" disabled>
-                Apply to coverage
-              </button>
+              <div class="input-row" style="gap: var(--sp-1); margin-bottom: 0">
+                <button class="btn btn--primary" type="button" id="applyRadios" disabled style="flex:1">
+                  Apply to coverage
+                </button>
+                <button class="btn" type="button" id="saveStructureBtn" title="Save current radio pair as a named structure for PACE planning">
+                  + Structure
+                </button>
+              </div>
+              <ul class="structure-list" id="structuresList" aria-label="Coverage structures" hidden></ul>
               <p class="help">
                 Pick an infrastructure tx (base/repeater) and a field unit (handheld/mobile). Talk-in
                 is the binding link — tx from the infrastructure radio, rx height + sensitivity from the
@@ -452,6 +460,23 @@
               <span class="section__hint">M6 · PACE</span>
             </div>
             <div class="section__body">
+              <div class="input-row">
+                <label class="field-label" for="ewThreat" style="flex:0 0 auto">EW threat</label>
+                <select class="input input--sm" id="ewThreat">
+                  <option value="none">None — permissive</option>
+                  <option value="low">Low — ELINT risk</option>
+                  <option value="medium" selected>Medium — jamming possible</option>
+                  <option value="high">High — active jamming</option>
+                </select>
+              </div>
+              <div class="input-row">
+                <label class="field-label" for="cellForPace" style="flex:0 0 auto">Cellular in PACE</label>
+                <select class="input input--sm" id="cellForPace">
+                  <option value="none">Exclude</option>
+                  <option value="alternate">Alternate (commercial LTE)</option>
+                  <option value="contingency" selected>Contingency (last resort)</option>
+                </select>
+              </div>
               <button class="btn btn--primary btn--block" type="button" id="buildPaceBtn">Build comms plan</button>
 
               <div id="paceResults" hidden>
@@ -569,7 +594,7 @@
           <section class="section" aria-labelledby="cellTitle">
             <div class="section__head">
               <span class="section__title" id="cellTitle">Cellular coverage</span>
-              <span class="section__hint">M9 · OpenCelliD</span>
+              <span class="section__hint">M9 · OSM live</span>
             </div>
             <div class="section__body">
               <label class="check"><input type="checkbox" id="cellEnabled" /><span>Show cellular layer</span></label>
@@ -590,7 +615,7 @@
                 <p class="help" id="cellAttribution"></p>
               </div>
 
-              <p class="help" id="cellHelp">Models cellular coverage from cell-tower locations through the same terrain engine — not a third-party overlay. Crowdsourced, omni approximation; planning-grade, not an operator map.</p>
+              <p class="help" id="cellHelp">Fetches cell-tower locations live from OpenStreetMap via Overpass API — no file upload needed, works anywhere. Towers are modelled as omni transmitters through the terrain engine. Planning-grade, not an operator map. © OpenStreetMap contributors (ODbL).</p>
             </div>
           </section>
 
@@ -695,8 +720,11 @@
           </div>
 
           <div class="toolgroup" role="group" aria-label="3D view">
-            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggle3d" aria-label="Toggle 3D terrain and buildings" aria-pressed="false" title="3D view (terrain relief + extruded buildings)">
+            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggle3d" aria-label="Toggle 3D terrain relief" aria-pressed="false" title="3D terrain relief (tilt + pitch)">
               3D
+            </button>
+            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggleBuildings" aria-label="Toggle building render" aria-pressed="false" title="Extruded buildings on / off">
+              Bldgs
             </button>
           </div>
 
@@ -711,6 +739,18 @@
               <input class="range" id="bearingSlider" type="range" min="0" max="360" value="0" aria-label="Bearing (orientation) degrees" />
               <span class="view-slider__val" id="bearingVal" data-numeric>0° N</span>
             </div>
+          </div>
+
+          <!-- Operation date/time → day/night sky position -->
+          <div class="toolgroup toolgroup--datetime" role="group" aria-label="Operation date">
+            <label class="toolgroup__label" for="opDatetime" title="Operation date/time — sets sun position for day/night sky">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              </svg>
+            </label>
+            <input class="toolgroup__datetime" type="datetime-local" id="opDatetime"
+              aria-label="Operation date and time" title="Operation date/time (drives sun position + day/night)" />
           </div>
         </div>
 

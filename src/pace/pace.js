@@ -45,6 +45,17 @@
 export const PACE_TIERS = ['Primary', 'Alternate', 'Contingency', 'Emergency'];
 const TERRESTRIAL = new Set(['VHF', 'UHF']); // line-of-sight voice bands the raster models
 
+/** Infer a PACE band name from a frequency range [loMHz, hiMHz] or null. */
+function inferBandFromFreq(freqRange) {
+  if (!freqRange || !Number.isFinite(freqRange[0])) return null;
+  const lo = freqRange[0];
+  if (lo < 30) return 'HF NVIS';
+  if (lo < 88) return 'VHF';
+  if (lo < 512) return 'UHF';
+  if (lo < 1000) return 'UHF';
+  return null; // L/S band and above → not handled by the raster model
+}
+
 export function buildPace(input = {}) {
   const mix = input.mix && Array.isArray(input.mix.bands) ? input.mix : { bands: [], inputs: {} };
   const bands = mix.bands.slice();
@@ -54,6 +65,28 @@ export function buildPace(input = {}) {
   const droneRelay = !!input.drone?.relay;
   const droneAlt = Number.isFinite(input.drone?.altitudeM) ? input.drone.altitudeM : null;
   const talkInHeightM = num(input.params?.rxHeightM, 1.5);
+
+  // ── EW threat + cellular PACE options ──────────────────────────────────
+  const ewThreat = input.ewThreat ?? 'medium'; // none / low / medium / high
+  const cellForPace = input.cellForPace ?? 'none'; // none / alternate / contingency
+
+  // ── Named coverage structures → contribute extra band candidates ────────
+  const structs = Array.isArray(input.structures) ? input.structures : [];
+  for (const [i, s] of structs.entries()) {
+    const r = s.infra || s.field;
+    if (!r?.freqRangeMHz) continue;
+    const band = inferBandFromFreq(r.freqRangeMHz);
+    if (!band) continue;
+    if (bands.find((b) => b.band === band)) continue; // already in mix
+    bands.push({
+      band,
+      rank: 10 + i,
+      pace: PACE_TIERS[i] || 'Contingency',
+      why: `${s.name || `Structure ${i + 1}`} — ${r.label}`,
+      separateModule: false,
+      fromStructure: true,
+    });
+  }
 
   const byBand = (name) => bands.find((b) => b.band === name) || null;
   const terrestrial = bands.filter((b) => TERRESTRIAL.has(b.band)).sort((a, b) => a.rank - b.rank);
@@ -95,8 +128,43 @@ export function buildPace(input = {}) {
     ? { tier: 'Emergency', band: 'Satcom', asset: 'satcom', role: 'Satcom — assured, terrain-independent leg', why: satcom.why, status: 'asset' }
     : gapLeg('Emergency', 'No assured Emergency leg — a satcom asset is strongly recommended.');
 
-  // Overlays are not a PACE voice tier — surfaced separately.
+  // ── Cellular PACE injection (EW-threat aware) ───────────────────────────
   const overlays = [];
+
+  if (cellForPace !== 'none') {
+    const tierIdx = cellForPace === 'alternate' ? 1 : 2; // Alternate=1, Contingency=2
+    const tierName = PACE_TIERS[tierIdx];
+    const cellRole = ewThreat === 'high'
+      ? 'RAP 4G encrypted only (e.g. AN/PRC-117G, AN/PRC-167)'
+      : ewThreat === 'medium'
+        ? 'Commercial LTE — monitor for jamming/exploitation'
+        : 'Commercial LTE — voice/data (low EW environment)';
+    const cellWhy = ewThreat === 'high'
+      ? `High EW threat: unencrypted cellular excluded; RAP 4G encrypted terminal only (e.g. AN/PRC-117G). ELINT/jamming risk is high — use as last resort ${tierName} path.`
+      : `Cellular ${tierName.toLowerCase()} path — ${cellRole}. EW threat: ${ewThreat}.`;
+    const cellLeg = {
+      tier: tierName,
+      band: ewThreat === 'high' ? 'Cellular (RAP 4G)' : 'Cellular (LTE/4G)',
+      asset: null,
+      role: cellRole,
+      why: cellWhy,
+      status: 'asset',
+    };
+    if (legs[tierIdx]?.status === 'gap') {
+      legs[tierIdx] = cellLeg;
+    } else {
+      overlays.push({ band: cellLeg.band, why: cellWhy });
+    }
+  }
+
+  // Under high EW threat: always flag cellular risk even if excluded from PACE
+  if (ewThreat === 'high' && cellForPace === 'none') {
+    overlays.push({
+      band: 'Cellular — ELINT/jamming risk',
+      why: 'High EW threat: all cellular use carries exploitation and jamming risk. Exclude from PACE unless using an RAP-encrypted terminal.',
+    });
+  }
+
   if (lora) overlays.push({ band: 'LoRa', why: lora.why });
 
   const structure = {

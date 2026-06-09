@@ -35,6 +35,7 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   let inactive = new Set(); // arsenal radio ids toggled off (carried but not in play)
   let activeInfraId = null;
   let activeFieldId = null;
+  let structures = []; // [{id, name, infraId, fieldId}] — named radio pairs for PACE
 
   // ── Persistence ────────────────────────────────────────────────────────
   const persisted = loadRadioSet();
@@ -44,8 +45,9 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     inactive = new Set(persisted.inactiveArsenal || []);
     activeInfraId = persisted.activeInfraId || null;
     activeFieldId = persisted.activeFieldId || null;
+    structures = (persisted.structures || []);
   }
-  const persist = () => saveRadioSet({ userRadios, arsenal, inactiveArsenal: [...inactive], activeInfraId, activeFieldId });
+  const persist = () => saveRadioSet({ userRadios, arsenal, inactiveArsenal: [...inactive], activeInfraId, activeFieldId, structures });
 
   // ── Working list (library overlaid by user radios) ─────────────────────
   function workingList() {
@@ -72,6 +74,8 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     els.infraLabel.innerHTML = radioChip(infra);
     els.fieldLabel.innerHTML = radioChip(field);
     els.applyBtn.disabled = !infra && !field;
+    if (els.clearInfraBtn) els.clearInfraBtn.hidden = !infra;
+    if (els.clearFieldBtn) els.clearFieldBtn.hidden = !field;
   }
 
   function radioChip(r) {
@@ -277,6 +281,57 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     openEditor(normalizeRadio({ label: id, source: 'fcc' }));
   }
 
+  // ── Coverage structures (named radio pairs → multi-tier PACE) ──────────
+
+  function getStructures() {
+    return structures.map((s) => ({
+      ...s,
+      infra: findRadio(s.infraId) || null,
+      field: findRadio(s.fieldId) || null,
+    }));
+  }
+
+  function renderStructures() {
+    if (!els.structuresList) return;
+    if (!structures.length) { els.structuresList.hidden = true; return; }
+    els.structuresList.hidden = false;
+    els.structuresList.innerHTML = structures.map((s) => {
+      const infra = findRadio(s.infraId);
+      const field = findRadio(s.fieldId);
+      const infraName = infra?.label || '— none —';
+      const fieldName = field?.label || '— none —';
+      return (
+        `<li class="structure-item" data-sid="${esc(s.id)}">` +
+        `<span class="structure-item__name">${esc(s.name)}</span>` +
+        `<span class="structure-item__radios">${esc(infraName)} / ${esc(fieldName)}</span>` +
+        `<button class="structure-item__remove" type="button" title="Remove structure">×</button>` +
+        `</li>`
+      );
+    }).join('');
+    els.structuresList.querySelectorAll('.structure-item__remove').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sid = btn.closest('.structure-item')?.dataset.sid;
+        if (sid) { structures = structures.filter((s) => s.id !== sid); persist(); renderStructures(); }
+      });
+    });
+  }
+
+  els.saveStructureBtn?.addEventListener('click', () => {
+    const { infra, field } = getActive();
+    if (!infra && !field) {
+      onStatus?.('Assign an infrastructure tx or field unit first, then save as structure.');
+      return;
+    }
+    const defaultName = `Structure ${structures.length + 1}`;
+    // eslint-disable-next-line no-alert
+    const name = window.prompt('Name this coverage structure (e.g. "Primary VHF", "Alternate HF"):', defaultName);
+    if (name === null) return; // cancelled
+    const id = `struct_${Date.now()}`;
+    structures.push({ id, name: name.trim() || defaultName, infraId: infra?.id || null, fieldId: field?.id || null });
+    persist();
+    renderStructures();
+  });
+
   // ── Wiring ─────────────────────────────────────────────────────────────
   els.applyBtn.addEventListener('click', apply);
   els.searchInput.addEventListener('input', () => renderResults(els.searchInput.value));
@@ -286,6 +341,8 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   els.fccInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fccLookup(els.fccInput.value); } });
   els.addArsenalBtn?.addEventListener('click', addCheckedToArsenal);
   els.selectAll?.addEventListener('click', toggleSelectAll);
+  els.clearInfraBtn?.addEventListener('click', () => assign('infra', null));
+  els.clearFieldBtn?.addEventListener('click', () => assign('field', null));
   // Keep the "N selected" counter live as the user ticks results.
   els.results.addEventListener('change', (e) => {
     if (e.target.classList?.contains('radio-result__check')) updateSelCount();
@@ -298,12 +355,14 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   renderResults('');
   renderArsenal();
   reflectActive();
+  renderStructures();
   if (activeInfraId || activeFieldId) apply(); // restore the persisted set into coverage
 
   return {
     getActive,
     apply,
     getArsenal,
+    getStructures,
     hasActive: () => !!(activeInfraId || activeFieldId),
     hasArsenal: () => arsenal.length > 0,
     destroy() {},

@@ -42,14 +42,8 @@ $('#statusBuildItem').title = `${BUILD.channel.toUpperCase()} · ${buildLabel}`;
 (() => {
   const notice = $('#alphaNotice');
   if (!notice) return;
-  const KEY = 'gl.alpha.dismissed.v1';
-  let dismissed = false;
-  try { dismissed = localStorage.getItem(KEY) === '1'; } catch { /* embedded preview */ }
-  if (!dismissed) notice.hidden = false;
-  $('#alphaNoticeClose').addEventListener('click', () => {
-    notice.hidden = true;
-    try { localStorage.setItem(KEY, '1'); } catch { /* in-memory only */ }
-  });
+  notice.hidden = false; // show on every page load; dismiss is session-only (in-memory)
+  $('#alphaNoticeClose').addEventListener('click', () => { notice.hidden = true; });
 })();
 
 // ---- Map ----------------------------------------------------------------
@@ -144,12 +138,95 @@ function reflectViewSliders() {
 }
 
 toggle3dBtn?.addEventListener('click', () => {
-  const on = mapApi.toggle3D({ exaggeration: 1.5, pitch: 45 });
+  const on = mapApi.toggleTerrain({ exaggeration: 1.5, pitch: 45 });
   toggle3dBtn.classList.toggle('is-active', on);
   toggle3dBtn.setAttribute('aria-pressed', String(on));
   viewSliders.hidden = !on;
-  statusMode.textContent = on ? '3D terrain + buildings on' : '3D off';
+  statusMode.textContent = on ? '3D terrain on' : '3D terrain off';
 });
+
+// ---- Buildings toggle (independent of terrain 3D) -----------------------
+const buildingsBtn = $('#toggleBuildings');
+let buildingsOn = false;
+buildingsBtn?.addEventListener('click', () => {
+  buildingsOn = !buildingsOn;
+  mapApi.setBuildings(buildingsOn);
+  buildingsBtn.classList.toggle('is-active', buildingsOn);
+  buildingsBtn.setAttribute('aria-pressed', String(buildingsOn));
+  statusMode.textContent = buildingsOn ? 'Buildings on' : 'Buildings off';
+});
+
+// ---- Operation date/time → day/night sky --------------------------------
+/**
+ * Compute solar azimuth + altitude for a UTC Date at a lat/lng location.
+ * Low-precision (~0.1°) Spencer/simplified VSOP87 — sufficient for planning.
+ * Returns { azimuth (0=N, CW, degrees), altitude (degrees above/below horizon) }.
+ */
+function sunPosition(date, latDeg, lngDeg) {
+  const rad = Math.PI / 180;
+  const deg = 180 / Math.PI;
+  const JD = date.getTime() / 86400000 + 2440587.5;
+  const n = JD - 2451545.0;
+  // Mean longitude + anomaly (degrees)
+  let L = ((280.46 + 0.9856474 * n) % 360 + 360) % 360;
+  let g = ((357.528 + 0.9856003 * n) % 360 + 360) % 360;
+  // Ecliptic longitude
+  const lambda = L + 1.915 * Math.sin(g * rad) + 0.02 * Math.sin(2 * g * rad);
+  const eps = 23.439 - 4e-7 * n; // obliquity
+  const sinLambda = Math.sin(lambda * rad);
+  // Declination
+  const decl = Math.asin(Math.max(-1, Math.min(1, Math.sin(eps * rad) * sinLambda))) * deg;
+  // Right ascension (degrees → hours)
+  let RA = Math.atan2(Math.cos(eps * rad) * sinLambda, Math.cos(lambda * rad)) * deg;
+  if (RA < 0) RA += 360;
+  // Greenwich mean sidereal time (hours)
+  const GMST = ((6.697375 + 0.0657098242 * n +
+    (date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600)) % 24 + 24) % 24;
+  // Local hour angle (degrees)
+  const HA = (((GMST + lngDeg / 15) - RA / 15 + 24) % 24) * 15;
+  // Altitude
+  const lat = latDeg * rad;
+  const dec = decl * rad;
+  const ha = HA * rad;
+  const sinAlt = Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(ha);
+  const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt))) * deg;
+  // Azimuth (from N, clockwise)
+  const cosAlt = Math.cos(alt * rad);
+  let az = 0;
+  if (cosAlt > 1e-10) {
+    const cosAz = (Math.sin(dec) - Math.sin(lat) * sinAlt) / (Math.cos(lat) * cosAlt);
+    az = Math.acos(Math.max(-1, Math.min(1, cosAz))) * deg;
+    if (Math.sin(ha) > 0) az = 360 - az;
+  }
+  return { azimuth: az, altitude: alt };
+}
+
+const opDatetime = $('#opDatetime');
+
+// Default to current local time
+(function setDatetimeNow() {
+  if (!opDatetime) return;
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  opDatetime.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
+    `T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+})();
+
+function applyDayNight() {
+  if (!opDatetime?.value) return;
+  const dt = new Date(opDatetime.value); // datetime-local → local time
+  const ctr = map.getCenter();
+  const { azimuth, altitude } = sunPosition(dt, ctr.lat, ctr.lng);
+  mapApi.setSkyForSun(azimuth, altitude);
+  if (altitude < -6) {
+    statusMode.textContent = `Night (sun ${altitude.toFixed(0)}° below horizon)`;
+  } else if (altitude < 6) {
+    statusMode.textContent = `Twilight (sun ${altitude.toFixed(0)}°)`;
+  }
+}
+
+map.once('load', applyDayNight);
+opDatetime?.addEventListener('change', applyDayNight);
 
 // Live slider control (instant), and keep sliders synced with drag-rotate/pitch.
 tiltSlider.addEventListener('input', () => map.setPitch(Number(tiltSlider.value)));
@@ -294,7 +371,6 @@ let mission = null;
 let missionTools = null;
 let radios = null;
 let cellular = null; // M9 cellular controller (own coverage layer)
-let cellularLoaded = false; // snapshot fetched lazily on first enable
 let currentAoiAreaM2 = 0;
 let lastPlan = null; // last PACE plan built (M6) — fed to the report export
 
@@ -410,16 +486,12 @@ whenStyleReady(() => {
   }
   cellular = createCellularController(map, cellCoverages, {
     onStatus(state, info) {
-      if (state === 'empty') {
-        cellReadout.textContent = 'No towers of these types in view — pan/zoom to a populated area.';
-      } else if (state === 'computing') {
-        const per = Object.entries(info.totals || {})
-          .filter(([, n]) => n > 0)
-          .map(([t, n]) => `${CELL_TYPE_DEFAULTS[t].label.split(' · ')[0]} ${n}`)
-          .join(' · ');
-        cellReadout.textContent =
-          `Modelled from ${info.count} OpenCelliD tower${info.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
+      if (state === 'loading') {
+        if (cellReadout) cellReadout.textContent = 'Fetching towers from OpenStreetMap…';
+      } else if (state === 'error') {
+        if (cellReadout) cellReadout.textContent = `Error: ${info?.message || 'Overpass fetch failed.'}`;
       }
+      // 'computing' and 'empty' states are handled in the showCellBtn click handler
     },
   });
   initCellularControls();
@@ -963,7 +1035,11 @@ function radioEls() {
   return {
     infraLabel: $('#radioInfraLabel'),
     fieldLabel: $('#radioFieldLabel'),
+    clearInfraBtn: $('#clearInfraBtn'),
+    clearFieldBtn: $('#clearFieldBtn'),
     applyBtn: $('#applyRadios'),
+    saveStructureBtn: $('#saveStructureBtn'),
+    structuresList: $('#structuresList'),
     searchInput: $('#radioSearchInput'),
     results: $('#radioResults'),
     editor: $('#radioEditor'),
@@ -1092,6 +1168,9 @@ function gatherPaceContext() {
   }
   return {
     mix,
+    structures: radios?.getStructures?.() ?? [],
+    ewThreat: $('#ewThreat')?.value ?? 'medium',
+    cellForPace: $('#cellForPace')?.value ?? 'none',
     sites: {
       fixed: mission.getSites(),
       recommended: recommender?.getSites?.() ?? [],
@@ -1303,36 +1382,21 @@ const cellReadout = $('#cellReadout');
 const cellAttribution = $('#cellAttribution');
 const cellHelp = $('#cellHelp');
 
-async function ensureCells() {
-  if (cellularLoaded) return true;
-  try {
-    const meta = await cellular.load('nl');
-    cellularLoaded = true;
-    cellAttribution.textContent = meta.attribution;
-    cellReadout.textContent = `${meta.count} towers loaded (${meta.region}). Tick networks, then Show coverage.`;
-    return true;
-  } catch {
-    cellReadout.textContent = 'Could not load the cell snapshot.';
-    return false;
-  }
-}
-
 /** Checked network types from the cellular type checkboxes. */
 function checkedCellTypes() {
   return [...document.querySelectorAll('.cell-type')].filter((c) => c.checked).map((c) => c.value);
 }
 
-/** Wire the cellular layer toggle, the Show coverage and Clear buttons. */
+/** Wire the cellular layer visibility and Show/Clear buttons. */
 function initCellularControls() {
-  cellEnabled.addEventListener('change', async () => {
+  cellEnabled.addEventListener('change', () => {
     const on = cellEnabled.checked;
     cellPanel.hidden = !on;
     cellular.setVisible(on);
-    if (on) await ensureCells();
+    if (!on) { cellular.clear(); cellReadout.textContent = ''; }
   });
 
   showCellBtn.addEventListener('click', async () => {
-    if (!(await ensureCells())) return;
     cellEnabled.checked = true;
     cellPanel.hidden = false;
     cellular.setVisible(true);
@@ -1341,17 +1405,40 @@ function initCellularControls() {
       cellReadout.textContent = 'Tick at least one network type, then Show coverage.';
       return;
     }
-    cellular.showCoverage(types, {
-      useTerrain: useTerrainInput.checked,
-      useClutter: useClutterInput.checked,
-      maxN: 80,
-    });
-    statusMode.textContent = 'Cellular coverage computing';
+    cellReadout.textContent = 'Fetching towers from OpenStreetMap…';
+    statusMode.textContent = 'Cellular: fetching towers…';
+    showCellBtn.disabled = true;
+    try {
+      const result = await cellular.showCoverage(types, {
+        useTerrain: useTerrainInput.checked,
+        useClutter: useClutterInput.checked,
+        maxN: 80,
+      });
+      const meta = cellular.getMeta();
+      if (cellAttribution) cellAttribution.textContent = meta.attribution;
+      if (result.count === 0) {
+        cellReadout.textContent = 'No cell towers found in view — pan/zoom to a populated area and try again.';
+      } else {
+        const per = Object.entries(result.totals || {})
+          .filter(([, n]) => n > 0)
+          .map(([t, n]) => `${CELL_TYPE_DEFAULTS[t].label.split(' · ')[0]} ${n}`)
+          .join(' · ');
+        cellReadout.textContent = `${result.count} OSM tower${result.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
+      }
+      statusMode.textContent = 'Cellular coverage computing';
+    } catch (err) {
+      cellReadout.textContent = `Overpass fetch failed: ${err.message}. Check your connection and try again.`;
+      statusMode.textContent = 'Cellular fetch error';
+    } finally {
+      showCellBtn.disabled = false;
+    }
   });
 
   clearCellBtn.addEventListener('click', () => {
     cellular.clear();
-    cellReadout.textContent = 'Cellular coverage cleared.';
+    cellReadout.textContent = '';
+    cellEnabled.checked = false;
+    cellPanel.hidden = true;
     statusMode.textContent = 'Cellular cleared';
   });
 }
