@@ -2325,3 +2325,147 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .hf-band-dot--no { background: var(--bad); }
 .hf-band-name { flex: 0 0 auto; font-variant-numeric: tabular-nums; min-width: 92px; }
 .hf-band-reason { color: var(--dim); font-size: 11px; margin-left: auto; text-align: right; }
+
+/* ============================================================
+   Path profile (M14) — two-click terrain cross-section drawer
+   ============================================================ */
+
+/* Start / end click markers on the map. */
+.profile-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--bad);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+/* Slide-up drawer pinned to the bottom of the map canvas. */
+.profile-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 260px;
+  background: var(--surface);
+  border-top: 1px solid var(--hair);
+  z-index: 10;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+.profile-panel[hidden] { display: none; }
+
+.profile-panel__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.profile-panel__title {
+  font-family: var(--font-display, inherit);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+.profile-panel__meta {
+  font-size: 12px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.profile-panel__close {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--dim);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: var(--r-sm);
+}
+.profile-panel__close:hover { color: var(--ink); background: var(--bg2); }
+
+.profile-panel__body {
+  flex: 1 1 auto;
+  display: flex;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+
+/* Chart fills the available width; budget table sits beside it (stacks narrow). */
+.profile-chart__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+}
+
+.profile-chart__ground { fill: var(--surface2); stroke: var(--dim); stroke-width: 1; }
+.profile-chart__grid { stroke: var(--hair); stroke-width: 0.5; }
+.profile-chart__tick {
+  fill: var(--dim);
+  font-size: 9px;
+  font-family: var(--font-body, inherit);
+}
+.profile-chart__los {
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 3;
+  fill: none;
+}
+.profile-chart__fresnel { fill: none; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.profile-chart__fresnel--clear { stroke: var(--s1); }
+.profile-chart__fresnel--blocked { stroke: var(--bad); }
+.profile-chart__node { fill: var(--accent); stroke: #fff; stroke-width: 1; }
+.profile-chart__end {
+  fill: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-body, inherit);
+}
+.profile-chart__obstruction { fill: var(--bad); stroke: #fff; stroke-width: 1; }
+.profile-chart__obstruction-label {
+  fill: var(--bad);
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--font-body, inherit);
+}
+
+/* Link-budget table beside the chart. */
+.profile-budget-table {
+  flex: 0 0 200px;
+  align-self: flex-start;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.profile-budget-table th,
+.profile-budget-table td {
+  padding: 3px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--hair);
+}
+.profile-budget-table th {
+  color: var(--dim);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.profile-budget-table td {
+  color: var(--ink);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.profile-budget__status { font-weight: 600; }
+.profile-budget__status--ok { color: var(--ok); }
+.profile-budget__status--bad { color: var(--bad); }
+
+@media (max-width: 640px) {
+  .profile-panel__body { flex-direction: column; }
+  .profile-budget-table { flex: 0 0 auto; align-self: stretch; }
+}

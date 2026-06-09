@@ -4,6 +4,8 @@ import '../styles/index.css';
 
 import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
+import { createProfileTool } from './map/profile-tool.js';
+import { createProfilePanel } from './ui/profile-panel.js';
 import { createCoverageController } from './coverage/coverage.js';
 import { createDroneController } from './drone/drone.js';
 import { createRecommendController } from './recommend/recommend.js';
@@ -180,6 +182,53 @@ buildingsBtn?.addEventListener('click', () => {
   buildingsBtn.classList.toggle('is-active', buildingsOn);
   buildingsBtn.setAttribute('aria-pressed', String(buildingsOn));
   statusMode.textContent = buildingsOn ? 'Buildings on' : 'Buildings off';
+});
+
+// ---- Path profile tool (M14) --------------------------------------------
+// Click two points → terrain cross-section, Fresnel zone + link budget in a
+// slide-up drawer over the map. Markers persist until the panel is closed.
+const profileToolBtn = $('#profileToolBtn');
+
+function reflectProfileBtn() {
+  profileToolBtn?.classList.toggle('is-active', profileTool.isActive());
+  profileToolBtn?.setAttribute('aria-pressed', String(profileTool.isActive()));
+}
+
+function closeProfile() {
+  profileTool.removeMarkers();
+  profileTool.deactivate();
+  reflectProfileBtn();
+}
+
+const profilePanel = createProfilePanel($('#map'), { onClose: closeProfile });
+const profileTool = createProfileTool(map, {
+  getFreqMHz: () => parseFloat($('#freqInput')?.value) || 155,
+  getTxHeight: () => parseFloat($('#txHeight')?.value) || 10,
+  getRxHeight: () => 1.5,
+  getThreshold: () => clampNum($('#thNone')?.value, -200, 0, -110),
+  getEirp: () => wattsToDbm(clampNum($('#powerInput')?.value, 0.01, 100, 5)) + TX_GAIN_DBI,
+  onProfile(data) { profilePanel.show(data); },
+  onStatus(msg) { statusMode.textContent = msg; },
+  onDone: reflectProfileBtn,
+});
+
+profileToolBtn?.addEventListener('click', () => {
+  if (profileTool.isActive()) {
+    profileTool.deactivate();
+  } else {
+    profileTool.removeMarkers();
+    profilePanel.hide();
+    profileTool.activate();
+    if (mq.matches) closePanel();
+  }
+  reflectProfileBtn();
+});
+
+// ESC closes the profile (hide → onClose removes markers) or cancels placement.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (profilePanel.isVisible) profilePanel.hide();
+  else if (profileTool.isActive() || profileTool.hasMarkers()) closeProfile();
 });
 
 // ---- Operation date/time → day/night sky --------------------------------
