@@ -12,7 +12,7 @@ import { createMissionTools } from './mission/mission-tools.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createRadios } from './radios/radios.js';
 import { recommendMix } from './radios/mix.js';
-import { createCellularController, CELL_BANDS, bandPreset, cellDefaults } from './connectivity/cellular.js';
+import { createCellularController, CELL_TYPE_DEFAULTS } from './connectivity/cellular.js';
 import { assignRoles, NODE_ROLES } from './radios/roles.js';
 import {
   operatorEndurance, timingsToDuty, siteEnergyWh, solarPanelW,
@@ -393,23 +393,32 @@ whenStyleReady(() => {
   });
 
   // ---- Cellular coverage (M9) ------------------------------------------
-  // A second coverage instance on its own layer ('cellular'), beneath the RF
-  // coverage raster. Independent of mission radio coverage — both can be on.
-  const cellularCoverage = createCoverageController(map, {
-    src: 'cellular',
-    layer: 'cellular-layer',
-    before: 'coverage-layer',
-    opacity: 0.6,
-    onStatus(state) {
-      if (state === 'error') cellHelp.textContent = 'Cellular worker failed — see console.';
-    },
-  });
-  cellular = createCellularController(map, cellularCoverage, {
+  // One coverage instance per network type, each on its own coloured layer
+  // beneath the RF coverage raster. Independent of mission radio coverage.
+  const cellCoverages = {};
+  for (const type of Object.keys(CELL_TYPE_DEFAULTS)) {
+    cellCoverages[type] = createCoverageController(map, {
+      src: `cellular-${type}`,
+      layer: `cellular-${type}-layer`,
+      before: 'coverage-layer',
+      opacity: 0.5,
+      tint: CELL_TYPE_DEFAULTS[type].color,
+      onStatus(state) {
+        if (state === 'error') cellHelp.textContent = 'Cellular worker failed — see console.';
+      },
+    });
+  }
+  cellular = createCellularController(map, cellCoverages, {
     onStatus(state, info) {
       if (state === 'empty') {
-        cellReadout.textContent = 'No towers of this type in view — pan/zoom to a populated area or switch network.';
+        cellReadout.textContent = 'No towers of these types in view — pan/zoom to a populated area.';
       } else if (state === 'computing') {
-        cellReadout.textContent = `Modelled from ${info.count} OpenCelliD tower${info.count === 1 ? '' : 's'} in view.`;
+        const per = Object.entries(info.totals || {})
+          .filter(([, n]) => n > 0)
+          .map(([t, n]) => `${CELL_TYPE_DEFAULTS[t].label.split(' · ')[0]} ${n}`)
+          .join(' · ');
+        cellReadout.textContent =
+          `Modelled from ${info.count} OpenCelliD tower${info.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
       }
     },
   });
@@ -633,7 +642,7 @@ whenStyleReady(() => {
       { bounds: bbox, aoi: aoiMask, demand, lockedSites: mission.lockedSites() },
       params,
       {
-        maxSites: clampNum($('#maxSites').value, 1, 6, 3),
+        maxSites: clampNum($('#maxSites').value, 1, 99, 3),
         targetFrac: clampNum($('#targetCoverage').value, 10, 100, 95) / 100,
       },
     );
@@ -967,6 +976,8 @@ function radioEls() {
     fccIo: $('#fccIo'),
     addArsenalBtn: $('#addArsenalBtn'),
     arsenalList: $('#arsenalList'),
+    selectAll: $('#radioSelectAll'),
+    selCount: $('#radioSelCount'),
   };
 }
 
@@ -1188,13 +1199,21 @@ function buildPowerPlan() {
     }
     if (supply === 'battery') {
       const profile = profileForRadioRole(n.radio.role);
-      const e = operatorEndurance(profile, missionHours, duty);
-      battNodes.push(profile);
+      const e = operatorEndurance(profile, missionHours, duty, 1, n.radio);
+      // Fold the radio's native battery into the profile so the BOM roll-up
+      // (networkBom → operatorEndurance) sizes against the same capacity.
+      const nativeBattery = Number.isFinite(Number(n.radio.batteryMah))
+        ? { capacityAh: Number(n.radio.batteryMah) / 1000, voltageV: Number(n.radio.batteryV) || profile.battery?.voltageV }
+        : profile.battery;
+      battNodes.push({ ...profile, battery: nativeBattery });
+      const battNote = n.radio.batteryMah
+        ? ` · <b>${n.radio.batteryMah} mAh</b>${n.radio.batteryV ? ` @ ${n.radio.batteryV} V` : ''}${n.radio.batteryModel ? ` (${htmlEsc(n.radio.batteryModel)})` : ''}`
+        : '';
       const metrics =
         `<b>${fmtH(e.enduranceHours)} h</b> endurance · ` +
         `<b>${e.batteriesWithSpare}</b> batteries (${e.batteries} + ${e.spare} spare) · ` +
         `recharge ~<b>${fmtH(e.rechargeIntervalH)} h</b> · ` +
-        `${profile.className}, ${pct(duty.tx)}/${pct(duty.rx)}/${pct(duty.standby)} duty`;
+        `${profile.className}, ${pct(duty.tx)}/${pct(duty.rx)}/${pct(duty.standby)} duty${battNote}`;
       return powerRow(n.label, n.radio.label, supply, metrics);
     }
     if (supply === 'vehicle') {
@@ -1278,12 +1297,8 @@ function renderBomTable(bom, hasDrone) {
 
 const cellEnabled = $('#cellEnabled');
 const cellPanel = $('#cellPanel');
-const cellRadio = $('#cellRadio');
-const cellBand = $('#cellBand');
-const cellFreq = $('#cellFreq');
-const cellEirp = $('#cellEirp');
-const cellHeight = $('#cellHeight');
-const computeCellBtn = $('#computeCellBtn');
+const showCellBtn = $('#showCellBtn');
+const clearCellBtn = $('#clearCellBtn');
 const cellReadout = $('#cellReadout');
 const cellAttribution = $('#cellAttribution');
 const cellHelp = $('#cellHelp');
@@ -1294,7 +1309,7 @@ async function ensureCells() {
     const meta = await cellular.load('nl');
     cellularLoaded = true;
     cellAttribution.textContent = meta.attribution;
-    cellReadout.textContent = `${meta.count} towers loaded (${meta.region}). Set network + band, then compute.`;
+    cellReadout.textContent = `${meta.count} towers loaded (${meta.region}). Tick networks, then Show coverage.`;
     return true;
   } catch {
     cellReadout.textContent = 'Could not load the cell snapshot.';
@@ -1302,19 +1317,13 @@ async function ensureCells() {
   }
 }
 
-/** Wire the cellular layer toggle, band presets and compute button. */
+/** Checked network types from the cellular type checkboxes. */
+function checkedCellTypes() {
+  return [...document.querySelectorAll('.cell-type')].filter((c) => c.checked).map((c) => c.value);
+}
+
+/** Wire the cellular layer toggle, the Show coverage and Clear buttons. */
 function initCellularControls() {
-  cellBand.innerHTML = CELL_BANDS.map((b) => `<option value="${b.key}">${b.label} · ${b.freqMHz} MHz</option>`).join('');
-  cellBand.value = 'b20-800'; // LTE 800 default
-  const d = cellDefaults();
-  cellEirp.value = d.eirpDbm;
-  cellHeight.value = d.txHeightM;
-  cellFreq.value = bandPreset(cellBand.value).freqMHz;
-
-  cellBand.addEventListener('change', () => {
-    cellFreq.value = bandPreset(cellBand.value).freqMHz;
-  });
-
   cellEnabled.addEventListener('change', async () => {
     const on = cellEnabled.checked;
     cellPanel.hidden = !on;
@@ -1322,22 +1331,28 @@ function initCellularControls() {
     if (on) await ensureCells();
   });
 
-  computeCellBtn.addEventListener('click', async () => {
+  showCellBtn.addEventListener('click', async () => {
     if (!(await ensureCells())) return;
     cellEnabled.checked = true;
     cellPanel.hidden = false;
     cellular.setVisible(true);
-    cellular.compute({
-      radio: cellRadio.value,
-      freqMHz: clampNum(cellFreq.value, 300, 6000, 800),
-      eirpDbm: clampNum(cellEirp.value, 20, 75, 58),
-      txHeightM: clampNum(cellHeight.value, 5, 200, 30),
-      rxHeightM: 1.5,
+    const types = checkedCellTypes();
+    if (!types.length) {
+      cellReadout.textContent = 'Tick at least one network type, then Show coverage.';
+      return;
+    }
+    cellular.showCoverage(types, {
       useTerrain: useTerrainInput.checked,
       useClutter: useClutterInput.checked,
       maxN: 80,
     });
     statusMode.textContent = 'Cellular coverage computing';
+  });
+
+  clearCellBtn.addEventListener('click', () => {
+    cellular.clear();
+    cellReadout.textContent = 'Cellular coverage cleared.';
+    statusMode.textContent = 'Cellular cleared';
   });
 }
 

@@ -32,6 +32,7 @@ const ROLES = ['handheld', 'manpack', 'manet', 'mobile', 'base', 'repeater', 'lo
 export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   let userRadios = []; // added / edited radios (persisted)
   let arsenal = []; // the radios you carry — drives node-role assignment (M7)
+  let inactive = new Set(); // arsenal radio ids toggled off (carried but not in play)
   let activeInfraId = null;
   let activeFieldId = null;
 
@@ -40,10 +41,11 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   if (persisted) {
     userRadios = (persisted.userRadios || []).map(normalizeRadio);
     arsenal = (persisted.arsenal || []).map(normalizeRadio);
+    inactive = new Set(persisted.inactiveArsenal || []);
     activeInfraId = persisted.activeInfraId || null;
     activeFieldId = persisted.activeFieldId || null;
   }
-  const persist = () => saveRadioSet({ userRadios, arsenal, activeInfraId, activeFieldId });
+  const persist = () => saveRadioSet({ userRadios, arsenal, inactiveArsenal: [...inactive], activeInfraId, activeFieldId });
 
   // ── Working list (library overlaid by user radios) ─────────────────────
   function workingList() {
@@ -125,6 +127,7 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       li.querySelector('[data-act="edit"]').addEventListener('click', () => openEditor(r));
       els.results.appendChild(li);
     }
+    updateSelCount();
   }
 
   // ── Editor / manual form ───────────────────────────────────────────────
@@ -169,20 +172,26 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   }
 
   // ── Arsenal (M7) — the radios you carry; drives node-role assignment ───
-  const getArsenal = () => arsenal.map((r) => ({ ...r }));
+  // getArsenal() returns only the *active* radios — inactive ones are carried
+  // in the list but excluded from role assignment / coverage params.
+  const getArsenal = () => arsenal.filter((r) => !inactive.has(r.id)).map((r) => ({ ...r }));
 
   function addCheckedToArsenal() {
+    const checked = [...els.results.querySelectorAll('.radio-result__check:checked')];
     let added = 0;
-    els.results.querySelectorAll('.radio-result__check:checked').forEach((c) => {
+    checked.forEach((c) => {
       const r = findRadio(c.dataset.id);
       if (r && !arsenal.some((a) => a.id === r.id)) { arsenal.push(r); added += 1; }
-      c.checked = false;
+      // Leave the box ticked — a second "Add ticked" is idempotent; ticks clear
+      // only when the user searches again or toggles them off.
     });
     if (added) {
       persist();
       renderArsenal();
       onArsenalChange?.(getArsenal());
       onStatus?.(`Added ${added} radio${added > 1 ? 's' : ''} to the arsenal`);
+    } else if (checked.length) {
+      onStatus?.('Those radios are already in the arsenal');
     } else {
       onStatus?.('Tick radios in the list, then add them to the arsenal');
     }
@@ -190,6 +199,15 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
 
   function removeFromArsenal(id) {
     arsenal = arsenal.filter((a) => a.id !== id);
+    inactive.delete(id);
+    persist();
+    renderArsenal();
+    onArsenalChange?.(getArsenal());
+  }
+
+  function toggleArsenalActive(id) {
+    if (inactive.has(id)) inactive.delete(id);
+    else inactive.add(id);
     persist();
     renderArsenal();
     onArsenalChange?.(getArsenal());
@@ -204,15 +222,37 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       return;
     }
     for (const r of arsenal) {
+      const off = inactive.has(r.id);
       const li = document.createElement('li');
-      li.className = 'arsenal__row';
+      li.className = `arsenal__row${off ? ' is-inactive' : ''}`;
       li.innerHTML =
+        `<button type="button" class="arsenal__toggle" aria-pressed="${off ? 'false' : 'true'}" ` +
+          `title="${off ? 'Inactive — click to activate' : 'Active — click to deactivate'}" ` +
+          `aria-label="${off ? 'Activate' : 'Deactivate'} ${esc(r.label)}">${off ? '○' : '◉'}</button>` +
         `<span class="arsenal__name">${esc(r.label)}</span>` +
         `<span class="arsenal__meta" data-numeric>${r.role} · ${trimNum(r.freqRangeMHz[0])}–${trimNum(r.freqRangeMHz[1])} MHz · ${r.powerW} W</span>` +
         `<button type="button" class="arsenal__del" aria-label="Remove from arsenal" data-id="${esc(r.id)}">×</button>`;
+      // Click the toggle, or the card body (name/meta), to flip active state.
+      li.querySelector('.arsenal__toggle').addEventListener('click', () => toggleArsenalActive(r.id));
+      li.querySelector('.arsenal__name').addEventListener('click', () => toggleArsenalActive(r.id));
+      li.querySelector('.arsenal__meta').addEventListener('click', () => toggleArsenalActive(r.id));
       li.querySelector('.arsenal__del').addEventListener('click', () => removeFromArsenal(r.id));
       els.arsenalList.appendChild(li);
     }
+  }
+
+  // ── Search-results multi-select (Fix 4): select-all + live count ────────
+  function updateSelCount() {
+    if (!els.selCount) return;
+    const n = els.results.querySelectorAll('.radio-result__check:checked').length;
+    els.selCount.textContent = `${n} selected`;
+  }
+
+  function toggleSelectAll() {
+    const boxes = [...els.results.querySelectorAll('.radio-result__check')];
+    const allChecked = boxes.length > 0 && boxes.every((b) => b.checked);
+    boxes.forEach((b) => { b.checked = !allChecked; });
+    updateSelCount();
   }
 
   // ── FCC ID lookup (best-effort) ────────────────────────────────────────
@@ -245,6 +285,11 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   els.fccBtn.addEventListener('click', () => fccLookup(els.fccInput.value));
   els.fccInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); fccLookup(els.fccInput.value); } });
   els.addArsenalBtn?.addEventListener('click', addCheckedToArsenal);
+  els.selectAll?.addEventListener('click', toggleSelectAll);
+  // Keep the "N selected" counter live as the user ticks results.
+  els.results.addEventListener('change', (e) => {
+    if (e.target.classList?.contains('radio-result__check')) updateSelCount();
+  });
 
   // Populate the role <select> once.
   els.editor.querySelector('[name="role"]').innerHTML = ROLES.map((r) => `<option value="${r}">${r}</option>`).join('');

@@ -43,6 +43,16 @@ export const CELL_DEFAULTS = Object.freeze({
   rxSensDbm: -100, // LTE reference
 });
 
+// Per-generation defaults used by the "Show coverage" flow: the sensible band
+// frequency (from CELL_BANDS) plus the map layer colour. Frequency drives FSPL,
+// EIRP/height/sensitivity stay on the macro defaults above (not user-exposed).
+export const CELL_TYPE_DEFAULTS = Object.freeze({
+  GSM:  { freqMHz: 900,  color: '#94a3b8', label: '2G · GSM' },  // grey
+  UMTS: { freqMHz: 900,  color: '#fbbf24', label: '3G · UMTS' }, // amber
+  LTE:  { freqMHz: 800,  color: '#46a6ff', label: '4G · LTE' },  // azure
+  NR:   { freqMHz: 3500, color: '#34e6c2', label: '5G · NR' },   // teal
+});
+
 /** A band preset by key (falls back to 2100 B1). */
 export function bandPreset(key) {
   return CELL_BANDS.find((b) => b.key === key) || CELL_BANDS.find((b) => b.key === 'b1-2100');
@@ -92,13 +102,15 @@ function dist2(c, ctr) {
 
 // ── Controller (main thread; wraps a dedicated coverage instance) ───────────
 
+const CELL_ORDER = ['GSM', 'UMTS', 'LTE', 'NR'];
+
 /**
  * @param {maplibregl.Map} map
- * @param {ReturnType<import('../coverage/coverage.js').createCoverageController>} coverage
- *        a coverage controller bound to the 'cellular' source/layer
- * @param {{onStatus?:Function, cellularLayerId?:string}} opts
+ * @param {Record<'GSM'|'UMTS'|'LTE'|'NR', ReturnType<import('../coverage/coverage.js').createCoverageController>>} coverages
+ *        one coverage controller per network type, each on its own coloured layer
+ * @param {{onStatus?:Function}} opts
  */
-export function createCellularController(map, coverage, { onStatus, cellularLayerId = 'cellular-layer' } = {}) {
+export function createCellularController(map, coverages, { onStatus } = {}) {
   let cells = [];
   let meta = { region: null, attribution: null, generated: null };
   let lastCount = 0;
@@ -122,52 +134,65 @@ export function createCellularController(map, coverage, { onStatus, cellularLaye
     return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
   }
 
-  /**
-   * Run a cellular coverage compute over the current viewport.
-   * @param {{radio, freqMHz, eirpDbm, txHeightM, rxHeightM?, rxSensDbm?, useTerrain?, useClutter?, maxN?}} o
-   */
-  function compute(o = {}) {
-    const bbox = viewportBbox();
-    const c = map.getCenter();
-    const center = { lat: c.lat, lng: c.lng };
-    const towers = selectTowers(cells, { radio: o.radio ?? null, bbox, center, maxN: o.maxN ?? 80 });
-    lastCount = towers.length;
-    if (!towers.length) {
-      onStatus?.('empty', { count: 0 });
-      return { count: 0 };
-    }
-    const txHeightM = num(o.txHeightM, CELL_DEFAULTS.txHeightM);
+  function computeType(type, bbox, center, o) {
+    const cov = coverages[type];
+    const def = CELL_TYPE_DEFAULTS[type];
+    if (!cov || !def) return 0;
+    const towers = selectTowers(cells, { radio: type, bbox, center, maxN: o.maxN ?? 80 });
+    if (!towers.length) { cov.clear(); return 0; }
+    const txHeightM = CELL_DEFAULTS.txHeightM;
     const params = {
-      eirpDbm: num(o.eirpDbm, CELL_DEFAULTS.eirpDbm),
-      freqMHz: num(o.freqMHz, 2100),
+      eirpDbm: CELL_DEFAULTS.eirpDbm,
+      freqMHz: def.freqMHz,
       rxGainDbi: 0,
       clutterDb: 0,
-      thresholds: thresholdsForSensitivity(o.rxSensDbm),
-      floorDbm: num(o.rxSensDbm, CELL_DEFAULTS.rxSensDbm) - 10,
+      thresholds: thresholdsForSensitivity(CELL_DEFAULTS.rxSensDbm),
+      floorDbm: CELL_DEFAULTS.rxSensDbm - 10,
       useTerrain: !!o.useTerrain,
       useClutter: !!o.useClutter,
       txHeightM,
-      rxHeightM: num(o.rxHeightM, CELL_DEFAULTS.rxHeightM),
+      rxHeightM: CELL_DEFAULTS.rxHeightM,
     };
-    coverage.compute(bbox, center, params, { txs: towersToTxs(towers, txHeightM), marker: false });
-    onStatus?.('computing', { count: towers.length });
-    return { count: towers.length };
+    cov.compute(bbox, center, params, { txs: towersToTxs(towers, txHeightM), marker: false });
+    return towers.length;
+  }
+
+  /**
+   * Paint coverage for each checked network type on its own coloured layer over
+   * the current viewport. Types not listed are cleared.
+   * @param {Array<'GSM'|'UMTS'|'LTE'|'NR'>} types
+   * @param {{useTerrain?:boolean, useClutter?:boolean, maxN?:number}} o
+   */
+  function showCoverage(types = [], o = {}) {
+    const want = new Set(types);
+    const bbox = viewportBbox();
+    const c = map.getCenter();
+    const center = { lat: c.lat, lng: c.lng };
+    const totals = {};
+    let grand = 0;
+    for (const type of CELL_ORDER) {
+      if (!want.has(type)) { coverages[type]?.clear(); totals[type] = 0; continue; }
+      const n = computeType(type, bbox, center, o);
+      totals[type] = n;
+      grand += n;
+    }
+    lastCount = grand;
+    onStatus?.(grand ? 'computing' : 'empty', { count: grand, totals });
+    return { count: grand, totals };
   }
 
   function setVisible(on) {
-    if (map.getLayer(cellularLayerId)) {
-      map.setLayoutProperty(cellularLayerId, 'visibility', on ? 'visible' : 'none');
-    }
+    for (const type of CELL_ORDER) coverages[type]?.setVisible(on);
   }
 
   function clear() {
-    coverage.clear();
+    for (const type of CELL_ORDER) coverages[type]?.clear();
     lastCount = 0;
   }
 
   return {
     load,
-    compute,
+    showCoverage,
     setVisible,
     clear,
     getCount: () => lastCount,
@@ -175,5 +200,3 @@ export function createCellularController(map, coverage, { onStatus, cellularLaye
     hasData: () => cells.length > 0,
   };
 }
-
-const num = (v, f) => (Number.isFinite(Number(v)) ? Number(v) : f);
