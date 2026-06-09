@@ -202,6 +202,10 @@
               </p>
 
               <input class="input" id="radioSearchInput" type="text" placeholder="Search radios by name, band or role" aria-label="Search radios" />
+              <div class="radio-results__bar">
+                <button class="linklike" type="button" id="radioSelectAll">Select all / none</button>
+                <span class="radio-results__count" id="radioSelCount" data-numeric>0 selected</span>
+              </div>
               <ul class="radio-results" id="radioResults" aria-label="Radio library"></ul>
 
               <details class="disclosure">
@@ -360,7 +364,7 @@
               <div class="input-row">
                 <div style="flex:1">
                   <label class="field-label" for="maxSites">Max sites</label>
-                  <input class="input" id="maxSites" type="number" min="1" max="6" value="3" step="1" />
+                  <input class="input" id="maxSites" type="number" min="1" max="99" value="3" step="1" />
                 </div>
                 <div style="flex:1">
                   <label class="field-label" for="targetCoverage">Target coverage</label>
@@ -571,34 +575,17 @@
               <label class="check"><input type="checkbox" id="cellEnabled" /><span>Show cellular layer</span></label>
 
               <div id="cellPanel" hidden>
-                <div class="input-row">
-                  <label class="field-label" for="cellRadio">Network</label>
-                  <select class="input input--sm" id="cellRadio">
-                    <option value="LTE" selected>4G · LTE</option>
-                    <option value="NR">5G · NR</option>
-                    <option value="UMTS">3G · UMTS</option>
-                    <option value="GSM">2G · GSM</option>
-                  </select>
-                  <label class="field-label" for="cellBand">Band</label>
-                  <select class="input input--sm" id="cellBand"></select>
+                <div class="cell-types" role="group" aria-label="Network types">
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="GSM" checked /><span><span class="cell-type__dot" style="background:#94a3b8"></span>2G · GSM</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="UMTS" checked /><span><span class="cell-type__dot" style="background:#fbbf24"></span>3G · UMTS</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="LTE" checked /><span><span class="cell-type__dot" style="background:#46a6ff"></span>4G · LTE</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="NR" checked /><span><span class="cell-type__dot" style="background:#34e6c2"></span>5G · NR</span></label>
                 </div>
 
                 <div class="input-row">
-                  <label class="field-label" for="cellFreq">Frequency</label>
-                  <input class="input input--sm" type="number" id="cellFreq" min="300" max="6000" step="10" value="800" />
-                  <span class="input-suffix">MHz ·</span>
-                  <label class="field-label" for="cellEirp">EIRP</label>
-                  <input class="input input--sm" type="number" id="cellEirp" min="20" max="75" step="1" value="58" />
-                  <span class="input-suffix">dBm</span>
+                  <button class="btn btn--primary" type="button" id="showCellBtn">Show coverage</button>
+                  <button class="btn" type="button" id="clearCellBtn">Clear</button>
                 </div>
-
-                <div class="input-row">
-                  <label class="field-label" for="cellHeight">Tower height</label>
-                  <input class="input input--sm" type="number" id="cellHeight" min="5" max="200" step="1" value="30" />
-                  <span class="input-suffix">m AGL</span>
-                </div>
-
-                <button class="btn btn--primary btn--block" type="button" id="computeCellBtn">Compute cellular coverage</button>
                 <p class="help" id="cellReadout" data-numeric></p>
                 <p class="help" id="cellAttribution"></p>
               </div>

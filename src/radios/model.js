@@ -58,6 +58,10 @@ export function normalizeRadio(partial = {}) {
     source: partial.source || 'manual',
     notes: partial.notes || '',
     indicative: partial.indicative ?? false,
+    // Native battery spec (M8 power budget) — carried through when present.
+    ...(Number.isFinite(Number(partial.batteryMah)) ? { batteryMah: Number(partial.batteryMah) } : {}),
+    ...(Number.isFinite(Number(partial.batteryV)) ? { batteryV: Number(partial.batteryV) } : {}),
+    ...(partial.batteryModel ? { batteryModel: String(partial.batteryModel) } : {}),
   };
 }
 

@@ -54,12 +54,18 @@ export function profileForRadioRole(role) {
  * @param {number} missionHours
  * @param {{tx:number, rx:number, standby:number}} duty   default 5-5-90
  * @param {number} sparePolicy  spare batteries added on top of mission cover (default 1)
+ * @param {{batteryMah?:number, batteryV?:number, batteryModel?:string}|null} radio
+ *        matched arsenal radio — its native battery (batteryMah/batteryV) wins
+ *        over the generic class default when present.
  */
-export function operatorEndurance(device = {}, missionHours = 0, duty = DUTY_5_5_90, sparePolicy = 1) {
+export function operatorEndurance(device = {}, missionHours = 0, duty = DUTY_5_5_90, sparePolicy = 1, radio = null) {
   const txA = num(device.txA, 0);
   const rxA = num(device.rxA, 0);
   const standbyA = num(device.standbyA, 0);
-  const capacityAh = num(device.battery?.capacityAh, 0);
+  // Prefer the radio's native battery (mAh→Ah); fall back to the class default.
+  const capacityAh = Number.isFinite(Number(radio?.batteryMah))
+    ? Number(radio.batteryMah) / 1000
+    : num(device.battery?.capacityAh, 0);
 
   const d = normaliseDuty(duty);
   const weightedCurrentA = d.tx * txA + d.rx * rxA + d.standby * standbyA;

@@ -762,6 +762,26 @@
 .radio-result__meta { color: var(--dim); font-size: 11px; }
 .radio-result__btns { display: flex; gap: 4px; flex: 0 0 auto; }
 
+/* Search-results multi-select bar (Fix 4) */
+.radio-results__bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: var(--sp-2);
+}
+.radio-results__count { color: var(--dim); font-size: 11px; }
+.linklike {
+  border: 0; background: transparent; padding: 0; cursor: pointer;
+  color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.linklike:hover { color: color-mix(in srgb, var(--accent) 80%, var(--ink)); }
+
+/* Cellular network-type pickers (M9 — Show coverage) */
+.cell-types { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: var(--sp-2); }
+.cell-type__dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+  margin-right: 5px; vertical-align: -1px;
+}
+
 .radio-editor { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 6px; }
 .fcc-fallback { margin-top: var(--sp-2); }
 
@@ -940,13 +960,20 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-radius: var(--r-sm);
   background: var(--surface2);
 }
-.arsenal__name { font-weight: 600; color: var(--ink); font-size: 12px; flex: 0 0 auto; }
-.arsenal__meta { color: var(--dim); font-size: 11px; flex: 1 1 auto; min-width: 0; }
+.arsenal__name { font-weight: 600; color: var(--ink); font-size: 12px; flex: 0 0 auto; cursor: pointer; }
+.arsenal__meta { color: var(--dim); font-size: 11px; flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.arsenal__toggle {
+  border: 0; background: transparent; color: var(--accent);
+  font-size: 13px; line-height: 1; cursor: pointer; padding: 0 1px; flex: 0 0 auto;
+}
 .arsenal__del {
   border: 0; background: transparent; color: var(--bad);
   font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; flex: 0 0 auto;
 }
 .arsenal__del:hover { color: color-mix(in srgb, var(--bad) 70%, var(--ink)); }
+/* Inactive arsenal radio — carried but excluded from role assignment / coverage */
+.arsenal__row.is-inactive { opacity: 0.45; }
+.arsenal__row.is-inactive .arsenal__toggle { color: var(--faint); }
 
 .roles-list { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 6px; }
 .role-row {

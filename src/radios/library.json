@@ -11,7 +11,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "DMR/analogue portable. Indicative — verify against your model."
+    "notes": "DMR/analogue portable. Indicative — verify against your model.",
+    "batteryMah": 2450,
+    "batteryV": 7.4,
+    "batteryModel": "PMNN4468"
   },
   {
     "id": "lib-motorola-r7-uhf",
@@ -25,7 +28,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "DMR/analogue portable. Indicative."
+    "notes": "DMR/analogue portable. Indicative.",
+    "batteryMah": 2450,
+    "batteryV": 7.4,
+    "batteryModel": "PMNN4468"
   },
   {
     "id": "lib-hytera-hp685-vhf",
@@ -39,7 +45,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "DMR portable. Indicative."
+    "notes": "DMR portable. Indicative.",
+    "batteryMah": 2200,
+    "batteryV": 7.4,
+    "batteryModel": "BP2502"
   },
   {
     "id": "lib-baofeng-uv5r",
@@ -53,7 +62,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Budget amateur class; SDoC — not in FCC OET as a grant. Indicative."
+    "notes": "Budget amateur class; SDoC — not in FCC OET as a grant. Indicative.",
+    "batteryMah": 1800,
+    "batteryV": 7.4,
+    "batteryModel": "BL-5"
   },
   {
     "id": "lib-tait-tp9300-vhf",
@@ -67,7 +79,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "P25/analogue portable. Indicative."
+    "notes": "P25/analogue portable. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-motorola-r2-uhf",
@@ -81,7 +96,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Entry analogue/DMR portable. Indicative."
+    "notes": "Entry analogue/DMR portable. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-motorola-xpr5500e-vhf",
@@ -95,7 +113,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "DMR mobile. Indicative."
+    "notes": "DMR mobile. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-hytera-md785-uhf",
@@ -109,7 +130,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "DMR mobile. Indicative."
+    "notes": "DMR mobile. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-motorola-slr5500-vhf",
@@ -123,7 +147,10 @@
     "defaultHeightM": 15,
     "source": "library",
     "indicative": true,
-    "notes": "DMR repeater; figure is conducted PA output before duplexer loss. Indicative."
+    "notes": "DMR repeater; figure is conducted PA output before duplexer loss. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-motorola-slr5500-uhf",
@@ -137,7 +164,10 @@
     "defaultHeightM": 15,
     "source": "library",
     "indicative": true,
-    "notes": "DMR repeater. Indicative."
+    "notes": "DMR repeater. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-hytera-hr1062-uhf",
@@ -151,7 +181,10 @@
     "defaultHeightM": 15,
     "source": "library",
     "indicative": true,
-    "notes": "DMR repeater. Indicative."
+    "notes": "DMR repeater. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-kenwood-nxr810-vhf",
@@ -165,7 +198,10 @@
     "defaultHeightM": 12,
     "source": "library",
     "indicative": true,
-    "notes": "NXDN/analogue base station. Indicative."
+    "notes": "NXDN/analogue base station. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-codan-envoy-hf",
@@ -179,7 +215,10 @@
     "defaultHeightM": 5,
     "source": "library",
     "indicative": true,
-    "notes": "HF SSB transceiver; NVIS at low band. Separate module — no raster. Indicative."
+    "notes": "HF SSB transceiver; NVIS at low band. Separate module — no raster. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-barrett-4050-hf",
@@ -193,7 +232,10 @@
     "defaultHeightM": 7,
     "source": "library",
     "indicative": true,
-    "notes": "HF SSB base; ALE-capable. Separate module — no raster. Indicative."
+    "notes": "HF SSB base; ALE-capable. Separate module — no raster. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-rf7800h-hf",
@@ -207,7 +249,10 @@
     "defaultHeightM": 3,
     "source": "library",
     "indicative": true,
-    "notes": "Wideband HF manpack. Separate module — no raster. Indicative."
+    "notes": "Wideband HF manpack. Separate module — no raster. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-meshtastic-tbeam-868",
@@ -221,7 +266,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "LoRa mesh node; EU 868 band, ~20 dBm. Telemetry/tracking overlay. Indicative."
+    "notes": "LoRa mesh node; EU 868 band, ~20 dBm. Telemetry/tracking overlay. Indicative.",
+    "batteryMah": 3000,
+    "batteryV": 3.7,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-meshtastic-heltec-915",
@@ -235,7 +283,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "LoRa mesh node; US 915 band. Indicative."
+    "notes": "LoRa mesh node; US 915 band. Indicative.",
+    "batteryMah": 3000,
+    "batteryV": 3.7,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-rak-wisblock-868",
@@ -249,7 +300,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "LoRaWAN/Meshtastic node. Indicative."
+    "notes": "LoRaWAN/Meshtastic node. Indicative.",
+    "batteryMah": 3000,
+    "batteryV": 3.7,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-iridium-9575",
@@ -263,7 +317,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Iridium L-band satphone. PACE asset — no coverage raster. Indicative."
+    "notes": "Iridium L-band satphone. PACE asset — no coverage raster. Indicative.",
+    "batteryMah": 2400,
+    "batteryV": 3.7,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-iridium-go",
@@ -277,7 +334,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Iridium Wi-Fi hotspot. PACE asset — no coverage raster. Indicative."
+    "notes": "Iridium Wi-Fi hotspot. PACE asset — no coverage raster. Indicative.",
+    "batteryMah": 2400,
+    "batteryV": 3.7,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-garmin-inreach-mini2",
@@ -291,9 +351,11 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Iridium two-way messaging/SOS. PACE asset — no coverage raster. Indicative."
+    "notes": "Iridium two-way messaging/SOS. PACE asset — no coverage raster. Indicative.",
+    "batteryMah": 2400,
+    "batteryV": 3.7,
+    "batteryModel": "generic Li-Ion"
   },
-
   {
     "id": "lib-harris-prc150c",
     "label": "L3Harris AN/PRC-150(C) (HF/VHF manpack)",
@@ -306,7 +368,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Falcon II HF/VHF manpack; ALE/NVIS. Separate module — no raster. Indicative."
+    "notes": "Falcon II HF/VHF manpack; ALE/NVIS. Separate module — no raster. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-prc160",
@@ -320,7 +385,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Wideband HF manpack; BLOS HF data. Separate module — no raster. Indicative."
+    "notes": "Wideband HF manpack; BLOS HF data. Separate module — no raster. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-rf5800h",
@@ -334,7 +402,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Legacy Falcon II HF SSB. Separate module — no raster. Indicative."
+    "notes": "Legacy Falcon II HF SSB. Separate module — no raster. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-prc117g",
@@ -348,7 +419,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Falcon III wideband manpack; ANW2/SINCGARS, UHF MILSATCOM-capable. Indicative."
+    "notes": "Falcon III wideband manpack; ANW2/SINCGARS, UHF MILSATCOM-capable. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-prc117f",
@@ -362,7 +436,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Legacy multiband manpack; UHF TACSAT. Indicative."
+    "notes": "Legacy multiband manpack; UHF TACSAT. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-prc158",
@@ -376,7 +453,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "HMS multichannel manpack; MUOS/legacy SATCOM, TSM/ANW2. Indicative."
+    "notes": "HMS multichannel manpack; MUOS/legacy SATCOM, TSM/ANW2. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-prc167",
@@ -390,7 +470,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Falcon IV dual-channel manpack; MUOS SATCOM, wideband networking. Indicative."
+    "notes": "Falcon IV dual-channel manpack; MUOS SATCOM, wideband networking. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-rf7800m-hh",
@@ -404,7 +487,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Falcon III wideband handheld; ANW2 networking. Indicative."
+    "notes": "Falcon III wideband handheld; ANW2 networking. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-prc152a",
@@ -418,7 +504,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Falcon III handheld; SINCGARS/APCO-25, UHF TACSAT. Indicative."
+    "notes": "Falcon III handheld; SINCGARS/APCO-25, UHF TACSAT. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-prc163",
@@ -432,7 +521,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Falcon IV dual-channel handheld; MUOS SATCOM, ATAK host. Indicative."
+    "notes": "Falcon IV dual-channel handheld; MUOS SATCOM, ATAK host. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-rf7800s",
@@ -446,7 +538,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Soldier personal-role radio; squad mesh. Indicative."
+    "notes": "Soldier personal-role radio; squad mesh. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-l3harris-xl200p",
@@ -460,7 +555,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Multiband public-safety P25 portable (VHF/UHF/700/800). Indicative."
+    "notes": "Multiband public-safety P25 portable (VHF/UHF/700/800). Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-l3harris-xg100p",
@@ -474,7 +572,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Multiband P25 portable. Indicative."
+    "notes": "Multiband P25 portable. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-l3harris-xl200m",
@@ -488,7 +589,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Multiband P25 mobile. Indicative."
+    "notes": "Multiband P25 mobile. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-rf7800w",
@@ -502,7 +606,10 @@
     "defaultHeightM": 15,
     "source": "library",
     "indicative": true,
-    "notes": "Directional point-to-point IP backhaul; high-gain dish — omni FSPL raster is not representative. Indicative."
+    "notes": "Directional point-to-point IP backhaul; high-gain dish — omni FSPL raster is not representative. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-harris-rf7800b",
@@ -516,9 +623,11 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Inmarsat BGAN broadband terminal. PACE asset — no coverage raster. Indicative."
+    "notes": "Inmarsat BGAN broadband terminal. PACE asset — no coverage raster. Indicative.",
+    "batteryMah": 2400,
+    "batteryV": 3.7,
+    "batteryModel": "generic Li-Ion"
   },
-
   {
     "id": "lib-thales-prc148-mbitr",
     "label": "Thales AN/PRC-148 MBITR (multiband handheld)",
@@ -531,7 +640,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Multiband inter/intra-team radio; VHF/UHF, UHF TACSAT. Indicative."
+    "notes": "Multiband inter/intra-team radio; VHF/UHF, UHF TACSAT. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-thales-prc148-jem",
@@ -545,7 +657,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "JTRS-enhanced MBITR; software-defined waveforms. Indicative."
+    "notes": "JTRS-enhanced MBITR; software-defined waveforms. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-thales-pr4g",
@@ -559,7 +674,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "NATO VHF combat-net radio; frequency hopping. Vehicle variant ~50 W. Indicative."
+    "notes": "NATO VHF combat-net radio; frequency hopping. Vehicle variant ~50 W. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-thales-prc154-rifleman",
@@ -573,7 +691,10 @@
     "defaultHeightM": 1.5,
     "source": "library",
     "indicative": true,
-    "notes": "Soldier radio, Soldier Radio Waveform (SRW) mesh. Verify band against your variant. Indicative."
+    "notes": "Soldier radio, Soldier Radio Waveform (SRW) mesh. Verify band against your variant. Indicative.",
+    "batteryMah": 2000,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-codan-ngt-vr",
@@ -587,7 +708,10 @@
     "defaultHeightM": 7,
     "source": "library",
     "indicative": true,
-    "notes": "HF SSB base; CALM/ALE. Separate module — no raster. Indicative."
+    "notes": "HF SSB base; CALM/ALE. Separate module — no raster. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-codan-envoy-x2",
@@ -601,7 +725,10 @@
     "defaultHeightM": 5,
     "source": "library",
     "indicative": true,
-    "notes": "HF SSB transceiver; 3G ALE. Separate module — no raster. Indicative."
+    "notes": "HF SSB transceiver; 3G ALE. Separate module — no raster. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-barrett-2050",
@@ -615,7 +742,10 @@
     "defaultHeightM": 7,
     "source": "library",
     "indicative": true,
-    "notes": "HF SSB base/transceiver; ALE. Separate module — no raster. Indicative."
+    "notes": "HF SSB base/transceiver; ALE. Separate module — no raster. Indicative.",
+    "batteryMah": 7200,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-barrett-prc2090",
@@ -629,7 +759,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Tactical HF manpack; NVIS-capable. Separate module — no raster. Indicative."
+    "notes": "Tactical HF manpack; NVIS-capable. Separate module — no raster. Indicative.",
+    "batteryMah": 5200,
+    "batteryV": 7.4,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-silvus-sc4200",
@@ -643,7 +776,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "MN-MIMO broadband MANET mesh; S-band. Omni FSPL raster is a rough estimate only. Indicative."
+    "notes": "MN-MIMO broadband MANET mesh; S-band. Omni FSPL raster is a rough estimate only. Indicative.",
+    "batteryMah": 5000,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-silvus-sc4400",
@@ -657,7 +793,10 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Multiband MN-MIMO MANET; wideband mesh. Omni FSPL raster is a rough estimate only. Indicative."
+    "notes": "Multiband MN-MIMO MANET; wideband mesh. Omni FSPL raster is a rough estimate only. Indicative.",
+    "batteryMah": 5000,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   },
   {
     "id": "lib-persistent-mpu5",
@@ -671,6 +810,9 @@
     "defaultHeightM": 2,
     "source": "library",
     "indicative": true,
-    "notes": "Wave Relay MANET mesh node; multiple band modules. Omni FSPL raster is a rough estimate only. Indicative."
+    "notes": "Wave Relay MANET mesh node; multiple band modules. Omni FSPL raster is a rough estimate only. Indicative.",
+    "batteryMah": 5000,
+    "batteryV": 12,
+    "batteryModel": "generic Li-Ion"
   }
 ]

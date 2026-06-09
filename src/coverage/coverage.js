@@ -29,8 +29,12 @@ const TARGET_MAX_DIM = 220;
 
 export function createCoverageController(
   map,
-  { onProgress, onStatus, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.7 } = {},
+  { onProgress, onStatus, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.7, tint = null } = {},
 ) {
+  // When `tint` is set (a hex colour), every covered cell paints that one colour
+  // — used by the cellular layers (one flat colour per network type). Otherwise
+  // the signal-scale palette colours cells by quality.
+  const tintRgb = tint ? hexToRgb(tint) : null;
   const palette = [
     hexToRgb(cssVar('--s1', '#34e6c2')),
     hexToRgb(cssVar('--s2', '#86e6a0')),
@@ -101,7 +105,7 @@ export function createCoverageController(
       byClass[cls] += 1;
       if (cls <= 2) covered += 1; // excellent/good/marginal = usable
 
-      const [r, g, b] = palette[cls];
+      const [r, g, b] = tintRgb || palette[cls];
       data[o] = r;
       data[o + 1] = g;
       data[o + 2] = b;
@@ -194,6 +198,12 @@ export function createCoverageController(
     if (hasLayer && map.getLayer(layer)) map.setPaintProperty(layer, 'raster-opacity', opacity);
   }
 
+  function setVisible(on) {
+    if (hasLayer && map.getLayer(layer)) {
+      map.setLayoutProperty(layer, 'visibility', on ? 'visible' : 'none');
+    }
+  }
+
   function clear() {
     jobId += 1;
     if (map.getLayer(layer)) map.removeLayer(layer);
@@ -208,6 +218,7 @@ export function createCoverageController(
     compute,
     computeAsync,
     setOpacity,
+    setVisible,
     getOpacity: () => opacity,
     getStats: () => lastStats,
     hasCoverage: () => hasLayer,
