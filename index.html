@@ -471,6 +471,64 @@
             </div>
           </section>
 
+          <!-- Power & endurance (M8) -->
+          <section class="section" aria-labelledby="powerTitle">
+            <div class="section__head">
+              <span class="section__title" id="powerTitle">Power &amp; endurance</span>
+              <span class="section__hint">M8 · battery · solar</span>
+            </div>
+            <div class="section__body">
+              <div class="input-row">
+                <label class="field-label" for="powerHours">Mission duration</label>
+                <input class="input input--sm" type="number" id="powerHours" min="1" max="720" step="1" value="8" />
+                <span class="input-suffix">h</span>
+              </div>
+
+              <span class="field-label">Comms tempo (timings plan)</span>
+              <div class="input-row">
+                <span class="input-suffix">SITREP every</span>
+                <input class="input input--sm" type="number" id="powerEveryMin" min="1" max="240" step="1" value="30" />
+                <span class="input-suffix">min ·</span>
+                <input class="input input--sm" type="number" id="powerTxMin" min="0" max="60" step="0.5" value="2" />
+                <span class="input-suffix">min TX</span>
+              </div>
+              <div class="input-row">
+                <span class="input-suffix">Continuous-on (action phase)</span>
+                <input class="input input--sm" type="number" id="powerContinuousH" min="0" max="72" step="0.5" value="0" />
+                <span class="input-suffix">h</span>
+              </div>
+
+              <div class="input-row">
+                <label class="field-label" for="powerBankV">Site battery bank</label>
+                <select class="input input--sm" id="powerBankV">
+                  <option value="12" selected>12 V</option>
+                  <option value="24">24 V</option>
+                </select>
+                <label class="field-label" for="powerDroneWh">Drone pack</label>
+                <input class="input input--sm" type="number" id="powerDroneWh" min="20" max="2000" step="10" value="370" />
+                <span class="input-suffix">Wh</span>
+              </div>
+
+              <div class="input-row">
+                <label class="field-label" for="powerAtakMa">ATAK EUD draw</label>
+                <input class="input input--sm" type="number" id="powerAtakMa" min="50" max="3000" step="10" value="600" />
+                <span class="input-suffix">mA ·</span>
+                <input class="input input--sm" type="number" id="powerAtakMah" min="1000" max="20000" step="100" value="5000" />
+                <span class="input-suffix">mAh device</span>
+              </div>
+
+              <button class="btn btn--primary btn--block" type="button" id="buildPowerBtn">Build power plan</button>
+
+              <div id="powerResults" hidden>
+                <div class="power-nodes" id="powerNodes" aria-label="Per-node power"></div>
+                <div class="power-atak" id="powerAtak"></div>
+                <div class="power-bom" id="powerBom" aria-label="Mission bill of materials"></div>
+              </div>
+
+              <p class="help" id="powerHelp">Budgets battery life, spares, recharge intervals, a solar budget for static sites and an ATAK powerbank — per node, from the M7 role assignment. Every figure is an indicative, editable default. Add radios in the Arsenal first for radio-specific profiles.</p>
+            </div>
+          </section>
+
           <!-- Coverage legend / signal scale -->
           <section class="section" aria-labelledby="legendTitle">
             <div class="section__head">

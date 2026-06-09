@@ -131,6 +131,8 @@ export function buildDocHtml(plan, { autoPrint = false, toolbar = false } = {}) 
   <h2>Radio mix</h2>
   ${mixTable(plan)}
 
+  ${bomSection(plan)}
+
   <h2>Caveats</h2>
   <ul class="caveats">
     <li>Planning-grade, not survey-grade: FSPL + single knife-edge diffraction over ~30–90 m DEM. Verify in the field.</li>
@@ -172,8 +174,15 @@ export function buildTablesHtml(plan) {
   const params = `<tr><td colspan="4"></td></tr><tr><td colspan="4"><b>Mission &amp; link parameters</b></td></tr>` +
     paramRows(plan).map(([k, v]) => `<tr><td>${esc(k)}</td><td colspan="3">${esc(v)}</td></tr>`).join('');
 
+  const bomLines = Array.isArray(plan.bom) ? plan.bom : [];
+  const bom = bomLines.length
+    ? `<tr><td colspan="4"></td></tr><tr><td colspan="4"><b>Power &amp; endurance — bill of materials</b></td></tr>` +
+      `<tr><th>Item</th><th>Qty</th><th>Spec</th><th>Rationale</th></tr>` +
+      bomLines.map((l) => `<tr><td>${esc(l.item)}</td><td>${esc(l.qty)}</td><td>${esc(l.unitSpec)}</td><td>${esc(l.rationale)}</td></tr>`).join('')
+    : '';
+
   return `<!doctype html><html><head><meta charset="utf-8"></head><body>
-<table border="1">${head}${pace}${sitesTbl}${mix}${params}</table></body></html>`;
+<table border="1">${head}${pace}${sitesTbl}${mix}${params}${bom}</table></body></html>`;
 }
 
 // ── Section builders ─────────────────────────────────────────────────────────
@@ -220,6 +229,17 @@ function mixTable(plan) {
     .map((b) => `<tr><td>${b.rank}</td><td class="bearer">${esc(b.band)}</td><td><span class="chip" style="background:${TIER_COLOR[b.pace] || '#888'}">${esc(b.pace)}</span></td><td class="why">${esc(b.why)}</td></tr>`)
     .join('');
   return `<table><thead><tr><th>Rank</th><th>Band</th><th>PACE</th><th>Rationale</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// M8 — power & endurance bill of materials. Empty unless a power plan was built.
+function bomSection(plan) {
+  const bom = Array.isArray(plan.bom) ? plan.bom : [];
+  if (!bom.length) return '';
+  const rows = bom
+    .map((l) => `<tr><td class="bearer">${esc(l.item)}</td><td>${esc(l.qty)}</td><td>${esc(l.unitSpec)}</td><td class="why">${esc(l.rationale)}</td></tr>`)
+    .join('');
+  return `<h2>Power &amp; endurance</h2>` +
+    `<table><thead><tr><th>Item</th><th>Qty</th><th>Spec</th><th>Rationale</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // ── Data shaping ─────────────────────────────────────────────────────────────

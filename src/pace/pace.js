@@ -117,6 +117,7 @@ export function buildPace(input = {}) {
     structure,
     summary,
     gaps,
+    bom: Array.isArray(input.bom) ? input.bom : [],
     context: {
       mix,
       params: input.params ?? {},
