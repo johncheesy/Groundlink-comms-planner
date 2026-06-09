@@ -2469,3 +2469,27 @@ select.input--sm { text-align: left; padding-right: 6px; }
   .profile-panel__body { flex-direction: column; }
   .profile-budget-table { flex: 0 0 auto; align-self: stretch; }
 }
+
+/* ==========================================================================
+   M17 — PWA: install button + offline status indicator.
+   ========================================================================== */
+
+/* Compact ghost button in the panel header; hidden until the browser offers
+   an install prompt. The label collapses on narrow panels. */
+.install-btn { gap: 5px; }
+.install-btn[hidden] { display: none; }
+.install-btn__label { font-size: 12px; }
+
+@media (max-width: 360px) {
+  .install-btn__label { display: none; }
+}
+
+/* Offline chip in the status bar — uses the warning colour, like the build
+   badge, so it reads as an advisory state rather than an error. */
+.statusbar__item--offline[hidden] { display: none; }
+.status-offline {
+  color: var(--warn);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -32,6 +32,7 @@ import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { createExportPanel } from './export/export-panel.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
+import { initPwa } from './ui/pwa.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
@@ -1900,6 +1901,9 @@ $('#panelClose').addEventListener('click', closePanel);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && mq.matches && app.dataset.panel === 'open') closePanel();
 });
+
+// PWA: service worker, offline indicator, install prompt (M17).
+initPwa();
 
 // Dev-only handle for testing/automation (stripped from production builds).
 if (import.meta.env.DEV) {

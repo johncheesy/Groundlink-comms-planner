@@ -10,6 +10,18 @@
       content="Terrain-aware communications coverage and planning. Define an area, model RF coverage, plan sites and PACE."
     />
 
+    <!-- PWA: installable, offline-capable app shell + cached tiles (M17). -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#0a8475" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="GroundLink" />
+    <!-- Inline teal mast favicon (data URI — no extra request, no PNG to ship). -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f1117'/%3E%3Cg fill='none' stroke='%2334e6c2' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M16 27V12'/%3E%3Cpath d='M11 27h10'/%3E%3Cpath d='M16 12l-4 6h8l-4-6z' fill='%2334e6c2' stroke='none'/%3E%3Cpath d='M9.5 9a9 9 0 0 1 13 0' opacity='.85'/%3E%3Cpath d='M6.5 6a13.5 13.5 0 0 1 19 0' opacity='.5'/%3E%3C/g%3E%3C/svg%3E"
+    />
+
     <!-- Sora (display) + Hanken Grotesk (body). No Inter/Roboto/Arial. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -42,6 +54,21 @@
           </div>
 
           <div class="panel__head-actions">
+            <!-- PWA install affordance — revealed on `beforeinstallprompt` (M17). -->
+            <button
+              class="btn btn--ghost install-btn"
+              id="installBtn"
+              type="button"
+              hidden
+              title="Install GroundLink as an app"
+              aria-label="Install GroundLink as an app"
+            >
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 1.5v8.5" /><path d="M4.5 6.5L8 10l3.5-3.5" /><path d="M2.5 13.5h11" />
+              </svg>
+              <span class="install-btn__label">Install</span>
+            </button>
+
             <button
               class="btn btn--ghost mode-toggle"
               id="modeToggle"
@@ -860,6 +887,10 @@
           <span class="v" id="statusZoom" data-numeric>—</span>
         </span>
         <span class="statusbar__spacer"></span>
+        <span class="statusbar__item statusbar__item--offline" id="offlineIndicator" hidden title="No network — running on cached tiles and app shell">
+          <span class="status-offline">⚠ Offline</span>
+        </span>
+        <span class="statusbar__sep" id="statusOfflineSep" aria-hidden="true" hidden></span>
         <span class="statusbar__item" id="statusPaceWrap" hidden>
           <span class="badge badge--warn" id="statusPace">PACE: Airborne = Alternate</span>
         </span>

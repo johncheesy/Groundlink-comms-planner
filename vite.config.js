@@ -17,9 +17,31 @@ const build = {
   date: new Date().toISOString().slice(0, 10),
 };
 
+// Emits dist/sw-assets.json — the list of hashed build assets the service
+// worker pre-caches for the offline app shell (M17). Paths are relative
+// (no leading slash) so the SW resolves them against its own scope under the
+// GitHub Pages subpath; .map files are excluded.
+function swAssetsPlugin() {
+  return {
+    name: 'gl-sw-assets',
+    apply: 'build',
+    generateBundle(_, bundle) {
+      const assets = Object.keys(bundle)
+        .filter((k) => !k.endsWith('.map'))
+        .map((k) => k.split('\\').join('/'));
+      this.emitFile({
+        type: 'asset',
+        fileName: 'sw-assets.json',
+        source: JSON.stringify(assets, null, 2),
+      });
+    },
+  };
+}
+
 // Relative base so the public-safe build works under a GitHub Pages subpath.
 export default defineConfig({
   base: './',
+  plugins: [swAssetsPlugin()],
   define: {
     __GL_BUILD__: JSON.stringify(build),
   },
