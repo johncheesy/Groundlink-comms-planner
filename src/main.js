@@ -22,6 +22,7 @@ import {
 import { atakConsumedMah, powerbankRecommendation } from './power/atak.js';
 import { buildPace } from './pace/pace.js';
 import { exportReport } from './pace/report.js';
+import { createHfPanel } from './hf/hf-panel.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
@@ -396,6 +397,7 @@ let missionTools = null;
 let waypoints = null;
 let radios = null;
 let cellular = null; // M9 cellular controller (own coverage layer)
+let hfPanel = null; // M12 HF ionosphere panel
 let currentAoiAreaM2 = 0;
 let lastPlan = null; // last PACE plan built (M6) — fed to the report export
 
@@ -418,6 +420,7 @@ whenStyleReady(() => {
       currentAoiAreaM2 = has ? s.areaM2 : 0;
       // Feed the AOI into the mission (drives compute/recommend enablement).
       mission.setAoi(has ? aoi.getAoi() : null);
+      hfPanel?.refresh(); // HF planning follows the AOI centre
       if (!has) {
         // AOI removed → any recommended sites are stale.
         recommender?.clear();
@@ -445,6 +448,22 @@ whenStyleReady(() => {
       if (aoi?.getMode?.()) statusMode.textContent = `Drawing ${aoi.getMode()}`;
     },
   });
+
+  // HF ionosphere planner (M12) — date/time + solar cycle + path → MUF/LUF/
+  // NVIS over the AOI centre, falling back to London (51.5, 0) before any AOI.
+  (() => {
+    const host = $('#hfPanelInner');
+    if (!host) return;
+    let hf;
+    const refresh = () => {
+      const p = hf.getParams();
+      const c = aoi?.getAoi?.()?.center;
+      hf.update(c?.lat ?? 51.5, c?.lng ?? 0, p.dt, p.pathKm, p.solarCycle);
+    };
+    hf = createHfPanel(host, { onParamsChange: refresh });
+    hfPanel = { refresh };
+    refresh();
+  })();
 
   coverage = createCoverageController(map, {
     onProgress(frac, phase) {
