@@ -709,6 +709,162 @@
   margin-top: 6px;
 }
 
+/* ---- M11 waypoints: markers, info/creation popups, panel chips --------- */
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: var(--sp-2);
+}
+.tool-btn svg { flex: 0 0 auto; }
+.tool-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.wp-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--azure, #46a6ff);
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s;
+}
+.wp-marker:hover { transform: scale(1.15); }
+.wp-marker svg { width: 12px; height: 12px; fill: #fff; pointer-events: none; }
+
+.wp-popup-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+input.wp-popup-name {
+  width: 100%;
+  box-sizing: border-box;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-family: inherit;
+}
+input.wp-popup-name:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.wp-coord-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.15rem 0;
+}
+.wp-coord-copy {
+  padding: 0 0.3rem;
+  font-size: 0.65rem;
+  background: var(--surface2);
+  border: 1px solid var(--hair);
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.wp-elev {
+  font-size: 0.75rem;
+  color: var(--dim);
+  margin: 0.25rem 0 0.4rem;
+}
+.wp-icon-picker {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  margin: 0.3rem 0;
+}
+.wp-icon-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--hair);
+  background: var(--surface2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+}
+.wp-icon-btn svg { width: 15px; height: 15px; }
+.wp-icon-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-faint, rgba(13, 148, 136, 0.15));
+  color: var(--accent);
+}
+.wp-delete {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--red, #ef4444);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.wp-form-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 0.4rem;
+}
+
+/* Panel list of placed waypoints — pill chips with name + delete. */
+.waypoints-list {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.waypoint-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  background: var(--surface2);
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.waypoint-chip:hover {
+  background: color-mix(in srgb, var(--feat-track) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--feat-track) 35%, transparent);
+}
+.waypoint-chip__name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.waypoint-chip__del {
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 1px;
+}
+.waypoint-chip__del:hover { color: var(--bad); }
+
 /* ---- M5 radios: active set, picker, FCC/manual, mix card --------------- */
 
 .radio-active {

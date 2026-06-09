@@ -9,6 +9,7 @@ import { createDroneController } from './drone/drone.js';
 import { createRecommendController } from './recommend/recommend.js';
 import { createMission } from './mission/mission.js';
 import { createMissionTools } from './mission/mission-tools.js';
+import { createWaypointController } from './mission/waypoints.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createRadios } from './radios/radios.js';
 import { recommendMix } from './radios/mix.js';
@@ -392,6 +393,7 @@ let drone = null;
 let recommender = null;
 let mission = null;
 let missionTools = null;
+let waypoints = null;
 let radios = null;
 let cellular = null; // M9 cellular controller (own coverage layer)
 let currentAoiAreaM2 = 0;
@@ -542,6 +544,27 @@ whenStyleReady(() => {
   missionModes.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-mode]');
     if (btn) armMissionMode(btn.dataset.mode);
+  });
+
+  // ---- Named waypoints (M11) -------------------------------------------
+  waypoints = createWaypointController(map, {
+    formatCoord: (pt, fmt) => formatCoordinate(pt, fmt),
+    coordCycle: COORD_CYCLE,
+    onUpdate(all) { renderWaypointList(all); },
+  });
+
+  const placeWaypointBtn = $('#placeWaypointBtn');
+  placeWaypointBtn?.addEventListener('click', () => {
+    if (waypoints.isPlacing()) {
+      waypoints.cancelPlacing();
+    } else {
+      waypoints.startPlacing();
+      statusMode.textContent = 'Click map to place waypoint';
+      // The placement click is one-shot — drop the armed state once it lands.
+      map.once('click', () => placeWaypointBtn.classList.remove('is-active'));
+      if (mq.matches) closePanel();
+    }
+    placeWaypointBtn.classList.toggle('is-active', waypoints.isPlacing());
   });
 
   // Per-type clear in the element list.
@@ -1471,6 +1494,32 @@ function initCellularControls() {
   });
 }
 
+/** Render the placed-waypoint chips; click focuses the map, × removes it. */
+function renderWaypointList(all) {
+  const ul = $('#waypointsList');
+  if (!ul) return;
+  ul.innerHTML = '';
+  ul.hidden = all.length === 0;
+  for (const wp of all) {
+    const li = document.createElement('li');
+    li.className = 'waypoint-chip';
+    li.dataset.id = wp.id;
+    const name = document.createElement('span');
+    name.className = 'waypoint-chip__name';
+    name.textContent = wp.name;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'waypoint-chip__del';
+    del.textContent = '×';
+    del.setAttribute('aria-label', `Delete ${wp.name}`);
+    del.addEventListener('click', (e) => { e.stopPropagation(); waypoints?.remove(wp.id); });
+    li.appendChild(name);
+    li.appendChild(del);
+    li.addEventListener('click', () => map.flyTo({ center: [wp.lng, wp.lat], zoom: Math.max(map.getZoom(), 14) }));
+    ul.appendChild(li);
+  }
+}
+
 /** Render the recommended-site rows; hover highlights the marker, click flies to it. */
 function renderSiteList(sites) {
   siteList.innerHTML = '';
@@ -1661,6 +1710,7 @@ if (import.meta.env.DEV) {
     get recommender() { return recommender; },
     get mission() { return mission; },
     get missionTools() { return missionTools; },
+    get waypoints() { return waypoints; },
     get radios() { return radios; },
     get drone() { return drone; },
     get cellular() { return cellular; },

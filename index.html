@@ -140,6 +140,16 @@
                 </div>
               </div>
 
+              <button class="btn btn--block tool-btn" id="placeWaypointBtn" type="button" title="Place a named location">
+                <svg viewBox="0 0 16 16" aria-hidden="true" width="14" height="14">
+                  <path d="M8 1.5c-2.5 0-4.5 2-4.5 4.5 0 3.2 4.5 8.5 4.5 8.5s4.5-5.3 4.5-8.5c0-2.5-2-4.5-4.5-4.5z"
+                        fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <circle cx="8" cy="6" r="1.7" fill="currentColor"/>
+                </svg>
+                <span>Place waypoint</span>
+              </button>
+              <ul id="waypointsList" class="waypoints-list" hidden></ul>
+
               <details class="disclosure">
                 <summary>Bulk add coordinates</summary>
                 <p class="help">One coordinate per line — decimal, DMS, MGRS or UTM, with an optional name. Bad lines are reported by number.</p>
