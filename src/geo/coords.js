@@ -211,10 +211,12 @@ function tryUtm(text) {
   // Plausible UTM ranges — reject what is really a decimal pair that slipped in.
   if (easting < 100000 || easting > 900000 || northing < 0 || northing > 10000000) return null;
 
+  // The letter is an MGRS latitude band (C–X, no I/O), not a bare hemisphere
+  // flag: bands N–X are northern, C–M southern. This matters for band S
+  // (32–40°N) — our own formatCoordinate(..., 'utm') emits band letters, so
+  // treating "S" as the southern hemisphere broke the round-trip.
   let north;
-  if (letter === 'N') north = true;
-  else if (letter === 'S') north = false;
-  else if (LAT_BANDS.includes(letter)) north = letter >= 'N';
+  if (LAT_BANDS.includes(letter)) north = letter >= 'N';
   else return null;
 
   const { lat, lng } = utmToLatLng(zone, easting, northing, north);
