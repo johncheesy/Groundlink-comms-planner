@@ -15,7 +15,7 @@
  *   }
  *
  * Every field is user-editable; nothing is ever locked. Pure helpers here are
- * unit-tested; the small persistence layer guards localStorage (hosted origin
+ * unit-tested; the small persistence layer guards sessionStorage (hosted origin
  * only — in-memory fallback in embedded previews, per CLAUDE.md).
  */
 
@@ -124,13 +124,13 @@ export function bandLabel(freqMHz) {
 // ── Persistence (hosted origin only; in-memory fallback) ──────────────────────
 
 const STORE_KEY = 'gl.radioset.v1';
-let memoryStore = null; // in-memory fallback when localStorage is unavailable
+let memoryStore = null; // in-memory fallback when sessionStorage is unavailable
 
 function storageAvailable() {
   try {
     const k = '__gl_test__';
-    window.localStorage.setItem(k, '1');
-    window.localStorage.removeItem(k);
+    sessionStorage.setItem(k, '1');
+    sessionStorage.removeItem(k);
     return true;
   } catch {
     return false;
@@ -141,7 +141,7 @@ function storageAvailable() {
 export function loadRadioSet() {
   if (storageAvailable()) {
     try {
-      const raw = window.localStorage.getItem(STORE_KEY);
+      const raw = sessionStorage.getItem(STORE_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -154,7 +154,7 @@ export function loadRadioSet() {
 export function saveRadioSet(set) {
   if (storageAvailable()) {
     try {
-      window.localStorage.setItem(STORE_KEY, JSON.stringify(set));
+      sessionStorage.setItem(STORE_KEY, JSON.stringify(set));
       return true;
     } catch {
       /* fall through to memory */

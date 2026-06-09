@@ -19,6 +19,8 @@ const OUTLINE = 'imported-outline';
 const POINTS = 'imported-points';
 const LABELS = 'imported-labels';
 
+// Security note: JSZip loaded from esm.sh (version-pinned). For production
+// hardening, vendor this file locally or add subresource integrity verification.
 const JSZIP_CDN = 'https://esm.sh/jszip@3.10.1';
 
 function cssVar(name, fallback) {

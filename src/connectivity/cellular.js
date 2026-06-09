@@ -15,6 +15,19 @@
  * map. See docs/M9-connectivity-layers.md.
  */
 
+// Resolve a CSS design token to its value, falling back to a literal. Same
+// pattern as the rest of the codebase, but guarded with try/catch because the
+// palette below resolves at module load — in the (node) unit-test environment
+// there is no document/getComputedStyle, so we fall back to the hex literal.
+function cssVar(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 // Band → frequency presets (user-selectable, editable). MHz drives FSPL.
 export const CELL_BANDS = [
   { key: 'n28-700', label: '5G low (n28)', freqMHz: 700, note: 'wide rural reach' },
@@ -47,10 +60,10 @@ export const CELL_DEFAULTS = Object.freeze({
 // frequency (from CELL_BANDS) plus the map layer colour. Frequency drives FSPL,
 // EIRP/height/sensitivity stay on the macro defaults above (not user-exposed).
 export const CELL_TYPE_DEFAULTS = Object.freeze({
-  GSM:  { freqMHz: 900,  color: '#94a3b8', label: '2G · GSM' },  // grey
-  UMTS: { freqMHz: 900,  color: '#fbbf24', label: '3G · UMTS' }, // amber
-  LTE:  { freqMHz: 800,  color: '#46a6ff', label: '4G · LTE' },  // azure
-  NR:   { freqMHz: 3500, color: '#34e6c2', label: '5G · NR' },   // teal
+  GSM:  { freqMHz: 900,  color: cssVar('--dim', '#94a3b8'),        label: '2G · GSM' },  // grey/slate
+  UMTS: { freqMHz: 900,  color: cssVar('--feat-event', '#fbbf24'), label: '3G · UMTS' }, // amber
+  LTE:  { freqMHz: 800,  color: cssVar('--azure', '#46a6ff'),      label: '4G · LTE' },  // azure
+  NR:   { freqMHz: 3500, color: cssVar('--s1', '#34e6c2'),         label: '5G · NR' },   // teal
 });
 
 /** A band preset by key (falls back to 2100 B1). */
@@ -203,6 +216,8 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
           CELL_TYPE_DEFAULTS.LTE.color,
         ],
         'circle-stroke-width': 1.5,
+        // White contrast ring against the dark map canvas — no design token maps
+        // to pure white; kept as a literal intentionally.
         'circle-stroke-color': '#ffffff',
         'circle-opacity': 0.9,
         'circle-stroke-opacity': 0.7,

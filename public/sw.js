@@ -107,6 +107,12 @@ self.addEventListener('fetch', (event) => {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  // Never cache CloudRF API requests (API key in Authorization header)
+  if (url.hostname === 'api.cloudrf.com') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   if (isTileRequest(url)) {
     event.respondWith(tileStrategy(request));
     return;
