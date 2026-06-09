@@ -233,6 +233,9 @@ export function createCoverageController(
       r(null);
     }
     jobId += 1;
+    // Tell the worker to abort an in-flight sweep so it stops burning CPU
+    // (results are already gated by jobId; this frees the thread immediately).
+    worker?.postMessage({ type: 'cancel' });
     if (map.getLayer(layer)) map.removeLayer(layer);
     if (map.getSource(src)) map.removeSource(src);
     hasLayer = false;

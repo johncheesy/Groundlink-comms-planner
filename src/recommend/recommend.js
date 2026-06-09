@@ -156,6 +156,7 @@ export function createRecommendController(map, coverage, { onProgress, onDone, o
 
   function clear() {
     jobId += 1;
+    worker?.postMessage({ type: 'cancel' }); // abort an in-flight recommend sweep
     clearTimeout(dragTimer);
     clearMarkers();
     sites = [];

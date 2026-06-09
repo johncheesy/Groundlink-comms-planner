@@ -32,11 +32,24 @@ import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage
 import { buildDem } from './dem.js';
 import { buildLandcover, clutterDbForClass } from './worldcover.js';
 import { buildProfile } from './profile.js';
+import { createYielder } from './yield.js';
+
+// Cancellation: `activeId` is the only job allowed to finish. A newer 'compute'
+// bumps it; a 'cancel' (posted by the controller's clear()) sets `cancelled`.
+// The sweep yields every chunk so these messages are actually delivered, then
+// early-exits — a superseded job no longer runs to completion. See ./yield.js.
+let activeId = 0;
+let cancelled = false;
+const yieldToEventLoop = createYielder();
 
 self.onmessage = async (e) => {
   const msg = e.data;
+  if (msg?.type === 'cancel') { cancelled = true; return; }
   if (msg?.type !== 'compute') return;
   const { id, bounds, cols, rows, tx, params, aoi, clipToAoi } = msg;
+  activeId = id;
+  cancelled = false;
+  const aborted = () => id !== activeId || cancelled;
   const { west, south, east, north } = bounds;
   const { thresholds, floorDbm } = params;
 
@@ -51,12 +64,15 @@ self.onmessage = async (e) => {
     ]);
     dem = d;
     landcover = lc;
+    if (aborted()) return; // superseded/cancelled while fetching tiles
   }
 
   const classes = new Uint8Array(cols * rows);
   const lngSpan = east - west;
   const latSpan = north - south;
   const reportEvery = Math.max(1, Math.floor(rows / 40));
+  // Yield ~12 times across the sweep so a newer compute / cancel can abort us.
+  const yieldEvery = Math.max(1, Math.floor(rows / 12));
 
   const rxHeight = params.rxHeightM ?? 1.5;
 
@@ -106,6 +122,10 @@ self.onmessage = async (e) => {
     }
     if (r % reportEvery === 0 || r === rows - 1) {
       self.postMessage({ type: 'progress', id, done: r + 1, total: rows, phase: 'compute' });
+    }
+    if ((r + 1) % yieldEvery === 0 && r < rows - 1) {
+      await yieldToEventLoop();
+      if (aborted()) return; // a newer job took over (or clear() cancelled) — stop
     }
   }
 
