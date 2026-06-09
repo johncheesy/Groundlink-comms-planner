@@ -15,8 +15,9 @@
  *   }
  *
  * Every field is user-editable; nothing is ever locked. Pure helpers here are
- * unit-tested; the small persistence layer guards sessionStorage (hosted origin
- * only — in-memory fallback in embedded previews, per CLAUDE.md).
+ * unit-tested; the small persistence layer guards localStorage (the arsenal
+ * should survive sessions — in-memory fallback where storage is unavailable,
+ * e.g. embedded previews). API keys stay sessionStorage-only elsewhere.
  */
 
 /** Sensible per-role defaults for fields a source (FCC grant, sparse entry)
@@ -121,16 +122,18 @@ export function bandLabel(freqMHz) {
   return 'SHF';
 }
 
-// ── Persistence (hosted origin only; in-memory fallback) ──────────────────────
+// ── Persistence (localStorage so the arsenal survives sessions; in-memory
+// fallback where storage is unavailable). API keys are NOT stored here — they
+// stay sessionStorage-only in their own modules. ─────────────────────────────
 
 const STORE_KEY = 'gl.radioset.v1';
-let memoryStore = null; // in-memory fallback when sessionStorage is unavailable
+let memoryStore = null; // in-memory fallback when localStorage is unavailable
 
 function storageAvailable() {
   try {
     const k = '__gl_test__';
-    sessionStorage.setItem(k, '1');
-    sessionStorage.removeItem(k);
+    localStorage.setItem(k, '1');
+    localStorage.removeItem(k);
     return true;
   } catch {
     return false;
@@ -141,7 +144,7 @@ function storageAvailable() {
 export function loadRadioSet() {
   if (storageAvailable()) {
     try {
-      const raw = sessionStorage.getItem(STORE_KEY);
+      const raw = localStorage.getItem(STORE_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -154,7 +157,7 @@ export function loadRadioSet() {
 export function saveRadioSet(set) {
   if (storageAvailable()) {
     try {
-      sessionStorage.setItem(STORE_KEY, JSON.stringify(set));
+      localStorage.setItem(STORE_KEY, JSON.stringify(set));
       return true;
     } catch {
       /* fall through to memory */
