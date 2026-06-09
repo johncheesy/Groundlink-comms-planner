@@ -29,7 +29,7 @@ const TARGET_MAX_DIM = 220;
 
 export function createCoverageController(
   map,
-  { onProgress, onStatus, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.7, tint = null } = {},
+  { onProgress, onStatus, onPaint, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.7, tint = null } = {},
 ) {
   // When `tint` is set (a hex colour), every covered cell paints that one colour
   // — used by the cellular layers (one flat colour per network type). Otherwise
@@ -91,7 +91,8 @@ export function createCoverageController(
     return { rows: TARGET_MAX_DIM, cols: Math.max(8, Math.round((TARGET_MAX_DIM * w) / h)) };
   }
 
-  function paint({ classes, cols, rows, terrain, clutter, inAoi, coveredInAoi, coveredFracAoi }) {
+  function paint(msg) {
+    const { classes, cols, rows, terrain, clutter, inAoi, coveredInAoi, coveredFracAoi } = msg;
     const bounds = currentBounds;
     if (!bounds) return;
     const canvas = document.createElement('canvas');
@@ -161,6 +162,9 @@ export function createCoverageController(
       );
       hasLayer = true;
     }
+    // Let callers paint a derived overlay (e.g. the M15 digital-cliff band) from
+    // the same class grid and bbox we just rendered.
+    onPaint?.(classes, cols, rows, bounds);
   }
 
   function placeTx(tx) {

@@ -27,6 +27,26 @@ export const DEFAULT_THRESHOLDS = {
   none: -110,
 };
 
+/** Digital voice modes the planner can model (M15). */
+export const DIGITAL_MODES = ['Analogue', 'DMR', 'P25', 'dPMR'];
+
+/**
+ * Threshold presets per mode, as ordered arrays mapping 1:1 to the class scale:
+ *   [0] excellent / reliable, [1] good, [2] marginal,
+ *   [3] poor — the "digital cliff" band, [4] floor (none below).
+ *
+ * Analogue degrades gracefully, so its bands are evenly spread. Digital modes
+ * (DMR/P25/dPMR) hold full quality until BER collapses, then drop off a cliff —
+ * modelled by collapsing the marginal→poor gap to ~1 dB so the transition band
+ * is a thin ring the cliff overlay can highlight.
+ */
+export const MODE_THRESHOLDS = {
+  Analogue: [-80, -95, -107, -113, -120],
+  DMR:      [-85, -98, -107, -108, -120], // marginal and cliff collapse to ~1 dB apart
+  P25:      [-85, -98, -107, -108, -120],
+  dPMR:     [-85, -100, -109, -110, -120],
+};
+
 /** Below this received level we treat coverage as nothing → transparent. */
 export const DEFAULT_FLOOR_DBM = -120;
 

@@ -7,6 +7,7 @@ import { createAoiController } from './map/aoi.js';
 import { createProfileTool } from './map/profile-tool.js';
 import { createProfilePanel } from './ui/profile-panel.js';
 import { createCoverageController } from './coverage/coverage.js';
+import { updateCliffLayer, clearCliffLayer } from './coverage/dual-contour.js';
 import { createDroneController } from './drone/drone.js';
 import { createRecommendController } from './recommend/recommend.js';
 import { createMission } from './mission/mission.js';
@@ -30,7 +31,7 @@ import { createHfPanel } from './hf/hf-panel.js';
 import { createSearch } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
-import { wattsToDbm, maxRangeM, haversineM } from './coverage/model.js';
+import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -563,6 +564,12 @@ whenStyleReady(() => {
         coverageHelp.textContent = bits.join(' ');
       }
     },
+    // M15: after each paint, mark the digital-cliff band (class 3) for digital
+    // modes. Analogue degrades gracefully → no cliff overlay.
+    onPaint(classes, cols, rows, bounds) {
+      const mode = digitalModeSelect?.value ?? 'Analogue';
+      updateCliffLayer(map, classes, cols, rows, bounds, mode !== 'Analogue');
+    },
   });
 
   // ---- Cellular coverage (M9) ------------------------------------------
@@ -675,12 +682,21 @@ whenStyleReady(() => {
 
   // Coverage compute
   computeBtn.addEventListener('click', runCoverage);
+
+  // M15: digital mode picks a threshold preset (sharp cliff for DMR/P25/dPMR).
+  // Writing the preset into the threshold fields keeps coverageParams() as the
+  // single source of truth; a live raster is recomputed so the cliff moves too.
+  digitalModeSelect?.addEventListener('change', () => {
+    applyModeThresholds(digitalModeSelect.value);
+    if (coverage?.hasCoverage()) runCoverage();
+  });
   opacityInput.addEventListener('input', () => coverage.setOpacity(opacityInput.value / 100));
   clearCoverageBtn.addEventListener('click', () => {
     // Recommended sites paint into this same raster — clear them too so the
     // numbered markers and the site list don't linger over a cleared map.
     if (recommender?.hasSites()) recommender.clear();
     coverage.clear();
+    clearCliffLayer(map);
     opacityRow.hidden = true;
     progress.hidden = true;
     progressBar.style.width = '0%';
@@ -738,6 +754,7 @@ whenStyleReady(() => {
   clearDroneBtn.addEventListener('click', () => {
     drone.clear();
     coverage.clear();
+    clearCliffLayer(map);
     opacityRow.hidden = true;
   });
 
@@ -1022,6 +1039,7 @@ const thExcellent = $('#thExcellent');
 const thGood = $('#thGood');
 const thMarginal = $('#thMarginal');
 const thNone = $('#thNone');
+const digitalModeSelect = $('#digitalModeSelect');
 const opacityInput = $('#opacityInput');
 const opacityRow = $('#opacityRow');
 const clearCoverageBtn = $('#clearCoverage');
@@ -1322,6 +1340,7 @@ function gatherPaceContext() {
       rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
       useTerrain: useTerrainInput.checked,
       engine: useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat',
+      digitalMode: getDigitalMode(),
     },
     mission: {
       hasAoi: !!aoiArea,
@@ -1629,6 +1648,25 @@ function clampNum(v, min, max, fallback) {
   const n = Number.parseFloat(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+/** Currently selected digital mode (M15); 'Analogue' when none/unknown. */
+function getDigitalMode() {
+  const m = digitalModeSelect?.value;
+  return MODE_THRESHOLDS[m] ? m : 'Analogue';
+}
+
+/**
+ * Write a mode's threshold preset into the threshold input fields so
+ * coverageParams() (which reads the fields) picks them up. The preset array is
+ * [excellent, good, marginal, none, floor]; floor stays the fixed −120 dBm.
+ */
+function applyModeThresholds(mode) {
+  const t = MODE_THRESHOLDS[mode] ?? MODE_THRESHOLDS.Analogue;
+  if (thExcellent) thExcellent.value = String(t[0]);
+  if (thGood) thGood.value = String(t[1]);
+  if (thMarginal) thMarginal.value = String(t[2]);
+  if (thNone) thNone.value = String(t[3]);
 }
 
 /** Shared link/engine params (everything except bounds/tx/txHeightM). */
