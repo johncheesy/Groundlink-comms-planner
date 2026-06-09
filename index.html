@@ -242,7 +242,7 @@
           <section class="section" aria-labelledby="radioTitle">
             <div class="section__head">
               <span class="section__title" id="radioTitle">Radios</span>
-              <span class="section__hint">M5 · import &amp; mix</span>
+              <span class="section__hint">import &amp; mix</span>
             </div>
             <div class="section__body">
               <div class="radio-active">
@@ -340,7 +340,7 @@
           <section class="section" aria-labelledby="rolesTitle">
             <div class="section__head">
               <span class="section__title" id="rolesTitle">Node roles</span>
-              <span class="section__hint">M7 · equipment</span>
+              <span class="section__hint">equipment</span>
             </div>
             <div class="section__body">
               <button class="btn btn--primary btn--block" type="button" id="assignRolesBtn">Assign roles from equipment</button>
@@ -458,7 +458,7 @@
           <section class="section" aria-labelledby="siteTitle">
             <div class="section__head">
               <span class="section__title" id="siteTitle">Site recommendation</span>
-              <span class="section__hint">M3 · masts</span>
+              <span class="section__hint">mast recommendation</span>
             </div>
             <div class="section__body">
               <div class="input-row">
@@ -495,7 +495,7 @@
           <section class="section" aria-labelledby="droneTitle">
             <div class="section__head">
               <span class="section__title" id="droneTitle">Drone relay</span>
-              <span class="section__hint">M2.1 · airborne</span>
+              <span class="section__hint">airborne relay</span>
             </div>
             <div class="section__body">
               <button class="btn btn--block" type="button" id="addDrone">Add drone relay</button>
@@ -549,7 +549,7 @@
           <section class="section" aria-labelledby="paceTitle">
             <div class="section__head">
               <span class="section__title" id="paceTitle">Comms plan</span>
-              <span class="section__hint">M6 · PACE</span>
+              <span class="section__hint">PACE</span>
             </div>
             <div class="section__body">
               <div class="input-row adv-flex">
@@ -587,14 +587,6 @@
                   <p class="help" id="exportHelp">PDF opens a print view (use “Save as PDF”). Word and Excel download to your computer. Generated locally — nothing is uploaded.</p>
                 </div>
 
-                <!-- Coverage / interop export (M16) -->
-                <div class="export" id="dataExport" hidden>
-                  <span class="field-label">Export coverage &amp; data</span>
-                  <button class="btn btn--block" type="button" id="exportGeotiffBtn">Export GeoTIFF / PNG+World</button>
-                  <button class="btn btn--block" type="button" id="exportKmzBtn">Export KMZ</button>
-                  <button class="btn btn--block" type="button" id="exportTakBtn">Export TAK package</button>
-                  <p class="help" id="dataExportHelp">GeoTIFF for QGIS, KMZ for Google Earth, CivTAK data package for ATAK. Carries the last coverage raster + your sites and waypoints. Generated locally — nothing is uploaded.</p>
-                </div>
               </div>
 
               <p class="help" id="paceHelp">Synthesises the radio mix, your sites and the last coverage run into a PACE plan — Primary · Alternate · Contingency · Emergency. Run the radio mix and a coverage compute first for a complete plan.</p>
@@ -603,11 +595,28 @@
             </div>
           </section>
 
+          <!-- Data export (M16) — GeoTIFF / KMZ / GeoJSON / CivTAK -->
+          <section class="section" id="dataExport" aria-labelledby="dataExportTitle" hidden>
+            <div class="section__head">
+              <span class="section__title" id="dataExportTitle">Data export</span>
+              <span class="section__hint">GeoTIFF · KMZ · GeoJSON · TAK</span>
+            </div>
+            <div class="section__body">
+              <div class="export">
+                <button class="btn btn--block" type="button" id="exportGeotiffBtn">Export GeoTIFF / PNG+World</button>
+                <button class="btn btn--block" type="button" id="exportKmzBtn">Export KMZ</button>
+                <button class="btn btn--block" type="button" id="exportGeojsonBtn">Export GeoJSON</button>
+                <button class="btn btn--block" type="button" id="exportTakBtn">Export TAK package</button>
+                <p class="help" id="dataExportHelp">GeoTIFF for QGIS, KMZ for Google Earth, GeoJSON for any GIS, CivTAK data package for ATAK. Raster exports carry the last coverage run; vector exports carry your sites, route, points, waypoints and AOI. Generated locally — nothing is uploaded.</p>
+              </div>
+            </div>
+          </section>
+
           <!-- Power & endurance (M8) -->
           <section class="section" aria-labelledby="powerTitle">
             <div class="section__head">
               <span class="section__title" id="powerTitle">Power &amp; endurance</span>
-              <span class="section__hint">M8 · battery · solar</span>
+              <span class="section__hint">battery · solar</span>
             </div>
             <div class="section__body">
               <div class="input-row">
@@ -673,15 +682,15 @@
               <div class="legend" id="coverageLegend">
                 <div class="legend__row">
                   <span class="legend__swatch" style="background: var(--s1)"></span>
-                  Excellent <span class="legend__val">≥ -85 dBm</span>
+                  Excellent <span class="legend__val" id="legendValExcellent">≥ -85 dBm</span>
                 </div>
                 <div class="legend__row">
                   <span class="legend__swatch" style="background: var(--s2)"></span>
-                  Good <span class="legend__val">≥ -95 dBm</span>
+                  Good <span class="legend__val" id="legendValGood">≥ -95 dBm</span>
                 </div>
                 <div class="legend__row">
                   <span class="legend__swatch" style="background: var(--s3)"></span>
-                  Marginal <span class="legend__val">≥ -103 dBm</span>
+                  Marginal <span class="legend__val" id="legendValMarginal">≥ -103 dBm</span>
                 </div>
                 <div class="legend__row">
                   <span class="legend__swatch" style="background: var(--s4)"></span>
@@ -689,7 +698,7 @@
                 </div>
                 <div class="legend__row">
                   <span class="legend__swatch" style="background: var(--s5)"></span>
-                  None <span class="legend__val">&lt; -110 dBm</span>
+                  None <span class="legend__val" id="legendValNone">&lt; -110 dBm</span>
                 </div>
               </div>
             </div>
@@ -699,7 +708,7 @@
           <section class="section" aria-labelledby="cellTitle">
             <div class="section__head">
               <span class="section__title" id="cellTitle">Cellular coverage</span>
-              <span class="section__hint">M9 · OSM live</span>
+              <span class="section__hint">live OSM towers</span>
             </div>
             <div class="section__body">
               <label class="check"><input type="checkbox" id="cellEnabled" /><span>Show cellular layer</span></label>
@@ -738,13 +747,14 @@
                 </div>
                 <div class="legend__row">
                   <span class="legend__dot" style="color: var(--feat-track)"></span>
-                  Subjects &amp; tracks
+                  Route, waypoints &amp; imported data
                 </div>
                 <div class="legend__row">
                   <span class="legend__dot" style="color: var(--feat-event)"></span>
-                  Events &amp; alerts
+                  Towers &amp; cellular
                 </div>
               </div>
+              <p class="help">Esri imagery via free endpoint — check licensing for production use; Sentinel-2 CC BY-NC-SA.</p>
             </div>
           </section>
         </div>
@@ -801,7 +811,7 @@
           <div class="basemap-variant-menu" id="basemapVariantMenu" role="menu" hidden></div>
 
           <div class="toolgroup" role="group" aria-label="Import data">
-            <button class="toolgroup__btn" type="button" id="importBtn" aria-label="Import KML, KMZ or GPX" title="Import KML / KMZ / GPX">
+            <button class="toolgroup__btn" type="button" id="importBtn" aria-label="Import KML, KMZ, GPX or GeoJSON" title="Import KML / KMZ / GPX / GeoJSON">
               <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M12 3v12M8 11l4 4 4-4" />
                 <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
@@ -813,7 +823,7 @@
               </svg>
             </button>
           </div>
-          <input type="file" id="importInput" accept=".kml,.kmz,.gpx,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml" hidden />
+          <input type="file" id="importInput" accept=".kml,.kmz,.gpx,.geojson,.json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml,application/geo+json,application/json" hidden />
 
           <div class="toolgroup" role="group" aria-label="Map zoom">
             <button class="toolgroup__btn" type="button" id="zoomIn" aria-label="Zoom in">

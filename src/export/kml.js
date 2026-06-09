@@ -1,6 +1,6 @@
 /**
- * KML / KMZ export — sites, waypoints and the AOI as placemarks, plus a
- * coverage GroundOverlay.
+ * KML / KMZ export — sites, waypoints, demand points, the route and the real
+ * AOI as placemarks, plus a coverage GroundOverlay.
  *
  * `buildKml` produces a plain KML document (Google Earth / ATAK read it
  * directly). `buildKmz` bundles that KML with the coverage PNG and a
@@ -32,7 +32,7 @@ function placemark(name, lng, lat, { description, alt } = {}) {
     </Placemark>`;
 }
 
-// Closed rectangle ring for the AOI / coverage extent (lng,lat tuples).
+// Closed rectangle ring for the coverage extent (lng,lat tuples).
 function boundsRing(b) {
   const { west, south, east, north } = b;
   return [
@@ -40,15 +40,25 @@ function boundsRing(b) {
   ].map(([lng, lat]) => `${num(lng)},${num(lat)}`).join(' ');
 }
 
+// Closed coordinate string from an AOI ring of [lng, lat] pairs.
+function closedRing(ring) {
+  const pts = ring.map(([lng, lat]) => `${num(lng)},${num(lat)}`);
+  if (pts[0] !== pts[pts.length - 1]) pts.push(pts[0]);
+  return pts.join(' ');
+}
+
 /**
  * Build a KML document from the mission features.
- * @param {{ sites?:Array, waypoints?:Array, bounds?:object, missionName?:string }} data
+ * @param {{ sites?:Array, waypoints?:Array, points?:Array, route?:Array, aoi?:object, bounds?:object, missionName?:string }} data
  *   sites:     [{ lat, lng, label|name, elevM? }]
  *   waypoints: [{ lat, lng, name, altM? }]
+ *   points:    [{ lat, lng, name? }]          demand points
+ *   route:     [{ lat, lng }, ...]            ordered vertices → LineString
+ *   aoi:       { type, ring:[[lng,lat],...], radiusM? }  → the real AOI ring/circle
  *   bounds:    { west, south, east, north }  → drawn as the coverage extent
  * @returns {string} KML text
  */
-export function buildKml({ sites = [], waypoints = [], bounds = null, missionName = 'GroundLink mission' } = {}) {
+export function buildKml({ sites = [], waypoints = [], points = [], route = [], aoi = null, bounds = null, missionName = 'GroundLink mission' } = {}) {
   const parts = [];
 
   for (const s of sites) {
@@ -59,9 +69,31 @@ export function buildKml({ sites = [], waypoints = [], bounds = null, missionNam
   for (const w of waypoints) {
     parts.push(placemark(w.name || 'Waypoint', w.lng, w.lat, { alt: w.altM, description: 'Waypoint' }));
   }
+  for (const p of points) {
+    parts.push(placemark(p.name || p.label || 'Point', p.lng, p.lat, { description: 'Demand point' }));
+  }
+  if (Array.isArray(route) && route.length >= 2) {
+    const coords = route.map((v) => `${num(v.lng)},${num(v.lat)}`).join(' ');
+    parts.push(`    <Placemark>
+      <name>Route</name>
+      <Style><LineStyle><color>ffffa646</color><width>3</width></LineStyle></Style>
+      <LineString><tessellate>1</tessellate><coordinates>${coords}</coordinates></LineString>
+    </Placemark>`);
+  }
+  if (aoi && Array.isArray(aoi.ring) && aoi.ring.length >= 3) {
+    const desc = aoi.type === 'radius' && Number.isFinite(aoi.radiusM)
+      ? `Circular AOI — radius ${Math.round(aoi.radiusM)} m`
+      : 'Area of interest';
+    parts.push(`    <Placemark>
+      <name>Area of interest</name>
+      <description>${esc(desc)}</description>
+      <Style><LineStyle><color>ffc2e634</color><width>2</width></LineStyle><PolyStyle><fill>0</fill></PolyStyle></Style>
+      <Polygon><outerBoundaryIs><LinearRing><coordinates>${closedRing(aoi.ring)}</coordinates></LinearRing></outerBoundaryIs></Polygon>
+    </Placemark>`);
+  }
   if (bounds) {
     parts.push(`    <Placemark>
-      <name>Coverage area</name>
+      <name>Coverage extent</name>
       <Style><LineStyle><color>ff7ad4ff</color><width>2</width></LineStyle><PolyStyle><fill>0</fill></PolyStyle></Style>
       <Polygon><outerBoundaryIs><LinearRing><coordinates>${boundsRing(bounds)}</coordinates></LinearRing></outerBoundaryIs></Polygon>
     </Placemark>`);
@@ -104,14 +136,14 @@ export function buildGroundOverlayKml(href, bounds, name = 'RF Coverage') {
 /**
  * Build a KMZ bundle (stored zip) with doc.kml, the coverage overlay PNG and a
  * GroundOverlay KML referencing it.
- * @param {{ kml:string, overlayPng:string, bounds:object, sites?:Array, waypoints?:Array, missionName?:string }} data
- *   kml        pre-built document KML (falls back to buildKml from sites/waypoints)
+ * @param {{ kml:string, overlayPng:string, bounds:object, sites?:Array, waypoints?:Array, points?:Array, route?:Array, aoi?:object, missionName?:string }} data
+ *   kml        pre-built document KML (falls back to buildKml from the mission features)
  *   overlayPng coverage canvas as a data:image/png;base64 URL
  * @returns {Promise<Uint8Array>} KMZ bytes
  */
 export async function buildKmz(data) {
-  const { overlayPng, bounds, sites, waypoints, missionName } = data;
-  const docKml = data.kml || buildKml({ sites, waypoints, bounds, missionName });
+  const { overlayPng, bounds, sites, waypoints, points, route, aoi, missionName } = data;
+  const docKml = data.kml || buildKml({ sites, waypoints, points, route, aoi, bounds, missionName });
 
   const entries = [{ name: 'doc.kml', data: docKml }];
   if (overlayPng && bounds) {
