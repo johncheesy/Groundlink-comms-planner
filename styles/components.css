@@ -1142,6 +1142,97 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .power-bom td.power-bom__qty { font-weight: 600; white-space: nowrap; }
 .power-bom td.power-bom__why { color: var(--dim); font-size: 11px; }
 
+/* ---- Teams & operators (M13) ------------------------------------------ */
+
+.teams { display: flex; flex-direction: column; gap: var(--sp-3); }
+.teams-form { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Let name + radio inputs fill their field-label column (override the narrow
+   --sm cap); keep numeric inputs compact and right-aligned. */
+.teams-form .field-label > .input--sm,
+.teams-form .field-label > select.input--sm { width: 100%; max-width: none; min-width: 0; text-align: left; }
+.teams-form input[type="number"].input--sm { max-width: none; min-width: 0; text-align: right; }
+
+/* Colour swatch picker */
+.team-swatches { display: flex; gap: 6px; margin-top: 4px; }
+.team-swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--hair2);
+  background: var(--swatch);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.team-swatch:hover { transform: scale(1.1); }
+.team-swatch.is-active {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--swatch) 35%, transparent);
+}
+
+/* Compact teams table */
+.teams-table-wrap { overflow-x: auto; }
+.teams-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.teams-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--faint);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 5px;
+  border-bottom: 1px solid var(--hair);
+}
+.teams-table td {
+  padding: 4px 5px;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink);
+  vertical-align: middle;
+}
+.teams-table .teams-num { text-align: right; white-space: nowrap; }
+.teams-name { font-weight: 600; }
+.teams-radio { color: var(--dim); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--surface);
+}
+.teams-actions { white-space: nowrap; text-align: right; }
+.teams-actions .btn--sm { padding: 2px 6px; }
+.teams-del {
+  border: none;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+.teams-del:hover { color: var(--bad); }
+
+/* DMR capacity result */
+.dmr-result { margin-top: var(--sp-2); }
+.dmr-result__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.dmr-result__metric {
+  font-size: 11.5px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.dmr-result__metric b { color: var(--ink); font-weight: 600; }
+
 /* ---- Arsenal + node roles (M7) ---------------------------------------- */
 
 .radio-result__pick { flex: 0 0 auto; display: flex; align-items: center; }

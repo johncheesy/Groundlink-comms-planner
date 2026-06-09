@@ -10,6 +10,8 @@ import { createRecommendController } from './recommend/recommend.js';
 import { createMission } from './mission/mission.js';
 import { createMissionTools } from './mission/mission-tools.js';
 import { createWaypointController } from './mission/waypoints.js';
+import { createTeamsManager } from './mission/teams.js';
+import { createTeamsPanel } from './ui/teams-panel.js';
 import { parseCoordinate, formatCoordinate, COORD_CYCLE } from './geo/coords.js';
 import { createRadios } from './radios/radios.js';
 import { recommendMix } from './radios/mix.js';
@@ -398,6 +400,8 @@ let waypoints = null;
 let radios = null;
 let cellular = null; // M9 cellular controller (own coverage layer)
 let hfPanel = null; // M12 HF ionosphere panel
+let teams = null; // M13 per-team/operator model
+let teamsPanel = null; // M13 teams panel UI
 let currentAoiAreaM2 = 0;
 let lastPlan = null; // last PACE plan built (M6) — fed to the report export
 
@@ -806,8 +810,22 @@ whenStyleReady(() => {
           `use the radio mix for the PACE plan. Controls are set for VHF/UHF comparison only.`;
     },
     onStatus(msg) { statusMode.textContent = msg; },
-    onArsenalChange() { if (rolesList && !rolesList.hidden) renderRoles(); },
+    onArsenalChange() {
+      if (rolesList && !rolesList.hidden) renderRoles();
+      teamsPanel?.render(); // keep the per-team radio picker in sync with the arsenal
+    },
   });
+
+  // ---- Teams & operators (M13) -----------------------------------------
+  teams = createTeamsManager();
+  const teamsHost = $('#teamsPanelInner');
+  if (teamsHost) {
+    teamsPanel = createTeamsPanel(teamsHost, {
+      teamsManager: teams,
+      getRadios: () => radios.getArsenal(),
+      onRunCoverage: runTeamCoverage,
+    });
+  }
 
   recommendMixBtn.addEventListener('click', () => {
     renderMix(recommendMix(gatherMixInput()));
@@ -1665,6 +1683,54 @@ function runCoverage() {
   coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
 
+/**
+ * Run a coverage pass for one team (M13), keyed to that team's radio when set,
+ * then stash the covered fraction back onto the team. Tx source mirrors the
+ * single-tx run: fixed sites take precedence, else the AOI centre.
+ */
+async function runTeamCoverage(team) {
+  if (recommender?.hasSites()) recommender.clear();
+
+  // Start from the form's link/engine params, then override freq + EIRP from
+  // the team's chosen radio so its band/power shape the footprint.
+  const params = { ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) };
+  const radio = team.radioId ? radios?.getArsenal?.().find((r) => r.id === team.radioId) : null;
+  if (radio) {
+    if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + TX_GAIN_DBI;
+  }
+
+  const sites = mission.getSites();
+  const area = aoi?.getAoi?.();
+  const bbox = mission.bbox();
+  if (!bbox) {
+    coverageHelp.textContent = 'Define a mission first — draw an AOI or place a fixed site.';
+    return;
+  }
+  let txs = null;
+  let center;
+  if (sites.length) {
+    txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM: params.txHeightM }));
+    center = { lat: sites[0].lat, lng: sites[0].lng };
+  } else if (area) {
+    center = area.center;
+  } else {
+    coverageHelp.textContent = 'No transmitter — place a fixed site, or draw an AOI so its centre becomes the tx.';
+    return;
+  }
+
+  const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
+  statusMode.textContent = `Coverage for ${team.name}…`;
+  coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+  const stats = await coverage.computeAsync(coverageBoundsFor(bbox, center, params), center, params, {
+    aoi: aoiMask,
+    txs,
+    marker: !txs,
+  });
+  teamsPanel?.updateTeamCoverage(team.id, stats);
+  statusMode.textContent = `${team.name} coverage ready`;
+}
+
 // ---- Mobile slide-over / phone bottom-sheet panel -----------------------
 
 const app = $('#app');
@@ -1730,6 +1796,7 @@ if (import.meta.env.DEV) {
     get mission() { return mission; },
     get missionTools() { return missionTools; },
     get waypoints() { return waypoints; },
+    get teams() { return teams; },
     get radios() { return radios; },
     get drone() { return drone; },
     get cellular() { return cellular; },
