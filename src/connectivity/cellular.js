@@ -64,7 +64,7 @@ export const CELL_DEFAULTS = Object.freeze({
 export const CELL_TYPE_DEFAULTS = Object.freeze({
   GSM:  { freqMHz: 900,  color: cssVar('--dim', '#94a3b8'),        label: '2G · GSM' },  // grey/slate
   UMTS: { freqMHz: 900,  color: cssVar('--feat-event', '#fbbf24'), label: '3G · UMTS' }, // amber
-  LTE:  { freqMHz: 800,  color: cssVar('--azure', '#46a6ff'),      label: '4G · LTE' },  // azure
+  LTE:  { freqMHz: 800,  color: cssVar('--feat-track', '#46a6ff'),      label: '4G · LTE' },  // azure
   NR:   { freqMHz: 3500, color: cssVar('--s1', '#34e6c2'),         label: '5G · NR' },   // teal
 });
 

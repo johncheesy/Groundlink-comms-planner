@@ -16,7 +16,7 @@ import maplibregl from 'maplibre-gl';
 export const WP_ICONS = ['point', 'person', 'antenna', 'vehicle', 'checkpoint', 'observer', 'hq'];
 
 // Default marker colour — the CELL_TYPE_DEFAULTS azure (assets / tracks).
-const AZURE = getComputedStyle(document.documentElement).getPropertyValue('--azure').trim() || '#46a6ff';
+const AZURE = getComputedStyle(document.documentElement).getPropertyValue('--feat-track').trim() || '#46a6ff';
 
 /** Human label for a coordinate family key (matches COORD_CYCLE values). */
 const FMT_LABEL = { latlng: 'Lat/Long', dms: 'DMS', mgrs: 'MGRS', utm: 'UTM' };

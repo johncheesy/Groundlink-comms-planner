@@ -729,7 +729,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--azure, #46a6ff);
+  background: var(--feat-track, #46a6ff);
   border: 2px solid #fff;
   display: flex;
   align-items: center;
