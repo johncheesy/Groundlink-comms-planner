@@ -158,6 +158,19 @@ export const TERRARIUM_DEM = {
 
 const MAP_BG = '#0b1018'; // --mapbg, dark in both themes
 
+// OpenFreeMap — free, keyless OSM vector tiles (OpenMapTiles schema). The
+// `building` source-layer carries render_height / render_min_height, exactly
+// what fill-extrusion needs. No API key, registration, or request limits.
+export const OPENFREEMAP = {
+  id: 'openfreemap',
+  // TileJSON endpoint (keyless). See https://openfreemap.org — confirm if it moves.
+  url: 'https://tiles.openfreemap.org/planet',
+  attribution:
+    'Buildings: © <a href="https://openfreemap.org">OpenFreeMap</a> · © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+};
+export const BUILDINGS_LAYER = 'buildings-3d';
+const BUILDING_COLOR = '#3b4250'; // muted neutral surface on the dark map (not a bright fill)
+
 /**
  * Build the full MapLibre style. All variant layers are declared up-front;
  * only the active one is visible (MapLibre doesn't fetch tiles for hidden layers).
@@ -199,6 +212,29 @@ export function buildStyle(
 
   // DEM source is declared up-front so setTerrain can reference it on demand.
   sources[TERRARIUM_DEM.id] = TERRARIUM_DEM.spec;
+
+  // OpenFreeMap vector buildings (M10). Declared up-front but hidden; the 3D
+  // toggle makes it visible and lifts it above the coverage raster. minzoom 14
+  // keeps extrusion where it reads and the map performant.
+  sources[OPENFREEMAP.id] = {
+    type: 'vector',
+    url: OPENFREEMAP.url,
+    attribution: OPENFREEMAP.attribution,
+  };
+  layers.push({
+    id: BUILDINGS_LAYER,
+    type: 'fill-extrusion',
+    source: OPENFREEMAP.id,
+    'source-layer': 'building',
+    minzoom: 14,
+    layout: { visibility: 'none' },
+    paint: {
+      'fill-extrusion-color': BUILDING_COLOR,
+      'fill-extrusion-height': ['get', 'render_height'],
+      'fill-extrusion-base': ['get', 'render_min_height'],
+      'fill-extrusion-opacity': 0.85,
+    },
+  });
 
   return {
     version: 8,
