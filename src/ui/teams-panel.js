@@ -45,7 +45,7 @@ export function createTeamsPanel(container, { teamsManager, getRadios, onRunCove
             <input class="input input--sm" type="text" id="teamName" placeholder="Alpha" />
           </label>
           <label class="field-label" style="flex:1">Members
-            <input class="input input--sm" type="number" id="teamMembers" min="1" max="999" step="1" value="4" />
+            <input class="input input--sm" type="number" id="teamMembers" min="1" max="200" step="1" value="4" />
           </label>
         </div>
         <div class="field-label">Colour

@@ -27,6 +27,9 @@ export const TEAM_COLORS = [
   'var(--accent2)',    // azure
 ];
 
+// Head-count is bounded 1–200 (matches the add-team form's input range).
+const clampMembers = (v) => Math.min(200, Math.max(1, Math.floor(Number(v))));
+
 export function createTeamsManager() {
   const teams = [];
   const subscribers = new Set();
@@ -47,7 +50,7 @@ export function createTeamsManager() {
       id: nextId(),
       name: partial.name?.trim() || `Team ${teams.length + 1}`,
       color: partial.color || TEAM_COLORS[teams.length % TEAM_COLORS.length],
-      members: Number.isFinite(Number(partial.members)) ? Math.max(1, Math.floor(Number(partial.members))) : 4,
+      members: Number.isFinite(Number(partial.members)) ? clampMembers(partial.members) : 4,
       radioId: partial.radioId || '',
       powerWh: Number.isFinite(Number(partial.powerWh)) ? Math.max(0, Number(partial.powerWh)) : 0,
       coverageStats: null,
@@ -64,7 +67,7 @@ export function createTeamsManager() {
     if ('color' in patch) t.color = patch.color || t.color;
     if ('members' in patch) {
       const n = Number(patch.members);
-      if (Number.isFinite(n)) t.members = Math.max(1, Math.floor(n));
+      if (Number.isFinite(n)) t.members = clampMembers(n);
     }
     if ('radioId' in patch) t.radioId = patch.radioId || '';
     if ('powerWh' in patch) {
