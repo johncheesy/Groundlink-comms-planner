@@ -561,6 +561,52 @@
             </div>
           </section>
 
+          <!-- Cellular coverage (M9) -->
+          <section class="section" aria-labelledby="cellTitle">
+            <div class="section__head">
+              <span class="section__title" id="cellTitle">Cellular coverage</span>
+              <span class="section__hint">M9 · OpenCelliD</span>
+            </div>
+            <div class="section__body">
+              <label class="check"><input type="checkbox" id="cellEnabled" /><span>Show cellular layer</span></label>
+
+              <div id="cellPanel" hidden>
+                <div class="input-row">
+                  <label class="field-label" for="cellRadio">Network</label>
+                  <select class="input input--sm" id="cellRadio">
+                    <option value="LTE" selected>4G · LTE</option>
+                    <option value="NR">5G · NR</option>
+                    <option value="UMTS">3G · UMTS</option>
+                    <option value="GSM">2G · GSM</option>
+                  </select>
+                  <label class="field-label" for="cellBand">Band</label>
+                  <select class="input input--sm" id="cellBand"></select>
+                </div>
+
+                <div class="input-row">
+                  <label class="field-label" for="cellFreq">Frequency</label>
+                  <input class="input input--sm" type="number" id="cellFreq" min="300" max="6000" step="10" value="800" />
+                  <span class="input-suffix">MHz ·</span>
+                  <label class="field-label" for="cellEirp">EIRP</label>
+                  <input class="input input--sm" type="number" id="cellEirp" min="20" max="75" step="1" value="58" />
+                  <span class="input-suffix">dBm</span>
+                </div>
+
+                <div class="input-row">
+                  <label class="field-label" for="cellHeight">Tower height</label>
+                  <input class="input input--sm" type="number" id="cellHeight" min="5" max="200" step="1" value="30" />
+                  <span class="input-suffix">m AGL</span>
+                </div>
+
+                <button class="btn btn--primary btn--block" type="button" id="computeCellBtn">Compute cellular coverage</button>
+                <p class="help" id="cellReadout" data-numeric></p>
+                <p class="help" id="cellAttribution"></p>
+              </div>
+
+              <p class="help" id="cellHelp">Models cellular coverage from cell-tower locations through the same terrain engine — not a third-party overlay. Crowdsourced, omni approximation; planning-grade, not an operator map.</p>
+            </div>
+          </section>
+
           <!-- Typed map features -->
           <section class="section" aria-labelledby="featTitle">
             <div class="section__head">
@@ -661,8 +707,8 @@
             </button>
           </div>
 
-          <div class="toolgroup" role="group" aria-label="3D terrain">
-            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggle3d" aria-label="Toggle 3D terrain" aria-pressed="false" title="3D terrain (pitch + relief)">
+          <div class="toolgroup" role="group" aria-label="3D view">
+            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggle3d" aria-label="Toggle 3D terrain and buildings" aria-pressed="false" title="3D view (terrain relief + extruded buildings)">
               3D
             </button>
           </div>
