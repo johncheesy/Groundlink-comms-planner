@@ -187,6 +187,58 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     generated: null,
   };
 
+  // ── Tower marker layer (MapLibre GeoJSON source + circle layer) ───────────
+  // Circles are colour-coded by network type using the CELL_TYPE_DEFAULTS colours.
+  // Added lazily on first use; sits above coverage rasters, below AOI drawing.
+  const TOWER_SRC = 'cell-towers';
+  const TOWER_LAYER = 'cell-towers-layer';
+
+  function ensureTowerLayer() {
+    if (!map.isStyleLoaded()) return;
+    if (map.getSource(TOWER_SRC)) return; // already set up
+    map.addSource(TOWER_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    const beforeId = map.getLayer('aoi-fill') ? 'aoi-fill' : undefined;
+    map.addLayer({
+      id: TOWER_LAYER,
+      type: 'circle',
+      source: TOWER_SRC,
+      paint: {
+        'circle-radius': 4,
+        'circle-color': [
+          'match', ['get', 'radio'],
+          'GSM',  CELL_TYPE_DEFAULTS.GSM.color,
+          'UMTS', CELL_TYPE_DEFAULTS.UMTS.color,
+          'LTE',  CELL_TYPE_DEFAULTS.LTE.color,
+          'NR',   CELL_TYPE_DEFAULTS.NR.color,
+          CELL_TYPE_DEFAULTS.LTE.color,
+        ],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#ffffff',
+        'circle-opacity': 0.9,
+        'circle-stroke-opacity': 0.7,
+      },
+    }, beforeId);
+  }
+
+  /** Update GeoJSON source with towers belonging to the given set of types. */
+  function updateTowerLayer(towers, wantTypes) {
+    ensureTowerLayer();
+    if (!map.getSource(TOWER_SRC)) return;
+    const features = towers
+      .filter((t) => !wantTypes || wantTypes.has(t.radio))
+      .map((t) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
+        properties: { radio: t.radio },
+      }));
+    map.getSource(TOWER_SRC).setData({ type: 'FeatureCollection', features });
+    if (map.getLayer(TOWER_LAYER)) {
+      map.setLayoutProperty(TOWER_LAYER, 'visibility', features.length ? 'visible' : 'none');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   function viewportBbox() {
     const b = map.getBounds();
     return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
@@ -211,25 +263,40 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
       txHeightM,
       rxHeightM: CELL_DEFAULTS.rxHeightM,
     };
-    cov.compute(bbox, center, params, { txs: towersToTxs(towers, txHeightM), marker: false });
+    // Pass AOI for clipping: when an AOI is set, cells outside it are rendered
+    // transparent; coverage only appears within the drawn area.
+    const aoi = o.aoi ?? null;
+    cov.compute(bbox, center, params, {
+      txs: towersToTxs(towers, txHeightM),
+      marker: false,
+      aoi,
+      clipToAoi: !!aoi,
+    });
     return towers.length;
   }
 
   /**
    * Fetch towers from Overpass (if needed) then paint coverage for each
-   * checked network type on its own coloured layer. Now async.
+   * checked network type on its own coloured layer using the signal quality
+   * scale. Async. When an AOI shape is supplied via `o.aoi`, coverage is
+   * clipped to that area; otherwise the full viewport is used.
    * @param {Array<'GSM'|'UMTS'|'LTE'|'NR'>} types
-   * @param {{useTerrain?:boolean, useClutter?:boolean, maxN?:number}} o
+   * @param {{useTerrain?:boolean, useClutter?:boolean, maxN?:number, aoi?:object|null}} o
    */
   async function showCoverage(types = [], o = {}) {
-    const bbox = viewportBbox();
+    // Use AOI bounds for the fetch+compute bbox when an AOI is drawn; otherwise
+    // fall back to the viewport so coverage fills the visible area.
+    const fetchBbox = o.aoi?.bounds ?? viewportBbox();
 
-    // Re-fetch if we have no data or the viewport has moved significantly
-    if (!cachedBbox || bboxChangedSignificantly(cachedBbox, bbox)) {
+    // Re-fetch if we have no data or the area has moved significantly.
+    // Skip re-fetch when the cached bbox already fully contains the new area.
+    const needFetch = !cachedBbox ||
+      (!bboxContains(cachedBbox, fetchBbox) && bboxChangedSignificantly(cachedBbox, fetchBbox));
+    if (needFetch) {
       onStatus?.('loading', { count: 0, totals: {} });
       try {
-        cachedTowers = await fetchTowersFromOSM(bbox);
-        cachedBbox = bbox;
+        cachedTowers = await fetchTowersFromOSM(fetchBbox);
+        cachedBbox = fetchBbox;
         meta.generated = new Date().toISOString();
       } catch (err) {
         onStatus?.('error', { message: err.message });
@@ -238,23 +305,29 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     }
 
     const want = new Set(types);
-    const c = map.getCenter();
-    const center = { lat: c.lat, lng: c.lng };
+    const center = o.aoi?.center ?? (() => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng }; })();
     const totals = {};
     let grand = 0;
     for (const type of CELL_ORDER) {
       if (!want.has(type)) { coverages[type]?.clear(); totals[type] = 0; continue; }
-      const n = computeType(type, bbox, center, o);
+      const n = computeType(type, fetchBbox, center, o);
       totals[type] = n;
       grand += n;
     }
     lastCount = grand;
+
+    // Place tower markers for the active types.
+    updateTowerLayer(cachedTowers, want);
+
     onStatus?.(grand ? 'computing' : 'empty', { count: grand, totals });
     return { count: grand, totals };
   }
 
   function setVisible(on) {
     for (const type of CELL_ORDER) coverages[type]?.setVisible(on);
+    if (map.getLayer(TOWER_LAYER)) {
+      map.setLayoutProperty(TOWER_LAYER, 'visibility', on ? 'visible' : 'none');
+    }
   }
 
   function clear() {
@@ -262,6 +335,13 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     cachedTowers = [];
     cachedBbox = null;
     lastCount = 0;
+    // Clear tower markers.
+    if (map.getSource(TOWER_SRC)) {
+      map.getSource(TOWER_SRC).setData({ type: 'FeatureCollection', features: [] });
+    }
+    if (map.getLayer(TOWER_LAYER)) {
+      map.setLayoutProperty(TOWER_LAYER, 'visibility', 'none');
+    }
   }
 
   return {
@@ -272,4 +352,9 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     getMeta: () => ({ ...meta }),
     hasData: () => cachedTowers.length > 0,
   };
+}
+
+/** True when bbox `a` fully contains bbox `b`. */
+function bboxContains(a, b) {
+  return a.west <= b.west && a.east >= b.east && a.south <= b.south && a.north >= b.north;
 }

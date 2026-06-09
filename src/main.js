@@ -477,8 +477,7 @@ whenStyleReady(() => {
       src: `cellular-${type}`,
       layer: `cellular-${type}-layer`,
       before: 'coverage-layer',
-      opacity: 0.5,
-      tint: CELL_TYPE_DEFAULTS[type].color,
+      opacity: 0.55,
       onStatus(state) {
         if (state === 'error') cellHelp.textContent = 'Cellular worker failed — see console.';
       },
@@ -1413,6 +1412,7 @@ function initCellularControls() {
         useTerrain: useTerrainInput.checked,
         useClutter: useClutterInput.checked,
         maxN: 80,
+        aoi: aoi?.getAoi?.() || null,
       });
       const meta = cellular.getMeta();
       if (cellAttribution) cellAttribution.textContent = meta.attribution;

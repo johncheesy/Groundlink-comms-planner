@@ -36,7 +36,7 @@ import { buildProfile } from './profile.js';
 self.onmessage = async (e) => {
   const msg = e.data;
   if (msg?.type !== 'compute') return;
-  const { id, bounds, cols, rows, tx, params, aoi } = msg;
+  const { id, bounds, cols, rows, tx, params, aoi, clipToAoi } = msg;
   const { west, south, east, north } = bounds;
   const { thresholds, floorDbm } = params;
 
@@ -76,6 +76,12 @@ self.onmessage = async (e) => {
     const rowOff = r * cols;
     for (let c = 0; c < cols; c++) {
       const lng = west + ((c + 0.5) / cols) * lngSpan;
+      // Clip to AOI — mark cells outside the drawn shape as transparent and skip
+      // the expensive compute. Enabled when `clipToAoi` is set (cellular layers).
+      if (clipToAoi && aoi && !inAoi(aoi, lng, lat)) {
+        classes[rowOff + c] = 255; // COVERAGE_CLASS.TRANSPARENT
+        continue;
+      }
       // Rx-side terms depend only on the cell, not the transmitter.
       const rxElev = (dem ? dem.sample(lng, lat) : 0) + rxHeight;
       const clutterDb = landcover ? clutterDbForClass(landcover.sample(lng, lat)) : params.clutterDb || 0;

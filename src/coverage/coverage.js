@@ -181,7 +181,7 @@ export function createCoverageController(
     // shape rather than the bbox; absent for drone-relay calls.
     // opts.txs (optional) is the M3 multi-site list; when present the worker
     // paints the combined (max-dBm) coverage across all sites.
-    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null, txs: opts.txs ?? null });
+    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null, txs: opts.txs ?? null, clipToAoi: opts.clipToAoi ?? false });
     return jobId;
   }
 
