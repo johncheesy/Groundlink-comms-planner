@@ -2595,6 +2595,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   display: flex;
   align-items: center;
   gap: 2px;
+  flex: 1 1 auto; /* claim the middle of the bar; never crushed to 0 */
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none; /* icons scroll on narrow screens, no bar */
@@ -2646,62 +2647,51 @@ select.input--sm { text-align: left; padding-right: 6px; }
   height: 17px;
 }
 
-/* ---- Right object panel (M19 §2) ---------------------------------------- */
+/* ---- Section tabs (M19 §2 rev 2) -----------------------------------------
+   Every left-panel section opens/closes from its header; the body slides via
+   the 1fr→0fr grid-track transition. data-open is set by src/ui/tabs.js. */
 
-.rdivider {
-  position: relative;
+.section[data-open] {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  transition: grid-template-rows 0.15s ease-out;
 }
-.rdivider::after {
-  /* widen the hit area without widening the 6px track */
-  content: '';
-  position: absolute;
-  inset: 0 -3px;
+.section[data-open='false'] {
+  grid-template-rows: auto 0fr;
 }
-.rdivider:hover,
-.rdivider.is-dragging {
-  background: var(--hair2);
-}
-.rdivider:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-}
-
-.rpanel__head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--hair);
-  flex: 0 0 auto;
-}
-.rpanel__title {
-  font-family: var(--disp);
-  font-weight: 600;
-  font-size: 13px;
-}
-.rpanel__close {
-  margin-left: auto;
-}
-.rpanel__body {
-  flex: 1 1 auto;
+.section[data-open] > .section__body {
+  overflow: hidden;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  transition: padding 0.15s ease-out;
 }
-.rpanel__empty {
-  padding: var(--sp-2);
+/* Padding would hold the collapsed track at 32px — drop it while closed. */
+.section[data-open='false'] > .section__body {
+  padding-top: 0;
+  padding-bottom: 0;
 }
-.rpanel__view {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-2);
+
+.section__head--tab {
+  cursor: pointer;
+  user-select: none;
 }
-.rview-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
+.section__head--tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.section__head--tab::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  /* the hint already carries margin-left:auto — the chevron trails it */
+  margin-left: var(--sp-2);
+  flex: 0 0 auto;
+  border-right: 1.8px solid var(--faint);
+  border-bottom: 1.8px solid var(--faint);
+  transform: rotate(45deg) translateY(-2px); /* chevron down = open */
+  transition: transform 0.15s ease-out;
+}
+.section[data-open='false'] .section__head--tab::after {
+  transform: rotate(-45deg); /* chevron right = closed */
 }
 
 .objlist {
@@ -2946,12 +2936,4 @@ select.input--sm { text-align: left; padding-right: 6px; }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 50%;
-}
-
-/* ---- Narrow (<900px): rpanel overlay chrome ------------------------------ */
-
-@media (max-width: 899px) {
-  .rpanel {
-    z-index: calc(var(--z-panel) + 1);
-  }
 }

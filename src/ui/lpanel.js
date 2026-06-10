@@ -26,7 +26,7 @@ function saveCollapsed(collapsed) {
   }
 }
 
-export function createLeftPanel({ app, strip, collapseBtn, onResize }) {
+export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
   let collapsed = false;
 
   function apply() {
@@ -62,9 +62,10 @@ export function createLeftPanel({ app, strip, collapseBtn, onResize }) {
     btn.innerHTML = MODULE_ICONS[m.key];
     btn.addEventListener('click', () => {
       setCollapsed(false);
-      // Scroll once the panel has its width back.
+      // Open + scroll once the panel has its width back.
       setTimeout(() => {
-        sectionForAnchor(m.anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (reveal) reveal(m.anchor);
+        else sectionForAnchor(m.anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 170);
     });
     strip.appendChild(btn);

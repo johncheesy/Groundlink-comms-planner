@@ -1,16 +1,16 @@
 /**
- * M19 §1 — top icon toolbar. One icon button per module (same order as the
- * left panel's sections); clicking opens that module's view in the right
- * object panel. Right side: search, basemap, theme toggle, settings.
+ * M19 (rev 2) — top icon toolbar. One icon per left-panel tab, in section
+ * order; clicking opens/closes that tab in the left menu (the right side of
+ * the screen stays free for the map). Right side: search, basemap, theme
+ * toggle, settings. aria-pressed mirrors the tab's open state.
  *
  * Keyboard: one tab stop with a roving tabindex; ←/→ move between buttons.
- * The left panel keeps the authoritative forms — the toolbar only switches
- * right-panel views and jumps.
  */
 import { MODULE_ICONS } from './icons.js';
 
-/** Modules in panel-section order; anchor = left-panel section heading id. */
+/** Toolbar tabs in panel-section order; anchor = section heading id = tab key. */
 export const TOOLBAR_MODULES = [
+  { key: 'objects', label: 'Objects', anchor: 'objectsTitle' },
   { key: 'mission', label: 'Mission', anchor: 'missionTitle' },
   { key: 'aoi', label: 'Area of interest', anchor: 'aoiTitle' },
   { key: 'radios', label: 'Radios', anchor: 'radioTitle' },
@@ -19,20 +19,20 @@ export const TOOLBAR_MODULES = [
   { key: 'sites', label: 'Site recommendation', anchor: 'siteTitle' },
   { key: 'drone', label: 'Drone relay', anchor: 'droneTitle' },
   { key: 'pace', label: 'Comms plan', anchor: 'paceTitle' },
-  { key: 'export', label: 'Data export', anchor: 'dataExport' },
+  { key: 'export', label: 'Data export', anchor: 'dataExportTitle' },
   { key: 'power', label: 'Power & endurance', anchor: 'powerTitle' },
   { key: 'cellular', label: 'Cellular coverage', anchor: 'cellTitle' },
   { key: 'layers', label: 'Layers', anchor: 'featTitle' },
 ];
 
-/** Scroll the left panel to a module's section (expanding the panel first). */
+/** The section element a heading id belongs to. */
 export function sectionForAnchor(anchorId) {
   return document.getElementById(anchorId)?.closest('.section') ?? null;
 }
 
-export function createToolbar(els, { onModule, onObjects, onSearch, onBasemap, onSettings } = {}) {
+export function createToolbar(els, { onModule, onSearch, onBasemap, onSettings } = {}) {
   const { modulesHost, rightHost } = els;
-  const buttons = [];
+  const moduleButtons = new Map(); // anchor -> button
 
   function iconButton(key, label, icon, handler) {
     const btn = document.createElement('button');
@@ -41,21 +41,16 @@ export function createToolbar(els, { onModule, onObjects, onSearch, onBasemap, o
     btn.dataset.module = key;
     btn.title = label;
     btn.setAttribute('aria-label', label);
-    btn.setAttribute('aria-pressed', 'false');
     btn.innerHTML = icon;
-    btn.addEventListener('click', () => handler(key));
-    buttons.push(btn);
+    btn.addEventListener('click', handler);
     return btn;
   }
 
-  // Objects (default right-panel view) leads the module group.
-  modulesHost.appendChild(iconButton('objects', 'Objects', MODULE_ICONS.objects, () => onObjects?.()));
-  const sep = document.createElement('span');
-  sep.className = 'toolbar__sep';
-  sep.setAttribute('aria-hidden', 'true');
-  modulesHost.appendChild(sep);
   for (const m of TOOLBAR_MODULES) {
-    modulesHost.appendChild(iconButton(m.key, m.label, MODULE_ICONS[m.key], () => onModule?.(m)));
+    const btn = iconButton(m.key, m.label, MODULE_ICONS[m.key], () => onModule?.(m));
+    btn.setAttribute('aria-pressed', 'false');
+    moduleButtons.set(m.anchor, btn);
+    modulesHost.appendChild(btn);
   }
 
   rightHost.prepend(
@@ -69,8 +64,7 @@ export function createToolbar(els, { onModule, onObjects, onSearch, onBasemap, o
   // Roving tabindex across every toolbar button (incl. the relocated theme
   // toggle, which is already in rightHost's markup).
   const allButtons = () => [...els.root.querySelectorAll('button')];
-  const roving = allButtons();
-  roving.forEach((b, i) => { b.tabIndex = i === 0 ? 0 : -1; });
+  allButtons().forEach((b, i) => { b.tabIndex = i === 0 ? 0 : -1; });
   els.root.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     const list = allButtons();
@@ -83,14 +77,13 @@ export function createToolbar(els, { onModule, onObjects, onSearch, onBasemap, o
     list[next].focus();
   });
 
-  /** Reflect the active right-panel view on the module icons. */
-  function setActive(key) {
-    for (const b of buttons) {
-      const on = b.dataset.module === key;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-pressed', String(on));
-    }
+  /** Mirror one tab's open state on its icon (multiple can be active). */
+  function setPressed(anchor, on) {
+    const b = moduleButtons.get(anchor);
+    if (!b) return;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', String(on));
   }
 
-  return { setActive };
+  return { setPressed };
 }

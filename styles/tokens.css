@@ -67,7 +67,6 @@
 
   /* ---- M19 workspace metrics (layout only — no colours) ---- */
   --toolbar-h: 44px; /* top icon toolbar row */
-  --rpanel-w: 280px; /* right object panel width (clamped 200–480 by JS) */
   --panel-w-collapsed: 52px; /* left panel as icon strip */
 }
 

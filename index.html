@@ -144,6 +144,21 @@
         </header>
 
         <div class="panel__body">
+          <!-- M19: placed objects (registry) — first tab in the left menu -->
+          <section class="section" aria-labelledby="objectsTitle">
+            <div class="section__head">
+              <span class="section__title" id="objectsTitle">Objects</span>
+              <span class="section__hint">placed on the map</span>
+            </div>
+            <div class="section__body">
+              <p class="help" id="objListEmpty">
+                No objects yet — place sites, demand points, waypoints or the drone and they appear here.
+              </p>
+              <ul class="objlist" id="objList" hidden></ul>
+              <div class="objdetail" id="objDetail" hidden></div>
+            </div>
+          </section>
+
           <!-- Mission input mode -->
           <section class="section" aria-labelledby="missionTitle">
             <div class="section__head">
@@ -901,30 +916,6 @@
           <button class="alpha-notice__close" id="alphaNoticeClose" type="button" aria-label="Dismiss notice">×</button>
         </div>
       </main>
-
-      <!-- ======================= RIGHT OBJECT PANEL ===================== -->
-      <!-- M19: resizable object panel — registry list + thin module views. -->
-      <div class="rdivider" id="rpanelDivider" title="Drag to resize · double-click to reset"></div>
-      <aside class="rpanel" id="rpanel" aria-label="Object panel">
-        <header class="rpanel__head">
-          <span class="rpanel__title" id="rpanelTitle">Objects</span>
-          <button class="btn btn--icon btn--ghost rpanel__close" id="rpanelClose" type="button" title="Hide panel" aria-label="Hide object panel">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </header>
-        <div class="rpanel__body">
-          <div class="rpanel__objects">
-            <p class="help rpanel__empty" id="rpanelEmpty">
-              No objects yet — place sites, demand points, waypoints or the drone and they appear here.
-            </p>
-            <ul class="objlist" id="objList" hidden></ul>
-          </div>
-          <div class="rpanel__view" id="rpanelView" hidden></div>
-        </div>
-        <footer class="objdetail" id="objDetail" hidden></footer>
-      </aside>
 
       <!-- ============================ STATUS ============================ -->
       <footer class="statusbar">

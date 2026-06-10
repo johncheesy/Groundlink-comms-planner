@@ -36,9 +36,10 @@ import { createExportPanel } from './export/export-panel.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { initPwa } from './ui/pwa.js';
 import { createObjectRegistry, RF_KINDS } from './ui/objects.js';
-import { createRightPanel } from './ui/rpanel.js';
+import { createObjectList } from './ui/objlist.js';
+import { createSectionTabs } from './ui/tabs.js';
 import { createContextMenu } from './ui/ctxmenu.js';
-import { createToolbar, TOOLBAR_MODULES, sectionForAnchor } from './ui/toolbar.js';
+import { createToolbar, TOOLBAR_MODULES } from './ui/toolbar.js';
 import { createLeftPanel } from './ui/lpanel.js';
 import { initDragMove } from './ui/dragmove.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
@@ -2063,6 +2064,7 @@ const lpanelCtl = createLeftPanel({
   strip: $('#panelStrip'),
   collapseBtn: panelCollapse,
   onResize: resize,
+  reveal: (anchor) => sectionTabs.reveal(anchor),
 });
 
 panelToggle.addEventListener('click', () => {
@@ -2086,15 +2088,23 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && mq.matches && app.dataset.panel === 'open') closePanel();
 });
 
-// ---- M19 workspace: toolbar · right object panel · context menu · drag ----
+// ---- M19 workspace: toolbar · left-panel tabs · context menu · drag -------
+// The left menu is the only panel: every section is a tab that opens and
+// closes (sliding body); the map keeps the whole right side free.
 
-/** Expand + scroll the left panel to a section (Settings… / Edit targets). */
+// Section tabs — every .section header toggles; toolbar icons mirror state.
+let toolbarCtl = null; // assigned below; tab restores fire before it exists
+const sectionTabs = createSectionTabs($('#panel .panel__body') ?? $('.panel__body'), {
+  onChange(key, open) {
+    toolbarCtl?.setPressed(key, open);
+  },
+});
+
+/** Expand the panel, open a section's tab and scroll to it. */
 function jumpToAnchor(anchorId) {
   lpanelCtl.setCollapsed(false, { persist: false });
   if (mq.matches) openPanel();
-  setTimeout(() => {
-    sectionForAnchor(anchorId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 180);
+  setTimeout(() => sectionTabs.reveal(anchorId), 180);
 }
 
 /** The left-panel section that "owns" an object's settings / edit jump. */
@@ -2137,100 +2147,17 @@ map.getContainer().addEventListener(
   true,
 );
 
-// Thin per-module right-panel views (summaries — deep forms stay left).
-function moduleSummary(key) {
-  switch (key) {
-    case 'mission': {
-      const s = mission?.summary?.();
-      if (!s || s.isEmpty) return 'Nothing placed yet — use the Mission section to define where comms are needed.';
-      return `${s.sites} site${s.sites === 1 ? '' : 's'} · ${s.route} route vertices · ${s.points} demand point${s.points === 1 ? '' : 's'}${s.hasAoi ? ' · AOI set' : ''}.`;
-    }
-    case 'aoi': return $('#aoiReadout')?.textContent || 'No area defined yet.';
-    case 'radios': {
-      const n = radios?.getArsenal?.()?.length ?? 0;
-      return n ? `${n} radio${n === 1 ? '' : 's'} in the arsenal.` : 'No radios in the arsenal yet.';
-    }
-    case 'roles': return 'Node roles assign equipment per node — see the left panel.';
-    case 'coverage': {
-      const bits = [coverageEngine?.textContent || '—'];
-      const stats = coverage?.getStats?.();
-      if (stats?.coveredFracAoi != null) bits.push(`${Math.round(stats.coveredFracAoi * 100)}% of the AOI covered`);
-      return bits.join(' · ');
-    }
-    case 'sites': {
-      const n = recommender?.getSites?.()?.length ?? 0;
-      return n ? `${n} recommended mast${n === 1 ? '' : 's'} placed.` : 'No recommendation run yet.';
-    }
-    case 'drone': return drone?.hasDrone?.()
-      ? `Drone relay placed · ${drone.getAltitude()} m AGL.`
-      : 'No drone placed.';
-    case 'pace': return lastPlan ? 'Comms plan built — export it from the left panel.' : 'No comms plan built yet.';
-    case 'power': return 'Battery, solar and endurance planning — see the left panel.';
-    case 'cellular': return $('#cellReadout')?.textContent || 'No tower data fetched yet.';
-    case 'layers': return '3D terrain, buildings and map overlays.';
-    default: return '';
-  }
-}
-
-function renderModuleView(host, m) {
-  const p = document.createElement('p');
-  p.className = 'help';
-  p.textContent = moduleSummary(m.key);
-  host.appendChild(p);
-  if (m.key === 'export') {
-    // The existing export actions, proxied — one implementation stays left.
-    p.textContent = 'Export the mission and coverage — generated locally, nothing is uploaded.';
-    const row = document.createElement('div');
-    row.className = 'rview-actions';
-    for (const [label, id] of [
-      ['GeoTIFF', 'exportGeotiffBtn'],
-      ['KMZ', 'exportKmzBtn'],
-      ['GeoJSON', 'exportGeojsonBtn'],
-      ['CivTAK', 'exportTakBtn'],
-    ]) {
-      const src = document.getElementById(id);
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'btn btn--sm';
-      b.textContent = label;
-      b.disabled = !src || src.disabled || src.closest('[hidden]') !== null;
-      b.addEventListener('click', () => src?.click());
-      row.appendChild(b);
-    }
-    host.appendChild(row);
-  }
-  const open = document.createElement('button');
-  open.type = 'button';
-  open.className = 'btn btn--sm';
-  open.textContent = 'Open section';
-  open.addEventListener('click', () => jumpToAnchor(m.anchor));
-  host.appendChild(open);
-}
-
-const rpanelViews = {};
-for (const m of TOOLBAR_MODULES) {
-  rpanelViews[m.key] = { title: m.label, render: (host) => renderModuleView(host, m) };
-}
-
+// Objects tab — the registry list + detail in the left panel's first section.
 let selectedMarkerEl = null;
-let toolbarCtl = null; // assigned below; rpanel's onViewChange fires earlier
-const rpanelCtl = createRightPanel(
+const objList = createObjectList(
   {
-    app,
-    panel: $('#rpanel'),
-    divider: $('#rpanelDivider'),
     list: $('#objList'),
-    empty: $('#rpanelEmpty'),
+    empty: $('#objListEmpty'),
     detail: $('#objDetail'),
-    viewHost: $('#rpanelView'),
-    viewTitle: $('#rpanelTitle'),
-    closeBtn: $('#rpanelClose'),
   },
   {
     registry,
-    views: rpanelViews,
     formatCoord: (pt, fmt) => formatCoordinate(pt, fmt ?? COORD_CYCLE[coordFmtIndex]),
-    onResize: resize,
     onStatus(msg) { statusMode.textContent = msg; },
     onOpenMenu: (id, x, y) => ctxMenu.openFor(id, x, y),
     onFlyTo(id) {
@@ -2246,7 +2173,6 @@ const rpanelCtl = createRightPanel(
       const e = registry.get(id);
       if (e) jumpToAnchor(anchorForEntry(e));
     },
-    onViewChange(view) { toolbarCtl?.setActive(view); },
     rfSummary(e) {
       if (e.kind === 'drone') return `Alt ${e.settings?.altM ?? drone?.getAltitude?.() ?? '—'} m AGL`;
       return `${freqInput.value} MHz · ${powerInput.value} W · tx ${txHeightInput.value} m`;
@@ -2258,19 +2184,18 @@ toolbarCtl = createToolbar(
   { root: $('#toolbar'), modulesHost: $('#toolbarModules'), rightHost: $('#toolbarRight') },
   {
     onModule(m) {
-      rpanelCtl.setOpen(true);
-      rpanelCtl.setView(m.key);
-    },
-    onObjects() {
-      rpanelCtl.setOpen(true);
-      rpanelCtl.setView('objects');
+      // Collapsed strip or mobile: always open + reveal; otherwise toggle.
+      if (mq.matches || lpanelCtl.isCollapsed()) jumpToAnchor(m.anchor);
+      else if (sectionTabs.isOpen(m.anchor)) sectionTabs.setOpen(m.anchor, false);
+      else sectionTabs.reveal(m.anchor);
     },
     onSearch() { $('#searchInput')?.focus(); },
     onBasemap() { document.querySelector('.basemap-switch__btn:not(.is-active)')?.click(); },
     onSettings() { jumpToAnchor('coverageTitle'); }, // backend settings live there
   },
 );
-toolbarCtl.setActive(rpanelCtl.getView());
+// Mirror the restored open/closed state onto the toolbar icons.
+for (const m of TOOLBAR_MODULES) toolbarCtl.setPressed(m.anchor, sectionTabs.isOpen(m.anchor));
 
 // Debounced RF recompute (§0): moving or re-tuning a tx/mast/repeater/drone
 // re-runs the analyse path ~400 ms after the change. Recommended masts are
@@ -2290,7 +2215,7 @@ document.addEventListener('objects:changed', (ev) => {
 });
 
 // The object list shows grid refs in the active coordinate format.
-statusCoords.addEventListener('click', () => rpanelCtl.refresh());
+statusCoords.addEventListener('click', () => objList.refresh());
 
 // PWA: service worker, offline indicator, install prompt (M17).
 initPwa();
@@ -2314,9 +2239,10 @@ if (import.meta.env.DEV) {
     get powerBom() { return lastPowerBom; },
     // M19 workspace handles
     registry,
-    rpanel: rpanelCtl,
+    objList,
+    tabs: sectionTabs,
     lpanel: lpanelCtl,
-    toolbar: toolbarCtl,
+    get toolbar() { return toolbarCtl; },
     ctxMenu,
   };
 }

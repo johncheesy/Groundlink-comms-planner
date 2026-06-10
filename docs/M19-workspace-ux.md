@@ -3,12 +3,14 @@
 Layout-only milestone: **no colour/token changes** — everything reuses
 `styles/tokens.css` as-is. Goal: turn the single long left panel into a
 map-first workspace with four new interaction patterns, mocked up and agreed
-on 10 Jun 2026:
+on 10 Jun 2026 (**rev 2, same day:** everything lives on the left — the right
+side of the screen stays free for the map; no right panel):
 
-1. **Top toolbar** — a thin icon bar above the map, one icon per module.
-2. **Right object panel** — list of all placed objects (masts/repeaters,
-   markers/points, waypoints, drones); clicking a toolbar icon opens the
-   matching menu here; panel is **resizable by dragging** its divider.
+1. **Top toolbar** — a thin icon bar above the map, one icon per left-panel
+   tab; clicking opens/closes that tab.
+2. **Left menu in tabs** — every panel section is a tab the user opens and
+   closes from its header (body slides shut); the **Objects** tab lists all
+   placed objects (masts/repeaters, markers/points, waypoints, drones).
 3. **Context menu** (right mouse button) on every placed object — coordinates
    (copy, all formats), rename, settings (masts/repeaters), move, delete.
 4. **Drag-to-move** — every placed point can be repositioned by dragging;
@@ -22,7 +24,7 @@ Plus: the **left panel stays but collapses to an icon strip** (decision Keith,
 ## 0. Architecture prerequisite — a single object registry
 
 Today sites/points/waypoints/drone live in separate modules with their own
-markers. M19 needs one shared inventory to drive the right panel, the context
+markers. M19 needs one shared inventory to drive the Objects tab, the context
 menu and drag behaviour.
 
 New pure module **`src/ui/objects.js`** (TDD):
@@ -54,45 +56,37 @@ that reference them.
   `rows: var(--toolbar-h) 1fr var(--status-h)`. New token `--toolbar-h: 44px`
   (layout metric, not a colour).
 - Left: brand (moves out of the panel header). Then one icon button per
-  module, same order as today's panel sections: mission, AOI, radios, roles,
+  left-panel tab, in section order: objects, mission, AOI, radios, roles,
   coverage, sites, drone, PACE, export, power, cellular, 3D/features. Right:
   search, basemap, theme toggle, settings.
 - Icons: inline SVG, stroke style consistent with existing UI; `aria-label` +
   `title` on every button; roving tabindex; visible focus ring.
-- Click behaviour: opens that module's menu **in the right panel** (see §2)
-  and marks the icon active (`aria-pressed`). The icon for a module with
-  unsaved/active state (e.g. coverage job running) may show the existing
-  spinner/badge patterns — no new colours.
-- The toolbar replaces nothing yet: the left panel sections remain the
-  authoritative forms in this milestone (the right panel hosts *views/menus*,
-  not duplicated forms — see §2).
+- Click behaviour: **opens/closes that tab in the left menu** (§2) — open on
+  a closed tab reveals + scrolls to it; click on an open tab closes it. On
+  mobile / collapsed strip the click always opens (+ opens the panel).
+  `aria-pressed` mirrors the tab's open state (several can be active).
+- The toolbar replaces nothing: the left panel sections remain the
+  authoritative forms — the toolbar is navigation only.
 
-## 2. Right object panel (resizable)
+## 2. Left menu in tabs (right side of the screen stays free)
 
-- New `aside.rpanel` column: grid becomes
-  `columns: var(--panel-w) 1fr 6px var(--rpanel-w)` (collapsed left panel
-  changes the first track, §5). New tokens `--rpanel-w: 280px`,
-  min 200 / max 480.
-- **Divider drag:** 6 px hit area, `cursor: col-resize`, pointer-capture drag
-  clamps to min/max; double-click resets to default. Width persists in
-  `localStorage` (`gl.ui.rpanel.v1`) — UI preference only, OPSEC-fine (same
-  class as theme).
-- **Default view — "Objects":** the registry list. Each row: kind icon,
-  name, short grid ref in the active coordinate format (reuse the status-bar
-  formatter), kebab/right-click for the same context menu as on the map.
-  Click row → select + highlight marker; double-click → fly to.
-- Selected object shows a **detail footer**: full coords (copy), and for
-  masts/repeaters/drone the key RF fields (freq, power, antenna/height) with
-  an "Edit" button that opens the owning section in the left panel
-  (scroll + expand), not a duplicate form.
-- **Toolbar-driven views:** clicking a toolbar icon swaps the right-panel
-  content to that module's menu — for M19 this is a *summary/list* view per
-  module (e.g. coverage: active jobs + legend; export: the existing export
-  actions). Implementation: a small view-switcher (`data-rview`), each view a
-  template rendered from existing state. Keep it thin; deep forms stay left.
-- Panel can be hidden entirely (toolbar toggle, `Esc` closes a non-default
-  view back to Objects). Mobile/narrow (<900 px): right panel becomes an
-  overlay sheet, same content.
+- **No right panel** — the map keeps the full width right of the left menu
+  (rev-2 decision; the earlier resizable right object panel was dropped).
+- Every left-panel `.section` becomes a **tab**: its header is a toggle
+  (`role="button"`, `aria-expanded`, Enter/Space) with a chevron; the body
+  slides shut via the grid `1fr→0fr` track transition (≤150 ms; padding
+  collapses with it). Multiple tabs can be open at once; all open by default.
+- The closed-tab set persists in `localStorage` (`gl.ui.tabs.v1`) — UI
+  preference only, OPSEC-fine (same class as theme). Storing the *closed*
+  set means new sections in later milestones default to open.
+- **Objects tab** (new, first section): the registry list. Each row: kind
+  icon, name, short grid ref in the active coordinate format (reuse the
+  status-bar formatter), kebab/right-click for the same context menu as on
+  the map. Click row → select + highlight marker; double-click → fly to.
+- Selected object shows a **detail block** under the list: full coords in all
+  three formats (each copyable), for RF kinds the key link line (freq, power,
+  tx height / drone altitude) and an "Edit" button that reveals the owning
+  section (open tab + scroll), not a duplicate form.
 
 ## 3. Context menu on objects
 
@@ -110,7 +104,7 @@ that reference them.
   - **Move** — arms drag mode for the next pointer-down (alternative to direct
     drag, useful on touch);
   - **Delete** — with the existing confirm pattern.
-- Same menu from the right-panel row kebab (one implementation, two anchors).
+- Same menu from the Objects-tab row kebab (one implementation, two anchors).
 
 ## 4. Drag-to-move
 
@@ -144,8 +138,8 @@ that reference them.
 
 - `objects.test.js` — add/rename/move/remove, event payloads, default-name
   sequencing (`Mast A`→`B`), locked rejects move, kind validation.
-- `rpanel.test.js` — width clamp (200–480), persist/restore round-trip,
-  double-click reset.
+- `tabs.test.js` — toggle open/close state, persist/restore round-trip under
+  `gl.ui.tabs.v1`, default everything-open, corrupt/throwing storage.
 - `ctxmenu.test.js` — menu model builder: per kind, which items appear
   (marker: no Settings; locked: Unlock instead of Move), coord rows present
   in all three formats.
@@ -156,25 +150,27 @@ standing rule) — see the dispatch checklist.
 ## Constraints & non-goals
 
 - **No colour/token additions beyond layout metrics** (`--toolbar-h`,
-  `--rpanel-w`, `--panel-w-collapsed`). No new fonts, shadows, gradients.
+  `--panel-w-collapsed`). No new fonts, shadows, gradients.
 - No new dependencies; no network calls; OPSEC rules unchanged (names and
   coordinates of user objects never leave the browser except via explicit
   export).
 - Domain-neutral wording in all new UI strings.
-- Keyboard + screen-reader support on toolbar, menus, divider
-  (divider: `role="separator"`, `aria-valuenow`, arrow keys resize).
-- Out of scope for M19: moving the left-panel forms into the right panel,
+- Keyboard + screen-reader support on toolbar, menus and tab headers
+  (headers: `role="button"`, `aria-expanded`, Enter/Space).
+- Out of scope for M19: a separate right-hand panel (dropped in rev 2),
   multi-select, undo history (registry events are designed so undo can come
   later).
 
 ## Acceptance checklist
 
-- [ ] Toolbar present in both themes; every icon keyboard-reachable; active
-      state correct.
-- [ ] Right panel lists every placed object; resizes by drag within clamps;
-      width survives reload.
-- [ ] Right-click on a mast: coords copyable in 3 formats; rename works and
+- [x] Toolbar present in both themes; every icon keyboard-reachable;
+      `aria-pressed` mirrors each tab's open state.
+- [x] Every section opens/closes from its header and from its toolbar icon;
+      the closed set survives reload; right side of the screen stays free.
+- [x] Objects tab lists every placed object with grid refs in the active
+      coordinate format; selecting shows copyable coords + Edit jump.
+- [x] Right-click on a mast: coords copyable in 3 formats; rename works and
       shows up in list + export; Settings jumps to the correct section.
-- [ ] Dragging the TX mast recomputes coverage after drop; Esc cancels.
-- [ ] Left panel collapses to icon strip and restores; state survives reload.
-- [ ] `npm test` green; `npm run build` clean; mobile layout not broken.
+- [x] Dragging the TX mast recomputes coverage after drop; Esc cancels.
+- [x] Left panel collapses to icon strip and restores; state survives reload.
+- [x] `npm test` green; `npm run build` clean; mobile layout not broken.

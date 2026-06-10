@@ -50,59 +50,32 @@ button {
   font-family: var(--ui);
 }
 
-/* ---- App grid (M19): [toolbar] / [panel | map | divider | rpanel] / [status] */
+/* ---- App grid (M19): [toolbar] / [panel | map] / [status] ---------------
+   The map keeps the whole right side free; the left menu is the only panel
+   and the icons live in the top toolbar. */
 
 .app {
   display: grid;
-  grid-template-columns: var(--panel-w) 1fr 6px var(--rpanel-w);
+  grid-template-columns: var(--panel-w) 1fr;
   grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
   grid-template-areas:
-    'toolbar toolbar toolbar toolbar'
-    'panel map divider rpanel'
-    'status status status status';
+    'toolbar toolbar'
+    'panel map'
+    'status status';
   height: 100vh;
   height: 100dvh;
   width: 100vw;
 }
 
-/* Right panel hidden: its divider + column collapse to zero. */
-.app[data-rpanel='closed'] {
-  grid-template-columns: var(--panel-w) 1fr 0 0;
-}
-.app[data-rpanel='closed'] .rdivider,
-.app[data-rpanel='closed'] .rpanel {
-  display: none;
-}
-/* Left panel collapsed to the icon strip + right panel hidden combine. */
+/* Left panel collapsed to the icon strip. */
 .app[data-collapsed='true'] {
-  grid-template-columns: var(--panel-w-collapsed) 1fr 6px var(--rpanel-w);
-}
-.app[data-collapsed='true'][data-rpanel='closed'] {
-  grid-template-columns: var(--panel-w-collapsed) 1fr 0 0;
+  grid-template-columns: var(--panel-w-collapsed) 1fr;
 }
 
 .toolbar {
   grid-area: toolbar;
   background: var(--surface);
   border-bottom: 1px solid var(--hair);
-  z-index: var(--z-panel);
-}
-
-.rdivider {
-  grid-area: divider;
-  cursor: col-resize;
-  background: var(--hair);
-  z-index: var(--z-panel);
-}
-
-.rpanel {
-  grid-area: rpanel;
-  background: var(--surface);
-  border-left: 1px solid var(--hair);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
   z-index: var(--z-panel);
 }
 
@@ -221,55 +194,11 @@ button {
   display: none;
 }
 
-/* ---- Narrow (<900px): right panel becomes an overlay sheet (M19) -------- */
-
-@media (max-width: 899px) {
-  .app,
-  .app[data-collapsed='true'],
-  .app[data-rpanel='closed'],
-  .app[data-collapsed='true'][data-rpanel='closed'] {
-    grid-template-columns: var(--panel-w) 1fr;
-    grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
-    grid-template-areas:
-      'toolbar toolbar'
-      'panel map'
-      'status status';
-  }
-  .app[data-collapsed='true'] {
-    grid-template-columns: var(--panel-w-collapsed) 1fr;
-  }
-
-  .rdivider,
-  .app[data-rpanel='closed'] .rdivider {
-    display: none;
-  }
-
-  .rpanel,
-  .app[data-rpanel='closed'] .rpanel {
-    display: flex;
-    position: fixed;
-    top: var(--toolbar-h);
-    right: 0;
-    bottom: var(--status-h);
-    width: min(86vw, var(--rpanel-w));
-    border-left: 1px solid var(--hair);
-    box-shadow: var(--shadow);
-    transform: translateX(102%);
-    transition: transform 0.24s ease;
-    will-change: transform;
-  }
-  .app[data-rpanel='open'] .rpanel {
-    transform: translateX(0);
-  }
-}
-
 /* ---- Mobile: panel becomes a slide-over -------------------------------- */
 
 @media (max-width: 760px) {
   .app,
-  .app[data-collapsed='true'],
-  .app[data-rpanel='closed'],
-  .app[data-collapsed='true'][data-rpanel='closed'] {
+  .app[data-collapsed='true'] {
     grid-template-columns: 1fr;
     grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
     grid-template-areas:
