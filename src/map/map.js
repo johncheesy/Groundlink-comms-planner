@@ -31,7 +31,7 @@ export function initMap(container) {
     zoom: 10,
     pitch: 0,
     bearing: 0,
-    maxPitch: 80,
+    maxPitch: 85, // MapLibre max — lets the camera tilt to the horizon for max view distance
     attributionControl: false, // we add a compact one below
     dragRotate: true,
     cooperativeGestures: false,
