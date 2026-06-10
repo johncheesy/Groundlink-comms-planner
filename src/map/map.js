@@ -99,40 +99,30 @@ export function initMap(container) {
     return on;
   }
 
-  // ---- Day/night sky layer ------------------------------------------------
-  // Adds or updates a MapLibre sky layer driven by the sun's azimuth + altitude.
-  // altitudeDeg: degrees above (+) or below (−) the horizon; azimuthDeg: 0=N, CW.
-  let skyLayerAdded = false;
-
-  function ensureSkyLayer() {
-    if (skyLayerAdded) return;
-    if (!map.isStyleLoaded()) return; // caller checks before every call
-    if (map.getLayer('sky')) { skyLayerAdded = true; return; }
-    map.addLayer({
-      id: 'sky',
-      type: 'sky',
-      paint: {
-        'sky-type': 'atmosphere',
-        'sky-atmosphere-sun': [180, 45],
-        'sky-atmosphere-sun-intensity': 5,
-      },
-    });
-    skyLayerAdded = true;
-  }
+  // ---- Day/night sky (style-level, MapLibre v5) ----------------------------
+  // MapLibre v5 removed the legacy 'sky' *layer* type; the sky is a style
+  // property now (map.setSky) with sky/horizon/fog colours + blend factors.
+  // It has no sun-position input, so the sun's altitude drives the
+  // skyColoursFor() ramp instead (azimuth still steers the hillshade
+  // illumination separately). altitudeDeg: degrees above (+) / below (−)
+  // the horizon.
 
   function setSkyForSun(azimuthDeg, altitudeDeg) {
     if (!map.isStyleLoaded()) {
       map.once('styledata', () => setSkyForSun(azimuthDeg, altitudeDeg));
       return;
     }
-    ensureSkyLayer();
-    if (!map.getLayer('sky')) return;
-    map.setPaintProperty('sky', 'sky-atmosphere-sun', [azimuthDeg, altitudeDeg]);
-    // Intensity: full sun in daylight, dim at civil twilight, 0 at night
-    const intensity = altitudeDeg > 6 ? 10
-      : altitudeDeg > -6 ? Math.max(0, (altitudeDeg + 6) / 12 * 10)
-      : 0;
-    map.setPaintProperty('sky', 'sky-atmosphere-sun-intensity', intensity);
+    const c = skyColoursFor(altitudeDeg);
+    map.setSky({
+      'sky-color': c.sky,
+      'horizon-color': c.horizon,
+      'fog-color': c.fog,
+      'fog-ground-blend': 0.6,
+      'horizon-fog-blend': 0.7,
+      'sky-horizon-blend': 0.8,
+      // Sky only matters tilted at the horizon — fade it out when zoomed in flat.
+      'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 10, 1, 12, 0],
+    });
   }
 
   // ---- Hillshade sun direction -------------------------------------------
@@ -168,6 +158,44 @@ export function initMap(container) {
     setSkyForSun,
     setHillshadeDirection,
   };
+}
+
+// ---- Day/night sky colour ramp (pure, unit-tested) -------------------------
+// Colour stops by sun altitude: night → twilight → horizon → day. The night
+// stop matches the dark map canvas (--mapbg) so the horizon stays seamless.
+// These are physical sky colours on the always-dark map canvas, like the
+// coverage spectrum — not theme colours.
+const SKY_STOPS = [
+  [-12, { sky: '#0b1018', horizon: '#101725', fog: '#0b1018' }], // night
+  [-6, { sky: '#101c30', horizon: '#3a2f3a', fog: '#141a26' }], // astronomical → civil twilight
+  [0, { sky: '#274b73', horizon: '#c97b4f', fog: '#3a4a5f' }], // sun on the horizon
+  [6, { sky: '#5d92c4', horizon: '#e8c9a0', fog: '#aabfd3' }], // golden hour
+  [20, { sky: '#7fb8e6', horizon: '#dfeefc', fog: '#cfe2f0' }], // full day
+];
+
+const hexToRgbSky = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+function mixHex(a, b, f) {
+  const ca = hexToRgbSky(a);
+  const cb = hexToRgbSky(b);
+  return `#${ca.map((v, i) => Math.round(v + (cb[i] - v) * f).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Interpolate { sky, horizon, fog } hex colours for a sun altitude (deg). */
+export function skyColoursFor(altitudeDeg) {
+  const alt = Math.max(SKY_STOPS[0][0], Math.min(SKY_STOPS[SKY_STOPS.length - 1][0], altitudeDeg));
+  for (let i = 1; i < SKY_STOPS.length; i++) {
+    const [a0, c0] = SKY_STOPS[i - 1];
+    const [a1, c1] = SKY_STOPS[i];
+    if (alt <= a1) {
+      const f = (alt - a0) / (a1 - a0);
+      return {
+        sky: mixHex(c0.sky, c1.sky, f),
+        horizon: mixHex(c0.horizon, c1.horizon, f),
+        fog: mixHex(c0.fog, c1.fog, f),
+      };
+    }
+  }
+  return { ...SKY_STOPS[SKY_STOPS.length - 1][1] };
 }
 
 /**
