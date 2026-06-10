@@ -35,6 +35,12 @@ import { createImportController } from './io/import.js';
 import { createExportPanel } from './export/export-panel.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { initPwa } from './ui/pwa.js';
+import { createObjectRegistry, RF_KINDS } from './ui/objects.js';
+import { createRightPanel } from './ui/rpanel.js';
+import { createContextMenu } from './ui/ctxmenu.js';
+import { createToolbar, TOOLBAR_MODULES, sectionForAnchor } from './ui/toolbar.js';
+import { createLeftPanel } from './ui/lpanel.js';
+import { initDragMove } from './ui/dragmove.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
@@ -444,6 +450,11 @@ const clearAoiBtn = $('#clearAoi');
 const computeBtn = $('#computeCoverage');
 
 const TX_GAIN_DBI = 2.15;
+
+// M19: shared object registry — one inventory of user-placed map objects,
+// driving the right panel, the context menu and drag-to-move.
+const registry = createObjectRegistry();
+
 let aoi = null;
 let coverage = null;
 let exportPanel = null; // M16 coverage/interop export panel
@@ -672,6 +683,7 @@ whenStyleReady(() => {
     },
     onStatus(msg) { statusMode.textContent = msg; },
     formatCoord: (ll) => formatCoordinate({ lat: ll[1], lng: ll[0] }, COORD_CYCLE[coordFmtIndex]),
+    registry,
   });
 
   // Mission input-mode segmented buttons (Area / Sites / Route / Points).
@@ -685,6 +697,7 @@ whenStyleReady(() => {
     formatCoord: (pt, fmt) => formatCoordinate(pt, fmt),
     coordCycle: COORD_CYCLE,
     onUpdate(all) { renderWaypointList(all); refreshExportPanel(); },
+    registry,
   });
 
   const placeWaypointBtn = $('#placeWaypointBtn');
@@ -769,6 +782,7 @@ whenStyleReady(() => {
     coverage,
     getAoi: () => aoi?.getAoi?.() || null,
     coverageParams,
+    registry,
     onState(st) {
       if ('hasDrone' in st) {
         dronePanel.hidden = !st.hasDrone;
@@ -889,6 +903,7 @@ whenStyleReady(() => {
       statusMode.textContent = 'Sites ready';
     },
     onStatus(msg) { statusMode.textContent = msg; },
+    registry,
   });
 
   recommendBtn.addEventListener('click', () => {
@@ -2041,13 +2056,14 @@ const closePanel = () => {
   if (mq.matches) panelToggle.focus();
 };
 
-// Desktop: collapse the panel to a sliver so the map gets the full width.
-// The map needs a resize once the grid column finishes animating.
-const setCollapsed = (collapsed) => {
-  app.dataset.collapsed = collapsed ? 'true' : 'false';
-  panelToggle.setAttribute('aria-expanded', String(!collapsed));
-  setTimeout(() => resize(), 260);
-};
+// M19 §5: desktop collapse goes to a 52 px icon strip (persisted) instead of
+// a zero-width sliver; the strip + chevron live in src/ui/lpanel.js.
+const lpanelCtl = createLeftPanel({
+  app,
+  strip: $('#panelStrip'),
+  collapseBtn: panelCollapse,
+  onResize: resize,
+});
 
 panelToggle.addEventListener('click', () => {
   if (mqPhone.matches) {
@@ -2059,17 +2075,222 @@ panelToggle.addEventListener('click', () => {
     openPanel();
   } else {
     // Desktop: collapse / expand the side panel
-    setCollapsed(app.dataset.collapsed !== 'true');
+    lpanelCtl.toggle();
   }
 });
-panelCollapse.addEventListener('click', () => setCollapsed(true));
-// Edge-tab handle on the panel border collapses the panel (over-map toggle reopens).
-$('#collapsePanel')?.addEventListener('click', () => setCollapsed(app.dataset.collapsed !== 'true'));
+// Edge-tab handle on the panel border collapses the panel too.
+$('#collapsePanel')?.addEventListener('click', () => lpanelCtl.toggle());
 $('#scrim').addEventListener('click', closePanel);
 $('#panelClose').addEventListener('click', closePanel);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && mq.matches && app.dataset.panel === 'open') closePanel();
 });
+
+// ---- M19 workspace: toolbar · right object panel · context menu · drag ----
+
+/** Expand + scroll the left panel to a section (Settings… / Edit targets). */
+function jumpToAnchor(anchorId) {
+  lpanelCtl.setCollapsed(false, { persist: false });
+  if (mq.matches) openPanel();
+  setTimeout(() => {
+    sectionForAnchor(anchorId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 180);
+}
+
+/** The left-panel section that "owns" an object's settings / edit jump. */
+function anchorForEntry(entry) {
+  if (entry.owner === 'recommend') return 'siteTitle';
+  if (entry.kind === 'drone') return 'droneTitle';
+  if (entry.kind === 'marker' || entry.kind === 'waypoint') return 'missionTitle';
+  return 'coverageTitle'; // masts/tx: RF params live in the Coverage section
+}
+
+const dragMove = initDragMove(map, registry, {
+  onLiveCoord(pt) {
+    lastCursor = pt;
+    renderCursor();
+  },
+  onStatus(msg) { statusMode.textContent = msg; },
+});
+
+const ctxMenu = createContextMenu({
+  registry,
+  onStatus(msg) { statusMode.textContent = msg; },
+  onAction(action, entry) {
+    if (action === 'settings') jumpToAnchor(anchorForEntry(entry));
+    else if (action === 'move') dragMove.armMove(entry.id);
+  },
+});
+
+// Object hit-test ahead of the map's coords-only contextmenu popup: markers
+// are DOM elements above the canvas, so a capture listener on the container
+// sees right-clicks the canvas handler never gets.
+map.getContainer().addEventListener(
+  'contextmenu',
+  (e) => {
+    const entry = registry.byElement(e.target);
+    if (!entry) return; // empty map → existing coordinate popup
+    e.preventDefault();
+    e.stopPropagation();
+    ctxMenu.openFor(entry.id, e.clientX, e.clientY);
+  },
+  true,
+);
+
+// Thin per-module right-panel views (summaries — deep forms stay left).
+function moduleSummary(key) {
+  switch (key) {
+    case 'mission': {
+      const s = mission?.summary?.();
+      if (!s || s.isEmpty) return 'Nothing placed yet — use the Mission section to define where comms are needed.';
+      return `${s.sites} site${s.sites === 1 ? '' : 's'} · ${s.route} route vertices · ${s.points} demand point${s.points === 1 ? '' : 's'}${s.hasAoi ? ' · AOI set' : ''}.`;
+    }
+    case 'aoi': return $('#aoiReadout')?.textContent || 'No area defined yet.';
+    case 'radios': {
+      const n = radios?.getArsenal?.()?.length ?? 0;
+      return n ? `${n} radio${n === 1 ? '' : 's'} in the arsenal.` : 'No radios in the arsenal yet.';
+    }
+    case 'roles': return 'Node roles assign equipment per node — see the left panel.';
+    case 'coverage': {
+      const bits = [coverageEngine?.textContent || '—'];
+      const stats = coverage?.getStats?.();
+      if (stats?.coveredFracAoi != null) bits.push(`${Math.round(stats.coveredFracAoi * 100)}% of the AOI covered`);
+      return bits.join(' · ');
+    }
+    case 'sites': {
+      const n = recommender?.getSites?.()?.length ?? 0;
+      return n ? `${n} recommended mast${n === 1 ? '' : 's'} placed.` : 'No recommendation run yet.';
+    }
+    case 'drone': return drone?.hasDrone?.()
+      ? `Drone relay placed · ${drone.getAltitude()} m AGL.`
+      : 'No drone placed.';
+    case 'pace': return lastPlan ? 'Comms plan built — export it from the left panel.' : 'No comms plan built yet.';
+    case 'power': return 'Battery, solar and endurance planning — see the left panel.';
+    case 'cellular': return $('#cellReadout')?.textContent || 'No tower data fetched yet.';
+    case 'layers': return '3D terrain, buildings and map overlays.';
+    default: return '';
+  }
+}
+
+function renderModuleView(host, m) {
+  const p = document.createElement('p');
+  p.className = 'help';
+  p.textContent = moduleSummary(m.key);
+  host.appendChild(p);
+  if (m.key === 'export') {
+    // The existing export actions, proxied — one implementation stays left.
+    p.textContent = 'Export the mission and coverage — generated locally, nothing is uploaded.';
+    const row = document.createElement('div');
+    row.className = 'rview-actions';
+    for (const [label, id] of [
+      ['GeoTIFF', 'exportGeotiffBtn'],
+      ['KMZ', 'exportKmzBtn'],
+      ['GeoJSON', 'exportGeojsonBtn'],
+      ['CivTAK', 'exportTakBtn'],
+    ]) {
+      const src = document.getElementById(id);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn--sm';
+      b.textContent = label;
+      b.disabled = !src || src.disabled || src.closest('[hidden]') !== null;
+      b.addEventListener('click', () => src?.click());
+      row.appendChild(b);
+    }
+    host.appendChild(row);
+  }
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'btn btn--sm';
+  open.textContent = 'Open section';
+  open.addEventListener('click', () => jumpToAnchor(m.anchor));
+  host.appendChild(open);
+}
+
+const rpanelViews = {};
+for (const m of TOOLBAR_MODULES) {
+  rpanelViews[m.key] = { title: m.label, render: (host) => renderModuleView(host, m) };
+}
+
+let selectedMarkerEl = null;
+let toolbarCtl = null; // assigned below; rpanel's onViewChange fires earlier
+const rpanelCtl = createRightPanel(
+  {
+    app,
+    panel: $('#rpanel'),
+    divider: $('#rpanelDivider'),
+    list: $('#objList'),
+    empty: $('#rpanelEmpty'),
+    detail: $('#objDetail'),
+    viewHost: $('#rpanelView'),
+    viewTitle: $('#rpanelTitle'),
+    closeBtn: $('#rpanelClose'),
+  },
+  {
+    registry,
+    views: rpanelViews,
+    formatCoord: (pt, fmt) => formatCoordinate(pt, fmt ?? COORD_CYCLE[coordFmtIndex]),
+    onResize: resize,
+    onStatus(msg) { statusMode.textContent = msg; },
+    onOpenMenu: (id, x, y) => ctxMenu.openFor(id, x, y),
+    onFlyTo(id) {
+      const e = registry.get(id);
+      if (e) map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 13) });
+    },
+    onSelect(id) {
+      selectedMarkerEl?.classList.remove('is-selected');
+      selectedMarkerEl = id ? registry.get(id)?.marker?.getElement() ?? null : null;
+      selectedMarkerEl?.classList.add('is-selected');
+    },
+    onEdit(id) {
+      const e = registry.get(id);
+      if (e) jumpToAnchor(anchorForEntry(e));
+    },
+    onViewChange(view) { toolbarCtl?.setActive(view); },
+    rfSummary(e) {
+      if (e.kind === 'drone') return `Alt ${e.settings?.altM ?? drone?.getAltitude?.() ?? '—'} m AGL`;
+      return `${freqInput.value} MHz · ${powerInput.value} W · tx ${txHeightInput.value} m`;
+    },
+  },
+);
+
+toolbarCtl = createToolbar(
+  { root: $('#toolbar'), modulesHost: $('#toolbarModules'), rightHost: $('#toolbarRight') },
+  {
+    onModule(m) {
+      rpanelCtl.setOpen(true);
+      rpanelCtl.setView(m.key);
+    },
+    onObjects() {
+      rpanelCtl.setOpen(true);
+      rpanelCtl.setView('objects');
+    },
+    onSearch() { $('#searchInput')?.focus(); },
+    onBasemap() { document.querySelector('.basemap-switch__btn:not(.is-active)')?.click(); },
+    onSettings() { jumpToAnchor('coverageTitle'); }, // backend settings live there
+  },
+);
+toolbarCtl.setActive(rpanelCtl.getView());
+
+// Debounced RF recompute (§0): moving or re-tuning a tx/mast/repeater/drone
+// re-runs the analyse path ~400 ms after the change. Recommended masts are
+// skipped — recommend.js cancels-and-restarts its own combined raster.
+let rfRecomputeTimer = null;
+document.addEventListener('objects:changed', (ev) => {
+  const { type, id } = ev.detail || {};
+  if (type !== 'move' && type !== 'settings') return;
+  const e = registry.get(id);
+  if (!e || !RF_KINDS.includes(e.kind) || e.owner === 'recommend') return;
+  clearTimeout(rfRecomputeTimer);
+  rfRecomputeTimer = setTimeout(() => {
+    if (!coverage?.hasCoverage?.()) return; // nothing painted → nothing to refresh
+    if (e.kind === 'drone') drone?.computeRelay();
+    else if (!recommender?.hasSites?.()) runCoverage();
+  }, 400);
+});
+
+// The object list shows grid refs in the active coordinate format.
+statusCoords.addEventListener('click', () => rpanelCtl.refresh());
 
 // PWA: service worker, offline indicator, install prompt (M17).
 initPwa();
@@ -2091,5 +2312,11 @@ if (import.meta.env.DEV) {
     pace: { build: () => buildPace(gatherPaceContext()), get last() { return lastPlan; } },
     power: { build: () => buildPowerPlan() },
     get powerBom() { return lastPowerBom; },
+    // M19 workspace handles
+    registry,
+    rpanel: rpanelCtl,
+    lpanel: lpanelCtl,
+    toolbar: toolbarCtl,
+    ctxMenu,
   };
 }

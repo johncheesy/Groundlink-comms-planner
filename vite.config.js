@@ -70,8 +70,12 @@ export default defineConfig({
   // pool timeout and files fail to start. Run the whole suite in one persistent
   // threads worker: heavy modules import once, nothing is repeatedly spawned,
   // and the actual test bodies take ~40 ms. Reliable and faster.
+  // Vitest 4 removed `poolOptions` — the equivalent single persistent worker
+  // is now expressed top-level: one threads worker, no per-file parallelism.
   test: {
     pool: 'threads',
-    poolOptions: { threads: { singleThread: true } },
+    maxWorkers: 1,
+    minWorkers: 1,
+    fileParallelism: false,
   },
 });

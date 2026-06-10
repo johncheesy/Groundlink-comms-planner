@@ -34,7 +34,7 @@ const lineFeat = (coords) => ({
 });
 const fc = (features) => ({ type: 'FeatureCollection', features });
 
-export function createMissionTools(map, mission, { onHint, onModeChange, onStatus, formatCoord } = {}) {
+export function createMissionTools(map, mission, { onHint, onModeChange, onStatus, formatCoord, registry } = {}) {
   const track = cssVar('--feat-track', '#46a6ff');
 
   if (!map.getSource(SRC_ROUTE)) {
@@ -103,10 +103,14 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
     const m = makeMarker('site', [site.lng, site.lat]);
     const el = m.getElement();
     el.title = site.name || 'Site';
-    m.on('dragend', () => {
-      const p = m.getLngLat();
-      mission.moveSite(site.id, p.lat, p.lng);
-    });
+    // M19: drag is owned by the shared registry drag behaviour; without a
+    // registry (tests / standalone) fall back to the original handler.
+    if (!registry) {
+      m.on('dragend', () => {
+        const p = m.getLngLat();
+        mission.moveSite(site.id, p.lat, p.lng);
+      });
+    }
     el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (mode) return; // don't open delete popups while placing
@@ -117,20 +121,39 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
         editable: true,
         name: site.name || '',
         placeholder: 'Site name',
-        onRename: (v) => { mission.renameSite(site.id, v); el.title = v || 'Site'; },
+        onRename: (v) => {
+          mission.renameSite(site.id, v);
+          el.title = v || 'Site';
+          registry?.sync(site.id, { name: v || 'Site' });
+        },
       });
     });
     siteMarkers.set(site.id, m);
+    registry?.register({
+      id: site.id,
+      kind: 'mast',
+      owner: 'mission',
+      name: site.name || undefined,
+      lngLat: [site.lng, site.lat],
+      marker: m,
+      apply: {
+        move: ([lng, lat]) => { mission.moveSite(site.id, lat, lng); m.setLngLat([lng, lat]); },
+        rename: (v) => { mission.renameSite(site.id, v); el.title = v; },
+        remove: () => { mission.removeSite(site.id); refresh(); },
+      },
+    });
   }
 
   function attachPoint(pt) {
     const m = makeMarker('point', [pt.lng, pt.lat]);
     const el = m.getElement();
     el.title = pt.name || 'Demand point';
-    m.on('dragend', () => {
-      const p = m.getLngLat();
-      mission.movePoint(pt.id, p.lat, p.lng);
-    });
+    if (!registry) {
+      m.on('dragend', () => {
+        const p = m.getLngLat();
+        mission.movePoint(pt.id, p.lat, p.lng);
+      });
+    }
     el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (mode) return;
@@ -141,10 +164,27 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
         editable: true,
         name: pt.name || '',
         placeholder: 'Point name',
-        onRename: (v) => { mission.renamePoint(pt.id, v); el.title = v || 'Demand point'; },
+        onRename: (v) => {
+          mission.renamePoint(pt.id, v);
+          el.title = v || 'Demand point';
+          registry?.sync(pt.id, { name: v || 'Demand point' });
+        },
       });
     });
     pointMarkers.set(pt.id, m);
+    registry?.register({
+      id: pt.id,
+      kind: 'marker',
+      owner: 'mission',
+      name: pt.name || undefined,
+      lngLat: [pt.lng, pt.lat],
+      marker: m,
+      apply: {
+        move: ([lng, lat]) => { mission.movePoint(pt.id, lat, lng); m.setLngLat([lng, lat]); },
+        rename: (v) => { mission.renamePoint(pt.id, v); el.title = v; },
+        remove: () => { mission.removePoint(pt.id); refresh(); },
+      },
+    });
   }
 
   function attachRouteVertices() {
@@ -181,12 +221,17 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
 
   /** Rebuild every marker + the route line from the model. */
   function refresh() {
+    // Registry reconciliation: anything we had that the model no longer has.
+    const stale = new Set([...siteMarkers.keys(), ...pointMarkers.keys()]);
     siteMarkers.forEach((m) => m.remove());
     siteMarkers.clear();
     pointMarkers.forEach((m) => m.remove());
     pointMarkers.clear();
     for (const s of mission.state.sites) attachSite(s);
     for (const p of mission.state.points) attachPoint(p);
+    for (const id of stale) {
+      if (!siteMarkers.has(id) && !pointMarkers.has(id)) registry?.unregister(id);
+    }
     drawCommittedRoute();
     attachRouteVertices();
   }
@@ -312,6 +357,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       map.off('dblclick', onDbl);
       document.removeEventListener('keydown', onKey);
       closePopup();
+      for (const id of [...siteMarkers.keys(), ...pointMarkers.keys()]) registry?.unregister(id);
       siteMarkers.forEach((m) => m.remove());
       pointMarkers.forEach((m) => m.remove());
       routeVertexMarkers.forEach((m) => m.remove());

@@ -1971,17 +1971,63 @@ select.input--sm { text-align: left; padding-right: 6px; }
   text-transform: uppercase;
 }
 
-/* ---- Panel collapse (desktop) + expand control ------------------------- */
+/* ---- Panel collapse (desktop) + expand control -------------------------
+   M19: the collapsed panel is a 52 px icon strip (--panel-w-collapsed), not a
+   zero-width sliver. The grid tracks live in base.css; ≤150 ms per spec. */
 
 .app {
-  transition: grid-template-columns 0.24s ease;
-}
-.app[data-collapsed='true'] {
-  grid-template-columns: 0 1fr;
+  transition: grid-template-columns 0.15s ease-out;
 }
 .app[data-collapsed='true'] .panel {
-  border-right: 0;
   overflow: hidden;
+}
+/* Collapsed: hide the header + sections, show the icon strip. */
+.panel-strip {
+  display: none;
+}
+.app[data-collapsed='true'] .panel__head,
+.app[data-collapsed='true'] .panel__body {
+  display: none;
+}
+.app[data-collapsed='true'] .panel-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-2) 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+.panel-strip__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+.panel-strip__btn:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+.panel-strip__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.panel-strip__btn .ico {
+  width: 18px;
+  height: 18px;
+}
+.panel-strip__btn--expand {
+  color: var(--accent);
+  margin-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--hair);
+  border-radius: 0;
+  width: 100%;
 }
 
 /* The collapse "<" button is desktop-only (mobile uses the slide-over). */
@@ -2043,12 +2089,8 @@ select.input--sm { text-align: left; padding-right: 6px; }
   }
 }
 
-/* Show the over-map toggle on desktop only when the panel is collapsed. */
-@media (min-width: 761px) {
-  .app[data-collapsed='true'] .panel-toggle {
-    display: inline-flex;
-  }
-}
+/* M19: the icon strip replaces the over-map toggle on collapsed desktop —
+   the strip's chevron (and any strip icon) expands the panel. */
 
 /* ==========================================================================
    Phone: touch-friendly sizes + bottom-sheet layout (≤540px)
@@ -2516,3 +2558,396 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .backend-test-status.ok { color: var(--ok); }
 .backend-test-status.fail { color: var(--bad); }
+
+/* ==========================================================================
+   M19 — workspace UX: top toolbar · right object panel · context menu · drag
+   Layout only — every colour below references an existing token.
+   ========================================================================== */
+
+/* ---- Top toolbar (M19 §1) ----------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-3);
+  min-width: 0;
+}
+.toolbar .brand {
+  flex: 0 0 auto;
+  padding-right: var(--sp-2);
+}
+.toolbar .brand__mark {
+  width: 22px;
+  height: 22px;
+}
+.toolbar .brand__name {
+  font-size: 14px;
+}
+.toolbar .brand__sub {
+  display: none; /* the subtitle is panel-era chrome; the bar stays thin */
+}
+.toolbar__modules {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none; /* icons scroll on narrow screens, no bar */
+}
+.toolbar__modules::-webkit-scrollbar {
+  display: none;
+}
+.toolbar__sep {
+  width: 1px;
+  height: 20px;
+  background: var(--hair);
+  margin: 0 var(--sp-1);
+  flex: 0 0 auto;
+}
+.toolbar__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.toolbar__btn:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+.toolbar__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.toolbar__btn.is-active {
+  background: var(--raise);
+  color: var(--accent);
+}
+.toolbar__btn .ico {
+  width: 17px;
+  height: 17px;
+}
+
+/* ---- Right object panel (M19 §2) ---------------------------------------- */
+
+.rdivider {
+  position: relative;
+}
+.rdivider::after {
+  /* widen the hit area without widening the 6px track */
+  content: '';
+  position: absolute;
+  inset: 0 -3px;
+}
+.rdivider:hover,
+.rdivider.is-dragging {
+  background: var(--hair2);
+}
+.rdivider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.rpanel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--hair);
+  flex: 0 0 auto;
+}
+.rpanel__title {
+  font-family: var(--disp);
+  font-weight: 600;
+  font-size: 13px;
+}
+.rpanel__close {
+  margin-left: auto;
+}
+.rpanel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+}
+.rpanel__empty {
+  padding: var(--sp-2);
+}
+.rpanel__view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-2);
+}
+.rview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.objlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.objrow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  min-width: 0;
+}
+.objrow:hover {
+  background: var(--raise);
+}
+.objrow:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.objrow.is-selected {
+  background: var(--raise);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.objrow__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--dim);
+}
+.objrow__icon .ico {
+  width: 15px;
+  height: 15px;
+}
+.objrow__icon--mast,
+.objrow__icon--tx,
+.objrow__icon--repeater {
+  color: var(--accent);
+}
+.objrow__icon--marker,
+.objrow__icon--waypoint,
+.objrow__icon--drone {
+  color: var(--accent2);
+}
+.objrow__name {
+  font-weight: 600;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.objrow__ref {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.objrow__menu {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  font-size: 14px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.objrow__menu:hover {
+  background: var(--bg2);
+  color: var(--ink);
+}
+
+.objdetail {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--hair);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  background: var(--surface2);
+}
+.objdetail__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: 13px;
+}
+.objdetail__kind {
+  font-size: 11px;
+  color: var(--dim);
+}
+.objdetail__coord {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 11.5px;
+}
+.objdetail__coord span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.objdetail__copy {
+  flex: 0 0 auto;
+  border: 1px solid var(--hair);
+  background: var(--surface);
+  color: var(--dim);
+  font-size: 10.5px;
+  border-radius: var(--r-sm);
+  padding: 1px 7px;
+  cursor: pointer;
+}
+.objdetail__copy:hover {
+  color: var(--accent);
+  border-color: var(--hair2);
+}
+.objdetail__rf {
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.objdetail__edit {
+  align-self: flex-start;
+}
+
+/* ---- Per-object context menu (M19 §3) ------------------------------------ */
+
+.objmenu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 300px;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  padding: var(--sp-1);
+  display: flex;
+  flex-direction: column;
+}
+.objmenu__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-2);
+  border-bottom: 1px solid var(--hair);
+  margin-bottom: var(--sp-1);
+}
+.objmenu__name {
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.objmenu__kind {
+  font-size: 10.5px;
+  color: var(--dim);
+  flex: 0 0 auto;
+}
+.objmenu__coord {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  border: none;
+  background: transparent;
+  padding: 4px var(--sp-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+  font-size: 11px;
+  color: var(--ink);
+}
+.objmenu__coord:hover,
+.objmenu__coord:focus-visible {
+  background: var(--raise);
+  outline: none;
+}
+.objmenu__fmt {
+  color: var(--dim);
+  flex: 0 0 52px;
+}
+.objmenu__val {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.objmenu__sep {
+  height: 1px;
+  background: var(--hair);
+  margin: var(--sp-1) 0;
+}
+.objmenu__item {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 6px var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.objmenu__item:hover,
+.objmenu__item:focus-visible {
+  background: var(--raise);
+  outline: none;
+}
+.objmenu__item--delete {
+  color: var(--bad);
+}
+.objmenu__rename {
+  margin: 2px var(--sp-2);
+  padding: 4px 8px;
+  border: 1px solid var(--hair2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+/* ---- Drag-to-move states (M19 §4) ---------------------------------------- */
+
+.is-move-armed {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+.mission-marker.is-selected,
+.wp-marker.is-selected,
+.drone-marker.is-selected,
+.site-marker.is-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+/* ---- Narrow (<900px): rpanel overlay chrome ------------------------------ */
+
+@media (max-width: 899px) {
+  .rpanel {
+    z-index: calc(var(--z-panel) + 1);
+  }
+}

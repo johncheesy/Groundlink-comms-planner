@@ -19,7 +19,7 @@ import maplibregl from 'maplibre-gl';
  * The site-list DOM and its hover/fly-to wiring live in the caller (main.js),
  * driven via getSites(), flyTo(i) and setHighlight(i).
  */
-export function createRecommendController(map, coverage, { onProgress, onDone, onStatus } = {}) {
+export function createRecommendController(map, coverage, { onProgress, onDone, onStatus, registry } = {}) {
   let worker = null;
   let jobId = 0;
   let markers = []; // maplibregl.Marker[] — recommended masts only
@@ -27,6 +27,7 @@ export function createRecommendController(map, coverage, { onProgress, onDone, o
   let input = null; // last { bounds, aoi, demand, lockedSites }
   let lastParams = null;
   let dragTimer = null;
+  let lastInfo = {}; // last handleDone info — reused for list re-renders (M19)
 
   function ensureWorker() {
     if (worker) return worker;
@@ -71,6 +72,7 @@ export function createRecommendController(map, coverage, { onProgress, onDone, o
       terrain: msg.terrain, clutter: msg.clutter,
       baseFrac: msg.baseFrac, lockedCount: msg.lockedCount, demandCount: msg.demandCount,
     };
+    lastInfo = info;
     // Nothing to show only when there are neither recommended nor fixed sites.
     if (!sites.length && !msg.lockedCount) {
       onDone?.([], { ...info, empty: true });
@@ -90,20 +92,57 @@ export function createRecommendController(map, coverage, { onProgress, onDone, o
       el.dataset.n = String(i + 1);
       el.textContent = String(i + 1);
       const m = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([s.lng, s.lat]).addTo(map);
-      m.on('dragstart', () => el.classList.add('is-dragging'));
-      m.on('dragend', () => {
-        el.classList.remove('is-dragging');
-        const p = m.getLngLat();
-        sites[i] = { ...sites[i], lng: p.lng, lat: p.lat };
-        scheduleRecompute();
-      });
+      // M19: drag is owned by the shared registry behaviour when present;
+      // dragging never re-runs greedy — the user's placement wins.
+      if (!registry) {
+        m.on('dragstart', () => el.classList.add('is-dragging'));
+        m.on('dragend', () => {
+          el.classList.remove('is-dragging');
+          const p = m.getLngLat();
+          sites[i] = { ...sites[i], lng: p.lng, lat: p.lat };
+          scheduleRecompute();
+        });
+      }
       markers.push(m);
+      registry?.register({
+        id: `rec${i}`,
+        kind: 'mast',
+        owner: 'recommend', // self-recomputes — main.js skips its global re-run
+        name: s.label || `Site ${i + 1}`,
+        lngLat: [s.lng, s.lat],
+        marker: m,
+        apply: {
+          move: ([lng, lat]) => {
+            sites[i] = { ...sites[i], lng, lat };
+            m.setLngLat([lng, lat]);
+            scheduleRecompute();
+          },
+          rename: (v) => {
+            sites[i] = { ...sites[i], label: v }; // label flows into exports
+            onDone?.(sites, lastInfo);
+          },
+          remove: () => removeSiteAt(i),
+        },
+      });
     });
   }
 
   function clearMarkers() {
-    markers.forEach((m) => m.remove());
+    markers.forEach((m, i) => {
+      m.remove();
+      registry?.unregister(`rec${i}`);
+    });
     markers = [];
+  }
+
+  /** Delete one recommended mast (M19 context menu) and recompute. */
+  function removeSiteAt(i) {
+    if (i < 0 || i >= sites.length) return;
+    sites = sites.filter((_, idx) => idx !== i);
+    placeMarkers(); // re-register: rec-ids are positional
+    if (input && lastParams && allTxs().length) computeCombined();
+    else coverage.clear();
+    onDone?.(sites, lastInfo);
   }
 
   function scheduleRecompute() {

@@ -64,6 +64,11 @@
   --z-panel: 600;
   --z-status: 600;
   --z-toolbar: 500;
+
+  /* ---- M19 workspace metrics (layout only — no colours) ---- */
+  --toolbar-h: 44px; /* top icon toolbar row */
+  --rpanel-w: 280px; /* right object panel width (clamped 200–480 by JS) */
+  --panel-w-collapsed: 52px; /* left panel as icon strip */
 }
 
 :root[data-theme='dark'] {
