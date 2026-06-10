@@ -2036,9 +2036,13 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 
 /* Edge-tab collapse handle on the panel's right border. Drives the same
-   data-collapsed state as the header button; the over-map toggle reopens. */
-.panel {
-  position: relative;
+   data-collapsed state as the header button; the over-map toggle reopens.
+   Desktop-only: base.css makes the panel position:fixed for the tablet
+   slide-over / phone bottom sheet, and this file loads after base.css. */
+@media (min-width: 761px) {
+  .panel {
+    position: relative;
+  }
 }
 .panel__collapse-btn {
   position: absolute;
