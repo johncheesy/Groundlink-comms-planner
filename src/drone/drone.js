@@ -38,7 +38,8 @@ function hexToRgb(hex, fb = [70, 166, 255]) {
 
 export const ENVELOPE_BANDS = [50, 100, 120]; // m AGL (ascending → nested zones)
 
-export function createDroneController(map, { coverage, getAoi, coverageParams, onState } = {}) {
+export function createDroneController(map, { coverage, getAoi, coverageParams, onState, registry } = {}) {
+  const DRONE_REG_ID = 'drone-relay'; // singleton registry id (M19)
   let placing = null; // null | 'relay' | 'gcs'
   let drone = null; // { lng, lat, altM, marker }
   let busy = false;
@@ -89,17 +90,44 @@ export function createDroneController(map, { coverage, getAoi, coverageParams, o
     el.innerHTML = DRONE_SVG;
     const marker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat(lngLat).addTo(map);
     drone = { lng: lngLat[0], lat: lngLat[1], altM: drone?.altM ?? 120, marker };
-    marker.on('dragend', () => {
-      const p = marker.getLngLat();
-      drone.lng = p.lng;
-      drone.lat = p.lat;
+    // M19: drag is owned by the shared registry behaviour when present.
+    if (!registry) {
+      marker.on('dragend', () => {
+        const p = marker.getLngLat();
+        drone.lng = p.lng;
+        drone.lat = p.lat;
+      });
+    }
+    registry?.register({
+      id: DRONE_REG_ID,
+      kind: 'drone',
+      owner: 'drone',
+      lngLat,
+      marker,
+      settings: { altM: drone.altM },
+      apply: {
+        move: ([lng, lat]) => {
+          drone.lng = lng;
+          drone.lat = lat;
+          marker.setLngLat([lng, lat]);
+        },
+        remove: () => removeDrone(),
+      },
     });
+    emit();
+  }
+
+  /** Remove just the relay drone (registry delete); envelope/GCS stay. */
+  function removeDrone() {
+    drone?.marker?.remove();
+    drone = null;
     emit();
   }
 
   function setAltitude(m) {
     if (!drone) return;
     drone.altM = m;
+    registry?.sync(DRONE_REG_ID, { settings: { altM: m } }); // RF-relevant → recompute
     emit();
   }
 
@@ -246,6 +274,7 @@ export function createDroneController(map, { coverage, getAoi, coverageParams, o
     clearEnvelope(); // also removes GCS marker + envelope layer
     drone?.marker?.remove();
     drone = null;
+    registry?.unregister(DRONE_REG_ID);
     arm(null);
     emit();
   }

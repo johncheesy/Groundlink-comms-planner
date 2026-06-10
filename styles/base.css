@@ -50,18 +50,33 @@ button {
   font-family: var(--ui);
 }
 
-/* ---- App grid: [panel | map] over [status bar] -------------------------- */
+/* ---- App grid (M19): [toolbar] / [panel | map] / [status] ---------------
+   The map keeps the whole right side free; the left menu is the only panel
+   and the icons live in the top toolbar. */
 
 .app {
   display: grid;
   grid-template-columns: var(--panel-w) 1fr;
-  grid-template-rows: 1fr var(--status-h);
+  grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
   grid-template-areas:
+    'toolbar toolbar'
     'panel map'
     'status status';
   height: 100vh;
   height: 100dvh;
   width: 100vw;
+}
+
+/* Left panel collapsed to the icon strip. */
+.app[data-collapsed='true'] {
+  grid-template-columns: var(--panel-w-collapsed) 1fr;
+}
+
+.toolbar {
+  grid-area: toolbar;
+  background: var(--surface);
+  border-bottom: 1px solid var(--hair);
+  z-index: var(--z-panel);
 }
 
 .panel {
@@ -182,17 +197,19 @@ button {
 /* ---- Mobile: panel becomes a slide-over -------------------------------- */
 
 @media (max-width: 760px) {
-  .app {
+  .app,
+  .app[data-collapsed='true'] {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr var(--status-h);
+    grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
     grid-template-areas:
+      'toolbar'
       'map'
       'status';
   }
 
   .panel {
     position: fixed;
-    top: 0;
+    top: var(--toolbar-h);
     left: 0;
     bottom: var(--status-h);
     width: min(86vw, var(--panel-w));

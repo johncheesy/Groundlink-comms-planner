@@ -35,6 +35,13 @@ import { createImportController } from './io/import.js';
 import { createExportPanel } from './export/export-panel.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { initPwa } from './ui/pwa.js';
+import { createObjectRegistry, RF_KINDS } from './ui/objects.js';
+import { createObjectList } from './ui/objlist.js';
+import { createSectionTabs } from './ui/tabs.js';
+import { createContextMenu } from './ui/ctxmenu.js';
+import { createToolbar, TOOLBAR_MODULES } from './ui/toolbar.js';
+import { createLeftPanel } from './ui/lpanel.js';
+import { initDragMove } from './ui/dragmove.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
@@ -444,6 +451,11 @@ const clearAoiBtn = $('#clearAoi');
 const computeBtn = $('#computeCoverage');
 
 const TX_GAIN_DBI = 2.15;
+
+// M19: shared object registry — one inventory of user-placed map objects,
+// driving the right panel, the context menu and drag-to-move.
+const registry = createObjectRegistry();
+
 let aoi = null;
 let coverage = null;
 let exportPanel = null; // M16 coverage/interop export panel
@@ -672,6 +684,7 @@ whenStyleReady(() => {
     },
     onStatus(msg) { statusMode.textContent = msg; },
     formatCoord: (ll) => formatCoordinate({ lat: ll[1], lng: ll[0] }, COORD_CYCLE[coordFmtIndex]),
+    registry,
   });
 
   // Mission input-mode segmented buttons (Area / Sites / Route / Points).
@@ -685,6 +698,7 @@ whenStyleReady(() => {
     formatCoord: (pt, fmt) => formatCoordinate(pt, fmt),
     coordCycle: COORD_CYCLE,
     onUpdate(all) { renderWaypointList(all); refreshExportPanel(); },
+    registry,
   });
 
   const placeWaypointBtn = $('#placeWaypointBtn');
@@ -769,6 +783,7 @@ whenStyleReady(() => {
     coverage,
     getAoi: () => aoi?.getAoi?.() || null,
     coverageParams,
+    registry,
     onState(st) {
       if ('hasDrone' in st) {
         dronePanel.hidden = !st.hasDrone;
@@ -889,6 +904,7 @@ whenStyleReady(() => {
       statusMode.textContent = 'Sites ready';
     },
     onStatus(msg) { statusMode.textContent = msg; },
+    registry,
   });
 
   recommendBtn.addEventListener('click', () => {
@@ -2041,13 +2057,15 @@ const closePanel = () => {
   if (mq.matches) panelToggle.focus();
 };
 
-// Desktop: collapse the panel to a sliver so the map gets the full width.
-// The map needs a resize once the grid column finishes animating.
-const setCollapsed = (collapsed) => {
-  app.dataset.collapsed = collapsed ? 'true' : 'false';
-  panelToggle.setAttribute('aria-expanded', String(!collapsed));
-  setTimeout(() => resize(), 260);
-};
+// M19 §5: desktop collapse goes to a 52 px icon strip (persisted) instead of
+// a zero-width sliver; the strip + chevron live in src/ui/lpanel.js.
+const lpanelCtl = createLeftPanel({
+  app,
+  strip: $('#panelStrip'),
+  collapseBtn: panelCollapse,
+  onResize: resize,
+  reveal: (anchor) => sectionTabs.reveal(anchor),
+});
 
 panelToggle.addEventListener('click', () => {
   if (mqPhone.matches) {
@@ -2059,17 +2077,145 @@ panelToggle.addEventListener('click', () => {
     openPanel();
   } else {
     // Desktop: collapse / expand the side panel
-    setCollapsed(app.dataset.collapsed !== 'true');
+    lpanelCtl.toggle();
   }
 });
-panelCollapse.addEventListener('click', () => setCollapsed(true));
-// Edge-tab handle on the panel border collapses the panel (over-map toggle reopens).
-$('#collapsePanel')?.addEventListener('click', () => setCollapsed(app.dataset.collapsed !== 'true'));
+// Edge-tab handle on the panel border collapses the panel too.
+$('#collapsePanel')?.addEventListener('click', () => lpanelCtl.toggle());
 $('#scrim').addEventListener('click', closePanel);
 $('#panelClose').addEventListener('click', closePanel);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && mq.matches && app.dataset.panel === 'open') closePanel();
 });
+
+// ---- M19 workspace: toolbar · left-panel tabs · context menu · drag -------
+// The left menu is the only panel: every section is a tab that opens and
+// closes (sliding body); the map keeps the whole right side free.
+
+// Section tabs — every .section header toggles; toolbar icons mirror state.
+let toolbarCtl = null; // assigned below; tab restores fire before it exists
+const sectionTabs = createSectionTabs($('#panel .panel__body') ?? $('.panel__body'), {
+  onChange(key, open) {
+    toolbarCtl?.setPressed(key, open);
+  },
+});
+
+/** Expand the panel, open a section's tab and scroll to it. */
+function jumpToAnchor(anchorId) {
+  lpanelCtl.setCollapsed(false, { persist: false });
+  if (mq.matches) openPanel();
+  setTimeout(() => sectionTabs.reveal(anchorId), 180);
+}
+
+/** The left-panel section that "owns" an object's settings / edit jump. */
+function anchorForEntry(entry) {
+  if (entry.owner === 'recommend') return 'siteTitle';
+  if (entry.kind === 'drone') return 'droneTitle';
+  if (entry.kind === 'marker' || entry.kind === 'waypoint') return 'missionTitle';
+  return 'coverageTitle'; // masts/tx: RF params live in the Coverage section
+}
+
+const dragMove = initDragMove(map, registry, {
+  onLiveCoord(pt) {
+    lastCursor = pt;
+    renderCursor();
+  },
+  onStatus(msg) { statusMode.textContent = msg; },
+});
+
+const ctxMenu = createContextMenu({
+  registry,
+  onStatus(msg) { statusMode.textContent = msg; },
+  onAction(action, entry) {
+    if (action === 'settings') jumpToAnchor(anchorForEntry(entry));
+    else if (action === 'move') dragMove.armMove(entry.id);
+  },
+});
+
+// Object hit-test ahead of the map's coords-only contextmenu popup: markers
+// are DOM elements above the canvas, so a capture listener on the container
+// sees right-clicks the canvas handler never gets.
+map.getContainer().addEventListener(
+  'contextmenu',
+  (e) => {
+    const entry = registry.byElement(e.target);
+    if (!entry) return; // empty map → existing coordinate popup
+    e.preventDefault();
+    e.stopPropagation();
+    ctxMenu.openFor(entry.id, e.clientX, e.clientY);
+  },
+  true,
+);
+
+// Objects tab — the registry list + detail in the left panel's first section.
+let selectedMarkerEl = null;
+const objList = createObjectList(
+  {
+    list: $('#objList'),
+    empty: $('#objListEmpty'),
+    detail: $('#objDetail'),
+  },
+  {
+    registry,
+    formatCoord: (pt, fmt) => formatCoordinate(pt, fmt ?? COORD_CYCLE[coordFmtIndex]),
+    onStatus(msg) { statusMode.textContent = msg; },
+    onOpenMenu: (id, x, y) => ctxMenu.openFor(id, x, y),
+    onFlyTo(id) {
+      const e = registry.get(id);
+      if (e) map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 13) });
+    },
+    onSelect(id) {
+      selectedMarkerEl?.classList.remove('is-selected');
+      selectedMarkerEl = id ? registry.get(id)?.marker?.getElement() ?? null : null;
+      selectedMarkerEl?.classList.add('is-selected');
+    },
+    onEdit(id) {
+      const e = registry.get(id);
+      if (e) jumpToAnchor(anchorForEntry(e));
+    },
+    rfSummary(e) {
+      if (e.kind === 'drone') return `Alt ${e.settings?.altM ?? drone?.getAltitude?.() ?? '—'} m AGL`;
+      return `${freqInput.value} MHz · ${powerInput.value} W · tx ${txHeightInput.value} m`;
+    },
+  },
+);
+
+toolbarCtl = createToolbar(
+  { root: $('#toolbar'), modulesHost: $('#toolbarModules'), rightHost: $('#toolbarRight') },
+  {
+    onModule(m) {
+      // Collapsed strip or mobile: always open + reveal; otherwise toggle.
+      if (mq.matches || lpanelCtl.isCollapsed()) jumpToAnchor(m.anchor);
+      else if (sectionTabs.isOpen(m.anchor)) sectionTabs.setOpen(m.anchor, false);
+      else sectionTabs.reveal(m.anchor);
+    },
+    onSearch() { $('#searchInput')?.focus(); },
+    onBasemap() { document.querySelector('.basemap-switch__btn:not(.is-active)')?.click(); },
+    onSettings() { jumpToAnchor('coverageTitle'); }, // backend settings live there
+  },
+);
+// Mirror the restored open/closed state onto the toolbar icons.
+for (const m of TOOLBAR_MODULES) toolbarCtl.setPressed(m.anchor, sectionTabs.isOpen(m.anchor));
+
+// Debounced RF recompute (§0): moving or re-tuning a tx/mast/repeater/drone
+// re-runs the analyse path ~400 ms after the change. Recommended masts are
+// skipped — recommend.js cancels-and-restarts its own combined raster.
+let rfRecomputeTimer = null;
+document.addEventListener('objects:changed', (ev) => {
+  const { type, id } = ev.detail || {};
+  if (type !== 'move' && type !== 'settings') return;
+  const e = registry.get(id);
+  if (!e || !RF_KINDS.includes(e.kind) || e.owner === 'recommend') return;
+  clearTimeout(rfRecomputeTimer);
+  rfRecomputeTimer = setTimeout(() => {
+    if (!coverage?.hasCoverage?.()) return; // nothing painted → nothing to refresh
+    if (e.kind === 'drone') drone?.computeRelay();
+    else if (!recommender?.hasSites?.()) runCoverage();
+  }, 400);
+});
+
+// The object list shows grid refs in the active coordinate format.
+statusCoords.addEventListener('click', () => objList.refresh());
 
 // PWA: service worker, offline indicator, install prompt (M17).
 initPwa();
@@ -2091,5 +2237,12 @@ if (import.meta.env.DEV) {
     pace: { build: () => buildPace(gatherPaceContext()), get last() { return lastPlan; } },
     power: { build: () => buildPowerPlan() },
     get powerBom() { return lastPowerBom; },
+    // M19 workspace handles
+    registry,
+    objList,
+    tabs: sectionTabs,
+    lpanel: lpanelCtl,
+    get toolbar() { return toolbarCtl; },
+    ctxMenu,
   };
 }

@@ -55,7 +55,7 @@ function iconSvg(name, c = 'currentColor') {
   return `<svg viewBox="0 0 16 16" aria-hidden="true">${body}</svg>`;
 }
 
-export function createWaypointController(map, { onUpdate, formatCoord, coordCycle } = {}) {
+export function createWaypointController(map, { onUpdate, formatCoord, coordCycle, registry } = {}) {
   const waypoints = [];
   let nextId = 1;
   let placing = false; // are we in click-to-place mode?
@@ -127,6 +127,7 @@ export function createWaypointController(map, { onUpdate, formatCoord, coordCycl
       wp.name = v || wp.name;
       name.value = wp.name;
       wp.marker.getElement().title = wp.name;
+      registry?.sync(`wp${wp.id}`, { name: wp.name });
       onUpdate?.(getAll());
     };
     name.addEventListener('change', saveName);
@@ -252,7 +253,8 @@ export function createWaypointController(map, { onUpdate, formatCoord, coordCycl
       icon: WP_ICONS.includes(icon) ? icon : 'point',
       altM: elevationAt(lng, lat),
     };
-    const marker = new maplibregl.Marker({ element: makeMarkerEl(wp.icon) })
+    // M19: draggable when the shared registry owns drag-to-move.
+    const marker = new maplibregl.Marker({ element: makeMarkerEl(wp.icon), draggable: Boolean(registry) })
       .setLngLat([lng, lat])
       .addTo(map);
     marker.getElement().title = wp.name;
@@ -262,6 +264,29 @@ export function createWaypointController(map, { onUpdate, formatCoord, coordCycl
     });
     wp.marker = marker;
     waypoints.push(wp);
+    registry?.register({
+      id: `wp${wp.id}`,
+      kind: 'waypoint',
+      owner: 'waypoints',
+      name: wp.name,
+      lngLat: [lng, lat],
+      marker,
+      apply: {
+        move: ([mlng, mlat]) => {
+          wp.lng = mlng;
+          wp.lat = mlat;
+          wp.altM = elevationAt(mlng, mlat); // elevation follows the move
+          marker.setLngLat([mlng, mlat]);
+          onUpdate?.(getAll());
+        },
+        rename: (v) => {
+          wp.name = v;
+          marker.getElement().title = v;
+          onUpdate?.(getAll());
+        },
+        remove: () => remove(wp.id),
+      },
+    });
     onUpdate?.(getAll());
     return wp;
   }
@@ -291,6 +316,7 @@ export function createWaypointController(map, { onUpdate, formatCoord, coordCycl
     if (i === -1) return;
     waypoints[i].marker?.remove();
     waypoints.splice(i, 1);
+    registry?.unregister(`wp${id}`);
     onUpdate?.(getAll());
   }
   function getAll() {
