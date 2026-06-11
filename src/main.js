@@ -48,6 +48,12 @@ import { createResultCard, createStalePill } from './ui/resultcard.js';
 import { createRailState } from './ui/rail.js';
 import { createLeftPanel } from './ui/lpanel.js';
 import { initDragMove } from './ui/dragmove.js';
+import { serializeMission, parseMission, missionFilename, looksLikeMissionFile, isMissionData } from './io/mission.js';
+import { createFocusMode } from './ui/focus.js';
+import { createObjectsDash } from './ui/dash-objects.js';
+import { createPowerDash } from './ui/dash-power.js';
+import { createEmptyState } from './ui/emptystate.js';
+import { createUndoStack } from './ui/undo.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 
@@ -440,9 +446,90 @@ const TX_GAIN_DBI = 2.15;
 // driving the right panel, the context menu and drag-to-move.
 const registry = createObjectRegistry();
 
+// ---- Undo (M21 §D) -------------------------------------------------------
+// Wrap the UI-driven registry mutators so every move / rename / delete pushes
+// an inverse-op pair. Replays drive the raw mutators; the stack's re-entrancy
+// guard keeps a replay from recording itself as a fresh action, and mission
+// load suppresses capture entirely (applyingMission).
+
+const undoStack = createUndoStack();
+
+{
+  const raw = { move: registry.move, rename: registry.rename, remove: registry.remove };
+
+  registry.move = (id, lngLat) => {
+    const e = registry.get(id);
+    const from = e ? [...e.lngLat] : null;
+    const to = [...lngLat];
+    const ok = raw.move(id, lngLat);
+    if (ok && from && !applyingMission) {
+      undoStack.push({
+        label: `${e.name} moved`,
+        undo: () => raw.move(id, from),
+        redo: () => raw.move(id, to),
+      });
+    }
+    return ok;
+  };
+
+  registry.rename = (id, name) => {
+    const e = registry.get(id);
+    const from = e?.name;
+    const to = String(name ?? '').trim();
+    const ok = raw.rename(id, name);
+    if (ok && from && !applyingMission) {
+      undoStack.push({
+        label: `${from} renamed to ${to}`,
+        undo: () => raw.rename(id, from),
+        redo: () => raw.rename(id, to),
+      });
+    }
+    return ok;
+  };
+
+  registry.remove = (id) => {
+    const e = registry.get(id);
+    const snap = e
+      ? { kind: e.kind, owner: e.owner, name: e.name, lngLat: [...e.lngLat], settings: { ...e.settings } }
+      : null;
+    const ok = raw.remove(id);
+    // Recommend-owned masts are computed results — restoring one is a
+    // recompute, not an undo; skip recording those deletes.
+    if (ok && snap && snap.owner !== 'recommend' && !applyingMission) {
+      let liveId = null; // the id after a restore — redo removes the new entry
+      undoStack.push({
+        label: `${snap.name} deleted`,
+        undo: () => { liveId = restoreObject(snap); },
+        redo: () => { if (liveId != null) raw.remove(liveId); },
+      });
+    }
+    return ok;
+  };
+}
+
+/** Recreate a deleted object in its owning module (undo of delete, M21 §D). */
+function restoreObject(snap) {
+  const [lng, lat] = snap.lngLat;
+  if (snap.owner === 'waypoints') {
+    const wp = waypoints?.add?.(lat, lng, snap.name);
+    return wp ? `wp${wp.id}` : null;
+  }
+  if (snap.kind === 'drone') {
+    drone?.place?.(snap.lngLat, snap.settings?.altM);
+    return registry.byKind('drone')[0]?.id ?? null;
+  }
+  if (snap.owner === 'mission') {
+    const item = snap.kind === 'mast' ? mission?.addSite(lat, lng, snap.name) : mission?.addPoint(lat, lng, snap.name);
+    missionTools?.refresh?.();
+    return item?.id ?? null;
+  }
+  return null;
+}
+
 let aoi = null;
 let coverage = null;
 let exportPanel = null; // M16 coverage/interop export panel
+let importer = null; // KML/KMZ/GPX/GeoJSON overlay importer (M21: feeds the empty state too)
 let drone = null;
 let recommender = null;
 let mission = null;
@@ -459,6 +546,22 @@ let currentAoiAreaM2 = 0;
 let lastPlan = null; // last PACE plan built (M6) — fed to the report export
 let planStale = false; // M20 §3: an RF move/settings change armed a recompute
 let lastPaint = null; // M20 §3: last painted class grid {classes, cols, rows, bounds}
+let focusCtl = null; // M21 §B: fullscreen section focus (created with the workspace UI)
+let emptyState = null; // M21 §C: starter card over the map
+
+// M21 §A: unsaved-work marker — title-bar dot + confirm before a load replaces
+// state. applyingMission suppresses dirty-marking (and undo capture) while a
+// mission file is being restored.
+let missionDirty = false;
+let applyingMission = false;
+const BASE_TITLE = document.title;
+function setDirty(d) {
+  missionDirty = Boolean(d);
+  document.title = missionDirty ? `• ${BASE_TITLE}` : BASE_TITLE;
+}
+const markDirty = () => {
+  if (!applyingMission) setDirty(true);
+};
 
 function whenStyleReady(fn) {
   if (map.isStyleLoaded()) fn();
@@ -957,6 +1060,7 @@ whenStyleReady(() => {
     },
     onStatus(msg) { statusMode.textContent = msg; },
     onArsenalChange() {
+      markDirty(); // the arsenal is part of the mission file (M21 §A)
       if (rolesList && !rolesList.hidden) renderRoles();
       teamsPanel?.render(); // keep the per-team radio picker in sync with the arsenal
       refreshWorkflowUi();
@@ -1043,7 +1147,21 @@ whenStyleReady(() => {
           { label: 'Toggle buildings', keywords: 'view extrusion', run: () => buildingsBtn?.click() },
           { label: 'Toggle light / dark theme', keywords: 'appearance mode', run: () => $('#themeToggle')?.click() },
           { label: 'Import data file', keywords: 'kml kmz gpx geojson', run: () => $('#importBtn')?.click() },
+          { label: 'Save mission file', keywords: 'groundlink download save export mission', run: () => openSaveDialog() },
+          { label: 'Open mission file', keywords: 'groundlink load open mission', run: () => $('#importBtn')?.click() },
+          { label: 'Undo', keywords: 'undo revert back', run: () => { const op = undoStack.undo(); statusMode.textContent = op ? `Undone: ${op.label}` : 'Nothing to undo'; } },
         ],
+      },
+      {
+        key: 'focus',
+        title: 'Focus',
+        getItems: () =>
+          TOOLBAR_MODULES.map((m) => ({
+            label: `Focus: ${m.label}`,
+            keywords: 'fullscreen expand dashboard focus',
+            hint: 'fullscreen',
+            run: () => focusCtl?.enter(m.anchor),
+          })),
       },
       {
         key: 'tabs',
@@ -1065,18 +1183,64 @@ whenStyleReady(() => {
   const importPromote = $('#importPromote');
   const importPromoteText = $('#importPromoteText');
   const importPromoteBtns = $('#importPromoteBtns');
-  const importer = createImportController(map, {
+  importer = createImportController(map, {
     onStatus(msg) { statusMode.textContent = msg; },
   });
   $('#importBtn').addEventListener('click', () => importInput.click());
-  importInput.addEventListener('change', async () => {
+
+  /**
+   * One router for every incoming file (picker, drag-drop): mission files go
+   * to the M21 loader — by extension, or by content sniff for a renamed plain
+   * .json — everything else takes the M16 overlay import path.
+   */
+  async function handleIncomingFiles(files) {
     let byType = null;
-    for (const file of importInput.files) {
+    for (const file of files) {
+      if (looksLikeMissionFile(file.name)) {
+        loadMissionFromText(await file.text(), file.name);
+        continue;
+      }
+      if (/\.json$/i.test(file.name)) {
+        let text = null;
+        try {
+          text = await file.text();
+          if (isMissionData(JSON.parse(text))) {
+            loadMissionFromText(text, file.name);
+            continue;
+          }
+        } catch {
+          /* not JSON at all — let the importer report it */
+        }
+      }
       const r = await importer.importFile(file);
       if (r.ok) { clearImportBtn.hidden = false; byType = r.byType; }
     }
-    importInput.value = ''; // allow re-importing the same file
     if (byType) offerImportPromotion(byType);
+    refreshWorkflowUi(); // imported data retires the empty state
+  }
+
+  importInput.addEventListener('change', async () => {
+    const files = [...importInput.files];
+    importInput.value = ''; // allow re-importing the same file
+    await handleIncomingFiles(files);
+  });
+
+  // Drag-drop anywhere on the app (M21 §A): same router as the picker.
+  const appDropEl = $('#app');
+  appDropEl.addEventListener('dragover', (e) => {
+    if ([...(e.dataTransfer?.types ?? [])].includes('Files')) {
+      e.preventDefault();
+      appDropEl.classList.add('is-dropping');
+    }
+  });
+  appDropEl.addEventListener('dragleave', (e) => {
+    if (!e.relatedTarget || !appDropEl.contains(e.relatedTarget)) appDropEl.classList.remove('is-dropping');
+  });
+  appDropEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    appDropEl.classList.remove('is-dropping');
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (files.length) handleIncomingFiles(files);
   });
   clearImportBtn.addEventListener('click', () => {
     importer.clear();
@@ -1128,6 +1292,16 @@ whenStyleReady(() => {
     const pg = importer.getFeatures().find((f) => f.geometry?.type === 'Polygon');
     if (pg) aoi.setPolygon(pg.geometry.coordinates[0]);
   }
+  // ---- Empty state (M21 §C) — centred starter card on a fresh session ----
+  emptyState = createEmptyState(document.querySelector('.map-wrap'), {
+    onDrawAoi: () => drawRadiusBtn.click(),
+    onPlaceMast: () => {
+      jumpToAnchor('missionTitle');
+      armMissionMode('sites');
+    },
+    onOpenMission: () => $('#importBtn')?.click(),
+  });
+
   // Initial state once the modules above exist (covers a restored arsenal).
   refreshWorkflowUi();
 
@@ -1258,6 +1432,7 @@ function refreshExportPanel() {
 }
 
 function onMissionChange(s) {
+  markDirty(); // any mission edit is unsaved work (M21 §A)
   refreshExportPanel();
   if (!missionElements) return;
   const showRow = (type, n) => {
@@ -1545,6 +1720,7 @@ const powerAtakMa = $('#powerAtakMa');
 const powerAtakMah = $('#powerAtakMah');
 
 let lastPowerBom = [];
+let lastPowerModel = null; // M21: structured M8 outputs feeding the Power focus dashboard
 
 const ROLE_SUPPLY = Object.fromEntries(NODE_ROLES.map((r) => [r.key, r.power]));
 const ROLE_STATIC = Object.fromEntries(NODE_ROLES.map((r) => [r.key, r.mobility === 'static']));
@@ -1573,10 +1749,12 @@ function buildPowerPlan() {
 
   const battNodes = []; // operator DC profiles → BOM operator batteries
   const siteRadios = []; // static mains radios → BOM solar
+  const modelRows = []; // M21: structured mirror of the rendered rows
 
   const rows = nodes.map((n) => {
     const supply = ROLE_SUPPLY[n.key] || 'battery';
     if (!n.radio) {
+      modelRows.push({ name: n.label, radio: '—', supply: 'none' });
       return powerRow(n.label, '— none —', supply, 'No radio assigned — add the radios you carry to the Arsenal.');
     }
     if (supply === 'battery') {
@@ -1596,9 +1774,20 @@ function buildPowerPlan() {
         `<b>${e.batteriesWithSpare}</b> batteries (${e.batteries} + ${e.spare} spare) · ` +
         `recharge ~<b>${fmtH(e.rechargeIntervalH)} h</b> · ` +
         `${profile.className}, ${pct(duty.tx)}/${pct(duty.rx)}/${pct(duty.standby)} duty${battNote}`;
+      modelRows.push({
+        name: n.label,
+        radio: n.radio.label,
+        supply,
+        enduranceHours: e.enduranceHours,
+        batteries: e.batteries,
+        spare: e.spare,
+        batteriesWithSpare: e.batteriesWithSpare,
+        rechargeIntervalH: e.rechargeIntervalH,
+      });
       return powerRow(n.label, n.radio.label, supply, metrics);
     }
     if (supply === 'vehicle') {
+      modelRows.push({ name: n.label, radio: n.radio.label, supply });
       return powerRow(n.label, n.radio.label, supply,
         'Vehicle-powered (alternator) — no spare battery required; endurance follows the platform.');
     }
@@ -1612,6 +1801,13 @@ function buildPowerPlan() {
       `<b>${solar.panelW_rounded} W</b> solar panel · ` +
       `<b>${Math.round(daily.energyWh)} Wh/day</b> (${solar.peakSunHours} h sun @ lat ${lat.toFixed(0)}°) · ` +
       `bank <b>${bankAh.toFixed(1)} Ah</b> @ ${bankV} V buffer for ${missionHours} h`;
+    modelRows.push({
+      name: n.label,
+      radio: n.radio.label,
+      supply,
+      solarW: solar.panelW_rounded,
+      energyWhDay: Math.round(daily.energyWh),
+    });
     return powerRow(n.label, n.radio.label, supply, metrics);
   });
 
@@ -1637,6 +1833,15 @@ function buildPowerPlan() {
     duty,
   });
   powerBom.innerHTML = renderBomTable(lastPowerBom, hasDrone);
+
+  // M21: structured mirror for the Power focus dashboard.
+  lastPowerModel = {
+    missionHours,
+    duty,
+    rows: modelRows,
+    atak: { drawMa: atakMa, deviceMah: atakMah, consumedMah: consumed, bank: rec },
+  };
+  focusCtl?.refreshDash?.();
 
   powerResults.hidden = false;
   powerHelp.hidden = true;
@@ -2082,6 +2287,257 @@ async function runTeamCoverage(team) {
   statusMode.textContent = `${team.name} coverage ready`;
 }
 
+// ---- Mission file (M21 §A) ------------------------------------------------
+// Save the full mission as a local *.groundlink.json (inputs only — results
+// are recomputed on load; never API keys). Load replaces the current state
+// (confirm when dirty) and runs the normal analyse path once.
+
+/** Gather the serializable mission state from the domain modules. */
+function gatherMissionState() {
+  const area = aoi?.getAoi?.() ?? null;
+  const droneEntry = registry.byKind('drone')[0] ?? null;
+  const basemapCategory = activeBasemapCategory();
+  return {
+    aoi: area
+      ? area.type === 'radius'
+        ? { type: 'radius', center: area.center, radiusM: area.radiusM }
+        : { type: 'polygon', ring: area.ring }
+      : null,
+    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
+    points: (mission?.getPoints?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
+    route: mission?.getRoute?.() ?? [],
+    waypoints: (waypoints?.getAll?.() ?? []).map(({ lat, lng, name, icon }) => ({ lat, lng, name, icon })),
+    drone: droneEntry ? { lngLat: [...droneEntry.lngLat], altM: drone?.getAltitude?.() ?? 120 } : null,
+    arsenal: radios?.getArsenal?.() ?? [],
+    structures: (radios?.getStructures?.() ?? []).map(({ id, name, infraId, fieldId }) => ({ id, name, infraId, fieldId })),
+    coverage: {
+      freqMHz: clampNum(freqInput.value, 30, 6000, 150),
+      powerW: clampNum(powerInput.value, 0.01, 100, 5),
+      txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
+      rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
+      useTerrain: useTerrainInput.checked,
+      useClutter: useClutterInput.checked,
+      thresholds: coverageParams().thresholds,
+      digitalMode: getDigitalMode(),
+    },
+    pace: { ewThreat: $('#ewThreat')?.value ?? 'medium', cellForPace: $('#cellForPace')?.value ?? 'none' },
+    power: {
+      hours: clampNum(powerHours.value, 1, 720, 8),
+      everyMin: clampNum(powerEveryMin.value, 1, 240, 30),
+      txMin: clampNum(powerTxMin.value, 0, 60, 2),
+      continuousH: clampNum(powerContinuousH.value, 0, 72, 0),
+      bankV: clampNum(powerBankV.value, 12, 24, 12),
+      droneWh: clampNum(powerDroneWh.value, 20, 2000, 370),
+      atakMa: clampNum(powerAtakMa.value, 50, 3000, 600),
+      atakMah: clampNum(powerAtakMah.value, 1000, 20000, 5000),
+    },
+    teams: teams?.getTeams?.() ?? [],
+    basemap: { category: basemapCategory, variant: mapApi.getVariant?.(basemapCategory) ?? null },
+    opDatetime: opDatetime?.value || null,
+  };
+}
+
+/** Replace the app state with a parsed mission and analyse once. */
+function applyMissionState(m) {
+  applyingMission = true;
+  try {
+    undoStack.clear(); // history describes the old mission
+    // Drop everything on the map — results included, they are recomputed.
+    recommender?.clear?.();
+    drone?.clear?.();
+    coverage?.clear?.();
+    clearCloudRFResult();
+    clearCliffLayer(map);
+    opacityRow.hidden = true;
+    for (const wp of waypoints?.getAll?.() ?? []) waypoints.remove(wp.id);
+    mission?.clearAll?.();
+    aoi?.clear?.();
+
+    // View context first, so the mission lands on the right canvas.
+    if (m.basemap?.category) switchBasemap(m.basemap.category, m.basemap.variant ?? undefined);
+    if (m.opDatetime && opDatetime) {
+      opDatetime.value = m.opDatetime;
+      applyDayNight();
+    }
+
+    if (m.aoi?.type === 'radius') aoi.setRadius([m.aoi.center.lng, m.aoi.center.lat], m.aoi.radiusM);
+    else if (m.aoi?.type === 'polygon') aoi.setPolygon(m.aoi.ring);
+
+    for (const s of m.sites) mission.addSite(s.lat, s.lng, s.name);
+    for (const p of m.points) mission.addPoint(p.lat, p.lng, p.name);
+    if (m.route.length) mission.setRoute(m.route);
+    missionTools?.refresh?.();
+
+    for (const w of m.waypoints) waypoints?.add?.(w.lat, w.lng, w.name, w.icon);
+
+    if (m.drone) {
+      drone?.place?.(m.drone.lngLat, m.drone.altM);
+      if (droneAlt) {
+        droneAlt.value = String(m.drone.altM);
+        droneAltVal.textContent = `${m.drone.altM} m`;
+      }
+    }
+
+    if (m.arsenal.length || m.structures.length) {
+      radios?.restore?.({ arsenal: m.arsenal, structures: m.structures });
+    }
+
+    const c = m.coverage;
+    if (c) {
+      if (c.freqMHz != null) freqInput.value = String(c.freqMHz);
+      if (c.powerW != null) powerInput.value = String(c.powerW);
+      if (c.txHeightM != null) txHeightInput.value = String(c.txHeightM);
+      if (c.rxHeightM != null) rxHeightInput.value = String(c.rxHeightM);
+      useTerrainInput.checked = Boolean(c.useTerrain);
+      useClutterInput.checked = Boolean(c.useClutter);
+      const t = c.thresholds ?? {};
+      if (t.excellent != null) thExcellent.value = String(t.excellent);
+      if (t.good != null) thGood.value = String(t.good);
+      if (t.marginal != null) thMarginal.value = String(t.marginal);
+      if (t.none != null) thNone.value = String(t.none);
+      if (digitalModeSelect && [...digitalModeSelect.options].some((o) => o.value === c.digitalMode)) {
+        digitalModeSelect.value = c.digitalMode;
+      }
+      updateSignalLegend();
+    }
+
+    if (m.pace) {
+      const ew = $('#ewThreat');
+      const cell = $('#cellForPace');
+      if (ew) ew.value = m.pace.ewThreat;
+      if (cell) cell.value = m.pace.cellForPace;
+    }
+
+    if (m.power) {
+      const setIf = (el, v) => {
+        if (el && v != null) el.value = String(v);
+      };
+      setIf(powerHours, m.power.hours);
+      setIf(powerEveryMin, m.power.everyMin);
+      setIf(powerTxMin, m.power.txMin);
+      setIf(powerContinuousH, m.power.continuousH);
+      setIf(powerBankV, m.power.bankV);
+      setIf(powerDroneWh, m.power.droneWh);
+      setIf(powerAtakMa, m.power.atakMa);
+      setIf(powerAtakMah, m.power.atakMah);
+    }
+
+    if (m.teams.length && teams) {
+      for (const t of teams.getTeams()) teams.removeTeam(t.id);
+      for (const t of m.teams) teams.addTeam(t);
+      teamsPanel?.render?.();
+    }
+
+    // Bring the mission into view.
+    const bbox = mission.bbox();
+    if (aoi.getAoi()) aoi.fitBounds({ padding: 80 });
+    else if (bbox) {
+      map.fitBounds([[bbox.west, bbox.south], [bbox.east, bbox.north]], { padding: 80, maxZoom: 14, duration: 800 });
+    }
+
+    refreshWorkflowUi();
+
+    // One analyse run — the same code path as the Analyse button.
+    if (!computeBtn.disabled) runCoverage();
+  } finally {
+    applyingMission = false;
+  }
+  setDirty(false);
+}
+
+/** Parse + confirm + apply mission-file text. Returns true when loaded. */
+function loadMissionFromText(text, name) {
+  const r = parseMission(text);
+  if (!r.ok) {
+    statusMode.textContent = r.error;
+    return false;
+  }
+  if (missionDirty && !window.confirm('Replace the current mission? Unsaved changes will be lost.')) {
+    statusMode.textContent = 'Mission load cancelled';
+    return false;
+  }
+  applyMissionState(r.mission);
+  statusMode.textContent = `Mission loaded from ${name}`;
+  return true;
+}
+
+/** Serialize and download the mission file (after the dialog confirms). */
+function downloadMission() {
+  const data = serializeMission(gatherMissionState(), { savedAt: new Date().toISOString() });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = missionFilename(new Date());
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  setDirty(false);
+  statusMode.textContent = 'Mission file saved — keep it local';
+}
+
+// Save dialog — the OPSEC warning lives here, before any download happens.
+const msaveDialog = $('#msaveDialog');
+const msaveName = $('#msaveName');
+let msavePrevFocus = null;
+
+function openSaveDialog() {
+  if (!msaveDialog) return;
+  msaveName.textContent = missionFilename(new Date());
+  msavePrevFocus = document.activeElement;
+  msaveDialog.hidden = false;
+  $('#msaveConfirm')?.focus();
+}
+function closeSaveDialog() {
+  msaveDialog.hidden = true;
+  msavePrevFocus?.focus?.();
+  msavePrevFocus = null;
+}
+$('#msaveCancel')?.addEventListener('click', closeSaveDialog);
+$('#msaveConfirm')?.addEventListener('click', () => {
+  downloadMission();
+  closeSaveDialog();
+});
+msaveDialog?.addEventListener('click', (e) => {
+  if (e.target === msaveDialog) closeSaveDialog();
+});
+// Capture phase: the dialog's Esc must win over focus mode / panel handlers.
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (e.key === 'Escape' && msaveDialog && !msaveDialog.hidden) {
+      e.stopPropagation();
+      closeSaveDialog();
+    }
+  },
+  true,
+);
+
+// Output-group buttons (Data export section).
+$('#saveMissionBtn')?.addEventListener('click', openSaveDialog);
+$('#openMissionBtn')?.addEventListener('click', () => $('#importBtn')?.click());
+
+// ---- Global shortcuts: ⌘S save · ⌘Z / ⇧⌘Z undo / redo (M21 §A + §D) -------
+document.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (!mod || e.altKey) return;
+  const key = e.key.toLowerCase();
+  if (key === 's' && !e.shiftKey) {
+    e.preventDefault(); // the browser's "save page" is never what we want here
+    openSaveDialog();
+    return;
+  }
+  if (key !== 'z') return;
+  const ae = document.activeElement;
+  if (/^(input|textarea|select)$/i.test(ae?.tagName ?? '') || ae?.isContentEditable) return; // native text undo
+  e.preventDefault();
+  const op = e.shiftKey ? undoStack.redo() : undoStack.undo();
+  statusMode.textContent = op
+    ? `${e.shiftKey ? 'Redone' : 'Undone'}: ${op.label}`
+    : `Nothing to ${e.shiftKey ? 'redo' : 'undo'}`;
+});
+
 // ---- Mobile slide-over / phone bottom-sheet panel -----------------------
 
 const app = $('#app');
@@ -2118,6 +2574,17 @@ const lpanelCtl = createLeftPanel({
     const k = MODULE_KEY_BY_ANCHOR[anchor];
     if (k) panelGroups.openForModule(k); // group may be collapsed (M20 §2)
     sectionTabs.reveal(anchor);
+  },
+  // M21 §B: while a section is fullscreen the strip switches focus instead of
+  // expanding the panel; the expand chevron exits focus, then expands.
+  intercept({ type, module }) {
+    if (!focusCtl?.isActive()) return false;
+    if (type === 'module') {
+      focusCtl.enter(module.anchor);
+      return true;
+    }
+    focusCtl.exit();
+    return false;
   },
 });
 
@@ -2174,6 +2641,7 @@ for (const key of ['objects', 'aoi', 'radios', 'coverage']) {
 
 /** Expand the panel + the owning group, open a section's tab, scroll to it. */
 function jumpToAnchor(anchorId) {
+  if (focusCtl?.isActive()) focusCtl.exit(); // edit-jumps land in the panel, not the surface
   lpanelCtl.setCollapsed(false, { persist: false });
   if (mq.matches) openPanel();
   const moduleKey = MODULE_KEY_BY_ANCHOR[anchorId];
@@ -2278,6 +2746,9 @@ function refreshWorkflowUi() {
   panelGroups.setBadges(b.groups);
   for (const [key, el] of sectionBadgeEls) renderBadge(el, b.modules[key]);
   lpanelCtl?.setBadges(b.modules);
+  focusCtl?.setBadges(b.modules); // M21: surface header badge follows along
+  // M21 §C: the starter card retires for good the moment anything exists.
+  emptyState?.update({ ...s, importCount: importer?.getFeatures?.().length ?? 0 });
 }
 
 // ---- M20 §3: result summary card + stale-plan pill -------------------------
@@ -2329,6 +2800,11 @@ toolbarCtl = createToolbar(
   },
   {
     onModule(m) {
+      // Fullscreen focus active: a toolbar module click switches focus (M21).
+      if (focusCtl?.isActive()) {
+        focusCtl.enter(m.anchor);
+        return;
+      }
       // Collapsed strip or mobile: always open + reveal; otherwise toggle.
       if (mq.matches || lpanelCtl.isCollapsed()) jumpToAnchor(m.anchor);
       else if (sectionTabs.isOpen(m.anchor)) sectionTabs.setOpen(m.anchor, false);
@@ -2345,6 +2821,57 @@ toolbarCtl = createToolbar(
 );
 // Mirror the restored open/closed state onto the toolbar icons.
 for (const m of TOOLBAR_MODULES) toolbarCtl.setPressed(m.anchor, sectionTabs.isOpen(m.anchor));
+
+// ---- Focus mode (M21 §B) — any section fullscreen over the map ------------
+// Expand button on every section header; the portalled form gets a wide grid;
+// Objects and Power get dashboard layouts on top of their existing data.
+
+const objectsDash = createObjectsDash({
+  registry,
+  formatCoord: (pt) => formatCoordinate(pt, COORD_CYCLE[coordFmtIndex]),
+  rfSummary: (e) =>
+    e.kind === 'drone'
+      ? `alt ${e.settings?.altM ?? drone?.getAltitude?.() ?? '—'} m AGL`
+      : `${freqInput.value} MHz · ${powerInput.value} W · tx ${txHeightInput.value} m`,
+  onSelect(id) {
+    selectedMarkerEl?.classList.remove('is-selected');
+    selectedMarkerEl = id ? registry.get(id)?.marker?.getElement() ?? null : null;
+    selectedMarkerEl?.classList.add('is-selected');
+  },
+  onFlyTo(id) {
+    const e = registry.get(id);
+    if (e) map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 13) });
+  },
+  onOpenMenu: (id, x, y) => ctxMenu.openFor(id, x, y),
+  onStatus(msg) { statusMode.textContent = msg; },
+});
+
+const powerDash = createPowerDash({
+  getModel: () => lastPowerModel,
+  buildPlan: () => buildPowerPlan(),
+});
+
+let focusReturnCollapsed = false; // panel state to restore on exit
+focusCtl = createFocusMode({
+  host: document.querySelector('.map-wrap'),
+  panelBody: $('#panel .panel__body') ?? $('.panel__body'),
+  modules: TOOLBAR_MODULES,
+  dashboards: { objectsTitle: objectsDash, powerTitle: powerDash },
+  onEnter(key, m, { switched }) {
+    if (!switched) focusReturnCollapsed = lpanelCtl.isCollapsed();
+    lpanelCtl.setCollapsed(true, { persist: false }); // strip stays for switching
+    lpanelCtl.setFocused(m?.key ?? null);
+    setTimeout(() => resize(), 200); // map lives on under the surface
+    statusMode.textContent = `${m?.label ?? 'Section'} fullscreen — Esc returns to the map`;
+  },
+  onExit() {
+    lpanelCtl.setFocused(null);
+    lpanelCtl.setCollapsed(focusReturnCollapsed, { persist: false });
+    setTimeout(() => resize(), 200);
+    statusMode.textContent = 'Ready';
+  },
+});
+
 refreshWorkflowUi();
 
 // RF recompute on move/re-tune (M19 §0, made visible by M20 §3): moving or
@@ -2366,7 +2893,11 @@ document.addEventListener('objects:changed', (ev) => {
 });
 
 // Any registry change can move the stepper/badges (add/remove/move/rename).
-document.addEventListener('objects:changed', () => refreshWorkflowUi());
+document.addEventListener('objects:changed', (ev) => {
+  const t = ev.detail?.type;
+  if (t === 'add' || t === 'move' || t === 'rename' || t === 'remove' || t === 'settings') markDirty();
+  refreshWorkflowUi();
+});
 
 // The object list shows grid refs in the active coordinate format.
 statusCoords.addEventListener('click', () => objList.refresh());
@@ -2406,5 +2937,15 @@ if (import.meta.env.DEV) {
     stalePill,
     refreshWorkflowUi,
     gatherUiState,
+    // M21 handles
+    get focus() { return focusCtl; },
+    get emptyState() { return emptyState; },
+    undoStack,
+    missionFile: {
+      gather: gatherMissionState,
+      apply: applyMissionState,
+      load: loadMissionFromText,
+      serialize: () => serializeMission(gatherMissionState(), { savedAt: new Date().toISOString() }),
+    },
   };
 }

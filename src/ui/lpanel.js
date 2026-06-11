@@ -27,7 +27,12 @@ function saveCollapsed(collapsed) {
   }
 }
 
-export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
+/**
+ * opts.intercept({ type: 'expand' | 'module', module? }) — M21 focus mode
+ * hook: return true to swallow a strip click (focus switches section instead
+ * of expanding the panel); return false to keep the normal behaviour.
+ */
+export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal, intercept }) {
   let collapsed = false;
 
   function apply() {
@@ -51,10 +56,14 @@ export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
   expand.setAttribute('aria-label', 'Expand mission panel');
   expand.innerHTML =
     '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
-  expand.addEventListener('click', () => setCollapsed(false));
+  expand.addEventListener('click', () => {
+    if (intercept?.({ type: 'expand' })) return;
+    setCollapsed(false);
+  });
   strip.appendChild(expand);
 
   const stripBadges = new Map(); // module key -> badge span (M20 §2)
+  const stripButtons = new Map(); // module key -> button (M21 focus highlight)
   for (const m of TOOLBAR_MODULES) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -67,7 +76,9 @@ export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
     badge.hidden = true;
     btn.appendChild(badge);
     stripBadges.set(m.key, badge);
+    stripButtons.set(m.key, btn);
     btn.addEventListener('click', () => {
+      if (intercept?.({ type: 'module', module: m })) return;
       setCollapsed(false);
       // Open + scroll once the panel has its width back.
       setTimeout(() => {
@@ -91,6 +102,10 @@ export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
     /** M20 §2: mirror the per-module badges onto the strip icons. */
     setBadges(moduleBadges = {}) {
       for (const [key, el] of stripBadges) renderBadge(el, moduleBadges[key]);
+    },
+    /** M21 focus mode: highlight the focused module's strip icon (null clears). */
+    setFocused(moduleKey) {
+      for (const [key, btn] of stripButtons) btn.classList.toggle('is-focused', key === moduleKey);
     },
   };
 }

@@ -323,5 +323,13 @@ export function createWaypointController(map, { onUpdate, formatCoord, coordCycl
     return waypoints.map(({ id, name, lat, lng, icon, altM }) => ({ id, name, lat, lng, icon, altM }));
   }
 
-  return { startPlacing, cancelPlacing, remove, getAll, isPlacing: () => placing };
+  return {
+    startPlacing,
+    cancelPlacing,
+    remove,
+    getAll,
+    isPlacing: () => placing,
+    /** Programmatic add (mission load / undo restore, M21). */
+    add: (lat, lng, name, icon) => addWaypoint(lat, lng, name, icon),
+  };
 }

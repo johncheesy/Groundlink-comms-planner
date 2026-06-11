@@ -282,6 +282,11 @@ export function createDroneController(map, { coverage, getAoi, coverageParams, o
   return {
     arm,
     armPlacement: (on) => arm(on ? 'relay' : null), // back-compat
+    /** Programmatic placement (mission load / undo restore, M21). */
+    place(lngLat, altM) {
+      placeDrone([lngLat[0], lngLat[1]]);
+      if (Number.isFinite(altM)) setAltitude(altM);
+    },
     isPlacing: () => placing,
     hasDrone: () => !!drone,
     hasGcs: () => !!gcs,
