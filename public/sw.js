@@ -9,11 +9,29 @@
  * (…/Groundlink-comms-planner/) and builds with Vite `base: './'`, so every
  * URL here is resolved relative to the worker's own scope rather than the
  * origin root.
+ *
+ * Update flow (M23): every build stamps BUILD_ID below, so each deploy ships
+ * a byte-different sw.js → the browser installs it, skipWaiting() +
+ * clients.claim() switch it in without a second reload, activate deletes the
+ * previous build's shell cache and broadcasts GL_SW_ACTIVATED so open tabs
+ * reload onto the new build (pwa.js; skipped while the mission has unsaved
+ * changes).
  */
 
-const CACHE_VERSION = 'v1';
-const APP_SHELL_CACHE = `groundlink-shell-${CACHE_VERSION}`;
-const TILE_CACHE = `groundlink-tiles-${CACHE_VERSION}`;
+// Build stamp injected by the Vite build (gl-sw-stamp plugin replaces the
+// placeholder with version+sha). A new deploy therefore changes sw.js bytes,
+// which is what makes the browser install the new worker at all — the old
+// byte-stable SW was why users kept seeing stale builds. In dev / unbuilt
+// copies the placeholder survives; collapse it to 'dev'.
+let BUILD_ID = '__GL_BUILD_ID__';
+if (BUILD_ID.includes('GL_BUILD_ID')) BUILD_ID = 'dev';
+
+// Shell cache is per-build: the activate step deletes every other groundlink
+// cache except the tile cache, so one stale-shell generation never outlives a
+// deploy. The tile cache name is deliberately FIXED at its historical value —
+// versioning it would wipe the offline tile LRU on every deploy.
+const APP_SHELL_CACHE = `groundlink-shell-${BUILD_ID}`;
+const TILE_CACHE = 'groundlink-tiles-v1';
 const TILE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const TILE_MAX_ENTRIES = 500;
 
@@ -82,14 +100,18 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// ---- activate: drop stale cache versions ----------------------------------
+// ---- activate: drop stale cache versions, take over, notify ---------------
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keep = new Set([APP_SHELL_CACHE, TILE_CACHE]);
       const names = await caches.keys();
       await Promise.all(names.filter((n) => !keep.has(n)).map((n) => caches.delete(n)));
+      // Control every open tab immediately (no second reload needed), then
+      // tell each one a new build is live so the page can refresh itself.
       await self.clients.claim();
+      const clients = await self.clients.matchAll({ type: 'window' });
+      for (const c of clients) c.postMessage({ type: 'GL_SW_ACTIVATED', buildId: BUILD_ID });
     })(),
   );
 });
@@ -192,7 +214,6 @@ async function networkFirst(request) {
 function stampNow(response) {
   if (response.type === 'opaque') return response;
   const headers = new Headers(response.headers);
-  // String literal, not Date.now(), so the SW byte-stays-stable across builds.
   headers.set(CACHED_AT_HEADER, String(currentTimeMs()));
   return response.blob().then(
     (body) => new Response(body, { status: response.status, statusText: response.statusText, headers }),

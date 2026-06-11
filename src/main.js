@@ -2972,8 +2972,11 @@ document.addEventListener('objects:changed', (ev) => {
 // The object list shows grid refs in the active coordinate format.
 statusCoords.addEventListener('click', () => objList.refresh());
 
-// PWA: service worker, offline indicator, install prompt (M17).
-initPwa();
+// PWA: service worker, offline indicator, install prompt (M17). On a new
+// deploy the tab reloads onto the fresh build (M23) — but never over unsaved
+// mission edits; the new worker controls fetches either way, so a deferred
+// reload still lands on the new build whenever the user refreshes.
+initPwa({ shouldAutoReload: () => !missionDirty });
 
 // Dev-only handle for testing/automation (stripped from production builds).
 if (import.meta.env.DEV) {

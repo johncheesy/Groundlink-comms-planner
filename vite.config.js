@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // Build stamp injected at build time → shown in the ALPHA badge (bottom-right).
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
@@ -38,10 +39,36 @@ function swAssetsPlugin() {
   };
 }
 
+// Stamps the service worker with the build id (version+sha) after the public
+// dir is copied to dist. A deploy thus always changes sw.js bytes — the
+// browser's update check is a byte-diff of the SW script, so without this the
+// new build never installs and clients keep the old cached shell (M23).
+function swStampPlugin() {
+  return {
+    name: 'gl-sw-stamp',
+    apply: 'build',
+    closeBundle() {
+      const swPath = fileURLToPath(new URL('./dist/sw.js', import.meta.url));
+      try {
+        const stamped = readFileSync(swPath, 'utf8').replace(
+          /__GL_BUILD_ID__/g,
+          `${build.version}+${build.sha}`,
+        );
+        if (!stamped.includes(build.sha)) throw new Error('BUILD_ID placeholder not found in sw.js');
+        writeFileSync(swPath, stamped);
+      } catch (err) {
+        // A deploy with an unstamped SW would silently strand clients on the
+        // old build — fail the build loudly instead.
+        throw new Error(`gl-sw-stamp: could not stamp dist/sw.js — ${err.message}`);
+      }
+    },
+  };
+}
+
 // Relative base so the public-safe build works under a GitHub Pages subpath.
 export default defineConfig({
   base: './',
-  plugins: [swAssetsPlugin()],
+  plugins: [swAssetsPlugin(), swStampPlugin()],
   define: {
     __GL_BUILD__: JSON.stringify(build),
   },

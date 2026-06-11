@@ -7,6 +7,12 @@
       "runtimeArgs": ["vite", "--port", "5173"],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "groundlink-dist",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "preview", "--port", "4173", "--strictPort"],
+      "port": 4173
     }
   ]
 }
