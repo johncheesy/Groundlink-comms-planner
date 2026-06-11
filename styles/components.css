@@ -982,6 +982,33 @@ input.wp-popup-name:focus {
   margin-right: 5px; vertical-align: -1px;
 }
 
+/* Best-network indicator row (M22) — proximity heuristic readout */
+.bestnet {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--hair); border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.bestnet__label {
+  font-size: 11px; font-weight: 500; color: var(--dim); white-space: nowrap;
+}
+.bestnet__value {
+  flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bestnet .btn--sm[aria-pressed='true'] {
+  color: var(--accent); border-color: var(--accent);
+}
+
+/* Probe pin dropped by the best-network Pin button */
+.bestnet-pin {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--hair);
+}
+
 .radio-editor { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 6px; }
 .fcc-fallback { margin-top: var(--sp-2); }
 
