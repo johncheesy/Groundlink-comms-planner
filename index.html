@@ -61,6 +61,9 @@
 
         <div class="toolbar__modules" id="toolbarModules" role="group" aria-label="Modules"></div>
 
+        <!-- M20: plan progress stepper (populated by src/ui/toolbar.js) -->
+        <div class="plan-stepper" id="planStepper"></div>
+
         <div class="toolbar__right" id="toolbarRight">
           <button
             class="btn btn--icon btn--ghost theme-toggle"
@@ -144,6 +147,14 @@
         </header>
 
         <div class="panel__body">
+          <!-- M20 §2: Mission group -->
+          <div class="panel-group" data-group="mission">
+            <button class="panel-group__head" type="button" aria-expanded="true">
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <span class="panel-group__label">Mission</span>
+              <span class="panel-group__badge" hidden></span>
+            </button>
+            <div class="panel-group__body">
           <!-- M19: placed objects (registry) — first tab in the left menu -->
           <section class="section" aria-labelledby="objectsTitle">
             <div class="section__head">
@@ -263,7 +274,17 @@
               </p>
             </div>
           </section>
+            </div>
+          </div>
 
+          <!-- M20 §2: Radios group -->
+          <div class="panel-group" data-group="radios">
+            <button class="panel-group__head" type="button" aria-expanded="true">
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <span class="panel-group__label">Radios</span>
+              <span class="panel-group__badge" hidden></span>
+            </button>
+            <div class="panel-group__body">
           <!-- Radios (M5) -->
           <section class="section" aria-labelledby="radioTitle">
             <div class="section__head">
@@ -374,7 +395,17 @@
               <p class="help" id="rolesHelp">Picks the best radio from your available equipment for each node role — Operator (manpack), Mobile CP (vehicle), HQ (static), Rebro mobile/static. Add radios to the available equipment first.</p>
             </div>
           </section>
+            </div>
+          </div>
 
+          <!-- M20 §2: Analysis group -->
+          <div class="panel-group" data-group="analysis">
+            <button class="panel-group__head" type="button" aria-expanded="true">
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <span class="panel-group__label">Analysis</span>
+              <span class="panel-group__badge" hidden></span>
+            </button>
+            <div class="panel-group__body">
           <!-- Coverage compute (M2) -->
           <section class="section" aria-labelledby="coverageTitle">
             <div class="section__head">
@@ -480,6 +511,38 @@
             </div>
           </section>
 
+          <!-- Coverage legend / signal scale -->
+          <section class="section" aria-labelledby="legendTitle">
+            <div class="section__head">
+              <span class="section__title" id="legendTitle">Signal</span>
+              <span class="section__hint">VHF default scale</span>
+            </div>
+            <div class="section__body">
+              <div class="legend" id="coverageLegend">
+                <div class="legend__row">
+                  <span class="legend__swatch" style="background: var(--s1)"></span>
+                  Excellent <span class="legend__val" id="legendValExcellent">≥ -85 dBm</span>
+                </div>
+                <div class="legend__row">
+                  <span class="legend__swatch" style="background: var(--s2)"></span>
+                  Good <span class="legend__val" id="legendValGood">≥ -95 dBm</span>
+                </div>
+                <div class="legend__row">
+                  <span class="legend__swatch" style="background: var(--s3)"></span>
+                  Marginal <span class="legend__val" id="legendValMarginal">≥ -103 dBm</span>
+                </div>
+                <div class="legend__row">
+                  <span class="legend__swatch" style="background: var(--s4)"></span>
+                  Poor <span class="legend__val">transition</span>
+                </div>
+                <div class="legend__row">
+                  <span class="legend__swatch" style="background: var(--s5)"></span>
+                  None <span class="legend__val" id="legendValNone">&lt; -110 dBm</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- Site recommendation (M3) -->
           <section class="section" aria-labelledby="siteTitle">
             <div class="section__head">
@@ -571,6 +634,45 @@
             </div>
           </section>
 
+          <!-- Cellular coverage (M9) -->
+          <section class="section" aria-labelledby="cellTitle">
+            <div class="section__head">
+              <span class="section__title" id="cellTitle">Cellular coverage</span>
+              <span class="section__hint">live OSM towers</span>
+            </div>
+            <div class="section__body">
+              <label class="check"><input type="checkbox" id="cellEnabled" /><span>Show cellular layer</span></label>
+
+              <div id="cellPanel" hidden>
+                <div class="cell-types" role="group" aria-label="Network types">
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="GSM" checked /><span><span class="cell-type__dot" style="background:#94a3b8"></span>2G · GSM</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="UMTS" checked /><span><span class="cell-type__dot" style="background:#fbbf24"></span>3G · UMTS</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="LTE" checked /><span><span class="cell-type__dot" style="background:#46a6ff"></span>4G · LTE</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="NR" checked /><span><span class="cell-type__dot" style="background:#34e6c2"></span>5G · NR</span></label>
+                </div>
+
+                <div class="input-row">
+                  <button class="btn btn--primary" type="button" id="showCellBtn">Show coverage</button>
+                  <button class="btn" type="button" id="clearCellBtn">Clear</button>
+                </div>
+                <p class="help" id="cellReadout" data-numeric></p>
+                <p class="help" id="cellAttribution"></p>
+              </div>
+
+              <p class="help" id="cellHelp">Fetches cell-tower locations live from OpenStreetMap via Overpass API — no file upload needed, works anywhere. Towers are modelled as omni transmitters through the terrain engine. Planning-grade, not an operator map. © OpenStreetMap contributors (ODbL).</p>
+            </div>
+          </section>
+            </div>
+          </div>
+
+          <!-- M20 §2: Output group -->
+          <div class="panel-group" data-group="output">
+            <button class="panel-group__head" type="button" aria-expanded="true">
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <span class="panel-group__label">Output</span>
+              <span class="panel-group__badge" hidden></span>
+            </button>
+            <div class="panel-group__body">
           <!-- Comms plan (PACE) + report export (M6) -->
           <section class="section" aria-labelledby="paceTitle">
             <div class="section__head">
@@ -618,23 +720,6 @@
               <p class="help" id="paceHelp">Synthesises the radio mix, your sites and the last coverage run into a PACE plan — Primary · Alternate · Contingency · Emergency. Run the radio mix and a coverage compute first for a complete plan.</p>
 
               <p class="adv-hint" id="paceAdvHint">Switch to <strong>ADV</strong> mode to set the EW threat level.</p>
-            </div>
-          </section>
-
-          <!-- Data export (M16) — GeoTIFF / KMZ / GeoJSON / CivTAK -->
-          <section class="section" id="dataExport" aria-labelledby="dataExportTitle" hidden>
-            <div class="section__head">
-              <span class="section__title" id="dataExportTitle">Data export</span>
-              <span class="section__hint">GeoTIFF · KMZ · GeoJSON · TAK</span>
-            </div>
-            <div class="section__body">
-              <div class="export">
-                <button class="btn btn--block" type="button" id="exportGeotiffBtn">Export GeoTIFF / PNG+World</button>
-                <button class="btn btn--block" type="button" id="exportKmzBtn">Export KMZ</button>
-                <button class="btn btn--block" type="button" id="exportGeojsonBtn">Export GeoJSON</button>
-                <button class="btn btn--block" type="button" id="exportTakBtn">Export TAK package</button>
-                <p class="help" id="dataExportHelp">GeoTIFF for QGIS, KMZ for Google Earth, GeoJSON for any GIS, CivTAK data package for ATAK. Raster exports carry the last coverage run; vector exports carry your sites, route, points, waypoints and AOI. Generated locally — nothing is uploaded.</p>
-              </div>
             </div>
           </section>
 
@@ -698,64 +783,20 @@
             </div>
           </section>
 
-          <!-- Coverage legend / signal scale -->
-          <section class="section" aria-labelledby="legendTitle">
+          <!-- Data export (M16) — GeoTIFF / KMZ / GeoJSON / CivTAK -->
+          <section class="section" id="dataExport" aria-labelledby="dataExportTitle" hidden>
             <div class="section__head">
-              <span class="section__title" id="legendTitle">Signal</span>
-              <span class="section__hint">VHF default scale</span>
+              <span class="section__title" id="dataExportTitle">Data export</span>
+              <span class="section__hint">GeoTIFF · KMZ · GeoJSON · TAK</span>
             </div>
             <div class="section__body">
-              <div class="legend" id="coverageLegend">
-                <div class="legend__row">
-                  <span class="legend__swatch" style="background: var(--s1)"></span>
-                  Excellent <span class="legend__val" id="legendValExcellent">≥ -85 dBm</span>
-                </div>
-                <div class="legend__row">
-                  <span class="legend__swatch" style="background: var(--s2)"></span>
-                  Good <span class="legend__val" id="legendValGood">≥ -95 dBm</span>
-                </div>
-                <div class="legend__row">
-                  <span class="legend__swatch" style="background: var(--s3)"></span>
-                  Marginal <span class="legend__val" id="legendValMarginal">≥ -103 dBm</span>
-                </div>
-                <div class="legend__row">
-                  <span class="legend__swatch" style="background: var(--s4)"></span>
-                  Poor <span class="legend__val">transition</span>
-                </div>
-                <div class="legend__row">
-                  <span class="legend__swatch" style="background: var(--s5)"></span>
-                  None <span class="legend__val" id="legendValNone">&lt; -110 dBm</span>
-                </div>
+              <div class="export">
+                <button class="btn btn--block" type="button" id="exportGeotiffBtn">Export GeoTIFF / PNG+World</button>
+                <button class="btn btn--block" type="button" id="exportKmzBtn">Export KMZ</button>
+                <button class="btn btn--block" type="button" id="exportGeojsonBtn">Export GeoJSON</button>
+                <button class="btn btn--block" type="button" id="exportTakBtn">Export TAK package</button>
+                <p class="help" id="dataExportHelp">GeoTIFF for QGIS, KMZ for Google Earth, GeoJSON for any GIS, CivTAK data package for ATAK. Raster exports carry the last coverage run; vector exports carry your sites, route, points, waypoints and AOI. Generated locally — nothing is uploaded.</p>
               </div>
-            </div>
-          </section>
-
-          <!-- Cellular coverage (M9) -->
-          <section class="section" aria-labelledby="cellTitle">
-            <div class="section__head">
-              <span class="section__title" id="cellTitle">Cellular coverage</span>
-              <span class="section__hint">live OSM towers</span>
-            </div>
-            <div class="section__body">
-              <label class="check"><input type="checkbox" id="cellEnabled" /><span>Show cellular layer</span></label>
-
-              <div id="cellPanel" hidden>
-                <div class="cell-types" role="group" aria-label="Network types">
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="GSM" checked /><span><span class="cell-type__dot" style="background:#94a3b8"></span>2G · GSM</span></label>
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="UMTS" checked /><span><span class="cell-type__dot" style="background:#fbbf24"></span>3G · UMTS</span></label>
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="LTE" checked /><span><span class="cell-type__dot" style="background:#46a6ff"></span>4G · LTE</span></label>
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="NR" checked /><span><span class="cell-type__dot" style="background:#34e6c2"></span>5G · NR</span></label>
-                </div>
-
-                <div class="input-row">
-                  <button class="btn btn--primary" type="button" id="showCellBtn">Show coverage</button>
-                  <button class="btn" type="button" id="clearCellBtn">Clear</button>
-                </div>
-                <p class="help" id="cellReadout" data-numeric></p>
-                <p class="help" id="cellAttribution"></p>
-              </div>
-
-              <p class="help" id="cellHelp">Fetches cell-tower locations live from OpenStreetMap via Overpass API — no file upload needed, works anywhere. Towers are modelled as omni transmitters through the terrain engine. Planning-grade, not an operator map. © OpenStreetMap contributors (ODbL).</p>
             </div>
           </section>
 
@@ -783,6 +824,8 @@
               <p class="help">Esri imagery via free endpoint — check licensing for production use; Sentinel-2 CC BY-NC-SA.</p>
             </div>
           </section>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -803,81 +846,69 @@
 
         <div id="map"></div>
 
-        <!-- Location search + coordinate entry (over the map, not the panel) -->
-        <div class="map-search" id="mapSearch">
-          <form class="map-search__form" id="searchForm" role="search" autocomplete="off">
-            <svg class="map-search__ico ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" />
+        <!-- M20: the in-map search box became the ⌘K command palette
+             (src/ui/search.js renders its overlay into <body>). -->
+
+        <!-- M20 §5: one right map rail; basemap + view live in flyouts
+             (open/close state machine in src/ui/rail.js, wired in main.js). -->
+        <div class="map-rail" id="mapRail" role="toolbar" aria-orientation="vertical" aria-label="Map tools">
+          <button class="map-rail__btn" type="button" id="zoomIn" aria-label="Zoom in">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+          <button class="map-rail__btn" type="button" id="zoomOut" aria-label="Zoom out">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+          </button>
+          <span class="map-rail__sep" aria-hidden="true"></span>
+          <button class="map-rail__btn" type="button" id="railBasemapBtn" aria-label="Basemap and variants" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutBasemap" title="Basemap &amp; variants">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" />
             </svg>
-            <input
-              class="map-search__input"
-              id="searchInput"
-              type="text"
-              placeholder="Search place, or lat/long · MGRS · UTM"
-              aria-label="Search a place or enter coordinates (decimal, DMS, MGRS or UTM)"
-            />
-            <button class="map-search__clear" id="searchClear" type="button" aria-label="Clear search" hidden>
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-            </button>
-          </form>
-          <ul class="map-search__results" id="searchResults" role="listbox" hidden></ul>
+          </button>
+          <button class="map-rail__btn" type="button" id="railViewBtn" aria-label="View — 3D, buildings, tilt, operation time" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutView" title="View — 3D, buildings, tilt, op time">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 18l5.5-8 4 5.5L16 11l5 7H3z" /><path d="M16 5.5h.01" />
+            </svg>
+          </button>
+          <span class="map-rail__sep" aria-hidden="true"></span>
+          <button class="map-rail__btn" type="button" id="importBtn" aria-label="Import KML, KMZ, GPX or GeoJSON" title="Import KML / KMZ / GPX / GeoJSON">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12M8 11l4 4 4-4" />
+              <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
+          </button>
+          <button class="map-rail__btn" type="button" id="clearImportBtn" aria-label="Clear imported data" title="Clear imported data" hidden>
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
+            </svg>
+          </button>
+          <span class="map-rail__sep" aria-hidden="true"></span>
+          <button class="map-rail__btn" type="button" id="profileToolBtn" aria-label="Terrain path profile" aria-pressed="false" title="Path profile — click two points for a terrain cross-section, Fresnel zone &amp; link budget">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 17l5-7 4 4 5-8 4 6" />
+              <path d="M3 21h18" />
+            </svg>
+          </button>
+        </div>
+        <input type="file" id="importInput" accept=".kml,.kmz,.gpx,.geojson,.json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml,application/geo+json,application/json" hidden />
+
+        <!-- Basemap flyout: imagery/topo chips + the variant list (replaces
+             the old long-press/right-click variant dropdown). -->
+        <div class="map-flyout" id="railFlyoutBasemap" role="group" aria-label="Basemap" hidden>
+          <div class="map-flyout__title">Basemap</div>
+          <div class="basemap-switch" id="basemapSwitch" role="group" aria-label="Basemap category">
+            <button class="basemap-switch__btn is-active" type="button" data-basemap="imagery" title="Satellite imagery">Imagery</button>
+            <button class="basemap-switch__btn" type="button" data-basemap="topo" title="Topographic map">Topo</button>
+          </div>
+          <div class="basemap-variant-menu" id="basemapVariantMenu" role="group" aria-label="Basemap variants"></div>
         </div>
 
-        <div class="map-toolbar">
-          <!-- Basemap switcher: imagery / topo. Long-press / right-click the
-               active chip to open the variant picker. -->
-          <div class="basemap-switch" id="basemapSwitch" role="group" aria-label="Basemap">
-            <button class="basemap-switch__btn is-active" type="button" data-basemap="imagery"
-              title="Satellite imagery — right-click / hold for variants">Imagery</button>
-            <button class="basemap-switch__btn" type="button" data-basemap="topo"
-              title="Topographic map — right-click / hold for variants">Topo</button>
+        <!-- View flyout: 3D, buildings, tilt/bearing, operation date/time. -->
+        <div class="map-flyout" id="railFlyoutView" role="group" aria-label="View" hidden>
+          <div class="map-flyout__title">View</div>
+          <div class="map-flyout__row">
+            <button class="map-flyout__toggle" type="button" id="toggle3d" aria-label="Toggle 3D terrain relief" aria-pressed="false" title="3D terrain relief (tilt + pitch)">3D terrain</button>
+            <button class="map-flyout__toggle" type="button" id="toggleBuildings" aria-label="Toggle building render" aria-pressed="false" title="Extruded buildings on / off">Buildings</button>
           </div>
-          <!-- Variant picker dropdown (populated + positioned by JS) -->
-          <div class="basemap-variant-menu" id="basemapVariantMenu" role="menu" hidden></div>
-
-          <div class="toolgroup" role="group" aria-label="Import data">
-            <button class="toolgroup__btn" type="button" id="importBtn" aria-label="Import KML, KMZ, GPX or GeoJSON" title="Import KML / KMZ / GPX / GeoJSON">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 3v12M8 11l4 4 4-4" />
-                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-              </svg>
-            </button>
-            <button class="toolgroup__btn" type="button" id="clearImportBtn" aria-label="Clear imported data" title="Clear imported data" hidden>
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
-              </svg>
-            </button>
-          </div>
-          <input type="file" id="importInput" accept=".kml,.kmz,.gpx,.geojson,.json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml,application/geo+json,application/json" hidden />
-
-          <div class="toolgroup" role="group" aria-label="Map zoom">
-            <button class="toolgroup__btn" type="button" id="zoomIn" aria-label="Zoom in">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            </button>
-            <button class="toolgroup__btn" type="button" id="zoomOut" aria-label="Zoom out">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
-            </button>
-          </div>
-
-          <div class="toolgroup" role="group" aria-label="3D view">
-            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggle3d" aria-label="Toggle 3D terrain relief" aria-pressed="false" title="3D terrain relief (tilt + pitch)">
-              3D
-            </button>
-            <button class="toolgroup__btn toolgroup__btn--text" type="button" id="toggleBuildings" aria-label="Toggle building render" aria-pressed="false" title="Extruded buildings on / off">
-              Bldgs
-            </button>
-          </div>
-
-          <div class="toolgroup" role="group" aria-label="Analysis">
-            <button class="toolgroup__btn" type="button" id="profileToolBtn" aria-label="Terrain path profile" aria-pressed="false" title="Path profile — click two points for a terrain cross-section, Fresnel zone &amp; link budget">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 17l5-7 4 4 5-8 4 6" />
-                <path d="M3 21h18" />
-              </svg>
-            </button>
-          </div>
-
           <div class="view-sliders" id="viewSliders" role="group" aria-label="3D view controls" hidden>
             <div class="view-slider">
               <label for="tiltSlider">Tilt</label>
@@ -890,16 +921,10 @@
               <span class="view-slider__val" id="bearingVal" data-numeric>0° N</span>
             </div>
           </div>
-
           <!-- Operation date/time → day/night sky position -->
-          <div class="toolgroup toolgroup--datetime" role="group" aria-label="Operation date">
-            <label class="toolgroup__label" for="opDatetime" title="Operation date/time — sets sun position for day/night sky">
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-              </svg>
-            </label>
-            <input class="toolgroup__datetime" type="datetime-local" id="opDatetime"
+          <div class="map-flyout__field">
+            <label class="field-label" for="opDatetime" title="Operation date/time — sets sun position for day/night sky">Operation date &amp; time</label>
+            <input class="map-flyout__datetime" type="datetime-local" id="opDatetime"
               aria-label="Operation date and time" title="Operation date/time (drives sun position + day/night)" />
           </div>
         </div>

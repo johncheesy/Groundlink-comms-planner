@@ -8,6 +8,7 @@
  */
 import { MODULE_ICONS } from './icons.js';
 import { TOOLBAR_MODULES, sectionForAnchor } from './toolbar.js';
+import { renderBadge } from './badges.js';
 
 export const LPANEL_STORE_KEY = 'gl.ui.lpanel.v1';
 
@@ -53,6 +54,7 @@ export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
   expand.addEventListener('click', () => setCollapsed(false));
   strip.appendChild(expand);
 
+  const stripBadges = new Map(); // module key -> badge span (M20 §2)
   for (const m of TOOLBAR_MODULES) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -60,6 +62,11 @@ export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
     btn.title = m.label;
     btn.setAttribute('aria-label', `${m.label} — expand panel`);
     btn.innerHTML = MODULE_ICONS[m.key];
+    const badge = document.createElement('span');
+    badge.className = 'gl-badge gl-badge--strip';
+    badge.hidden = true;
+    btn.appendChild(badge);
+    stripBadges.set(m.key, badge);
     btn.addEventListener('click', () => {
       setCollapsed(false);
       // Open + scroll once the panel has its width back.
@@ -81,5 +88,9 @@ export function createLeftPanel({ app, strip, collapseBtn, onResize, reveal }) {
     setCollapsed,
     isCollapsed: () => collapsed,
     toggle: () => setCollapsed(!collapsed),
+    /** M20 §2: mirror the per-module badges onto the strip icons. */
+    setBadges(moduleBadges = {}) {
+      for (const [key, el] of stripBadges) renderBadge(el, moduleBadges[key]);
+    },
   };
 }
