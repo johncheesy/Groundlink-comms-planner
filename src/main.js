@@ -1889,10 +1889,74 @@ const clearCellBtn = $('#clearCellBtn');
 const cellReadout = $('#cellReadout');
 const cellAttribution = $('#cellAttribution');
 const cellHelp = $('#cellHelp');
+const cellBestNet = $('#cellBestNet');
+const cellBestNetValue = $('#cellBestNetValue');
+const cellBestNetPin = $('#cellBestNetPin');
 
 /** Checked network types from the cellular type checkboxes. */
 function checkedCellTypes() {
   return [...document.querySelectorAll('.cell-type')].filter((c) => c.checked).map((c) => c.value);
+}
+
+// ---- Best-network indicator (M22) -----------------------------------------
+// Proximity heuristic over the fetched towers: closest tower per operator,
+// distance discounted by technology weight (NR/LTE > GSM > UMTS). Probe point
+// is the map centre, or the dropped pin while one is set.
+
+let bestNetPin = null; // maplibregl.Marker probe pin (null = use map centre)
+
+const fmtBestNetDist = (m) => (m < 1000 ? `${Math.round(m)} m` : fmtKm(m));
+
+function probePoint() {
+  if (bestNetPin) {
+    const ll = bestNetPin.getLngLat();
+    return { lat: ll.lat, lng: ll.lng };
+  }
+  const c = map.getCenter();
+  return { lat: c.lat, lng: c.lng };
+}
+
+function updateBestNet() {
+  if (!cellBestNet) return;
+  if (!cellular?.hasData() || !cellEnabled.checked) {
+    cellBestNet.hidden = true;
+    return;
+  }
+  const best = cellular.bestNetworkAt(probePoint());
+  cellBestNet.hidden = !best;
+  if (!best) return;
+  const gen = CELL_TYPE_DEFAULTS[best.radio]?.label.split(' · ')[1] ?? best.radio;
+  // Map centre is the default probe — only flag the pinned case.
+  const where = bestNetPin ? ' · at pin' : '';
+  cellBestNetValue.textContent = `${best.operator} (${gen}, ${fmtBestNetDist(best.distanceM)})${where}`;
+}
+
+function clearBestNetPin() {
+  bestNetPin?.remove();
+  bestNetPin = null;
+  cellBestNetPin?.setAttribute('aria-pressed', 'false');
+}
+
+function initBestNetIndicator() {
+  map.on('moveend', () => { if (!bestNetPin) updateBestNet(); });
+
+  cellBestNetPin?.addEventListener('click', () => {
+    if (bestNetPin) {
+      // Toggle off: back to tracking the map centre.
+      clearBestNetPin();
+      updateBestNet();
+      return;
+    }
+    statusMode.textContent = 'Click map to drop the signal probe pin';
+    map.once('click', (e) => {
+      const el = document.createElement('div');
+      el.className = 'bestnet-pin';
+      bestNetPin = new maplibregl.Marker({ element: el }).setLngLat(e.lngLat).addTo(map);
+      cellBestNetPin.setAttribute('aria-pressed', 'true');
+      statusMode.textContent = 'Signal probe pin set';
+      updateBestNet();
+    });
+  });
 }
 
 /** Wire the cellular layer visibility and Show/Clear buttons. */
@@ -1901,7 +1965,8 @@ function initCellularControls() {
     const on = cellEnabled.checked;
     cellPanel.hidden = !on;
     cellular.setVisible(on);
-    if (!on) { cellular.clear(); cellReadout.textContent = ''; }
+    if (!on) { cellular.clear(); cellReadout.textContent = ''; clearBestNetPin(); }
+    updateBestNet();
   });
 
   showCellBtn.addEventListener('click', async () => {
@@ -1935,6 +2000,7 @@ function initCellularControls() {
         cellReadout.textContent = `${result.count} OSM tower${result.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
       }
       statusMode.textContent = 'Cellular coverage computing';
+      updateBestNet();
     } catch (err) {
       cellReadout.textContent = `Overpass fetch failed: ${err.message}. Check your connection and try again.`;
       statusMode.textContent = 'Cellular fetch error';
@@ -1948,8 +2014,12 @@ function initCellularControls() {
     cellReadout.textContent = '';
     cellEnabled.checked = false;
     cellPanel.hidden = true;
+    clearBestNetPin();
+    updateBestNet();
     statusMode.textContent = 'Cellular cleared';
   });
+
+  initBestNetIndicator();
 }
 
 /** Render the placed-waypoint chips; click focuses the map, × removes it. */

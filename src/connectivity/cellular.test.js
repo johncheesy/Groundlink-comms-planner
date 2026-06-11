@@ -3,8 +3,12 @@ import {
   CELL_BANDS,
   CELL_DEFAULTS,
   RADIO_TYPES,
+  TYPE_WEIGHT,
+  UNKNOWN_OPERATOR,
   bandPreset,
+  bestNetwork,
   cellDefaults,
+  parseOverpassTowers,
   selectTowers,
   towersToTxs,
   thresholdsForSensitivity,
@@ -92,6 +96,96 @@ describe('selectTowers', () => {
     const r = selectTowers(cells, { radio: 'LTE', bbox, maxN: 5 });
     expect(r).toHaveLength(2);
     expect(r.every((c) => c.radio === 'LTE')).toBe(true);
+  });
+});
+
+describe('parseOverpassTowers (M22)', () => {
+  it('keeps lat/lon, inferred radio and the operator tag', () => {
+    const data = {
+      elements: [
+        { lat: 52.0, lon: 5.0, tags: { 'communication:lte': 'yes', operator: 'KPN' } },
+        { lat: 52.1, lon: 5.1, tags: { 'communication:gsm': 'yes' } },
+      ],
+    };
+    expect(parseOverpassTowers(data)).toEqual([
+      { lat: 52.0, lon: 5.0, radio: 'LTE', operator: 'KPN' },
+      { lat: 52.1, lon: 5.1, radio: 'GSM', operator: null },
+    ]);
+  });
+
+  it('deduplicates nodes matching multiple selectors and drops coord-less ones', () => {
+    const data = {
+      elements: [
+        { lat: 52.0, lon: 5.0, tags: { operator: 'Vodafone' } },
+        { lat: 52.0, lon: 5.0, tags: { operator: 'Vodafone' } }, // dup
+        { tags: { operator: 'ghost' } }, // no coords
+      ],
+    };
+    expect(parseOverpassTowers(data)).toHaveLength(1);
+  });
+
+  it('returns [] for an empty / malformed response', () => {
+    expect(parseOverpassTowers(null)).toEqual([]);
+    expect(parseOverpassTowers({})).toEqual([]);
+  });
+});
+
+describe('bestNetwork (M22)', () => {
+  // Synthetic grid around (52, 5): 0.001° lat ≈ 111 m.
+  const point = { lat: 52.0, lng: 5.0 };
+
+  it('picks the operator with the closest tower when types match', () => {
+    const towers = [
+      { lat: 52.003, lon: 5.0, radio: 'LTE', operator: 'KPN' }, // ~333 m
+      { lat: 52.01, lon: 5.0, radio: 'LTE', operator: 'T-Mobile' }, // ~1.1 km
+    ];
+    const best = bestNetwork(towers, point);
+    expect(best.operator).toBe('KPN');
+    expect(best.radio).toBe('LTE');
+    expect(best.distanceM).toBeGreaterThan(300);
+    expect(best.distanceM).toBeLessThan(370);
+  });
+
+  it('weights LTE above GSM and UMTS — a nearer legacy tower can lose', () => {
+    const towers = [
+      { lat: 52.0008, lon: 5.0, radio: 'UMTS', operator: 'Vodafone' }, // ~89 m, /0.6 → score ~148
+      { lat: 52.001, lon: 5.0, radio: 'LTE', operator: 'KPN' }, // ~111 m, /1.0 → score ~111
+    ];
+    expect(bestNetwork(towers, point).operator).toBe('KPN');
+  });
+
+  it('still lets a much closer legacy tower win', () => {
+    const towers = [
+      { lat: 52.0001, lon: 5.0, radio: 'GSM', operator: 'Vodafone' }, // ~11 m
+      { lat: 52.01, lon: 5.0, radio: 'LTE', operator: 'KPN' }, // ~1.1 km
+    ];
+    expect(bestNetwork(towers, point).operator).toBe('Vodafone');
+  });
+
+  it('groups untagged towers under the unknown-operator label', () => {
+    const towers = [{ lat: 52.001, lon: 5.0, radio: 'LTE' }];
+    expect(bestNetwork(towers, point).operator).toBe(UNKNOWN_OPERATOR);
+  });
+
+  it('ranks one entry per operator, best first', () => {
+    const towers = [
+      { lat: 52.001, lon: 5.0, radio: 'LTE', operator: 'KPN' },
+      { lat: 52.002, lon: 5.0, radio: 'LTE', operator: 'KPN' }, // worse KPN — collapsed away
+      { lat: 52.003, lon: 5.0, radio: 'LTE', operator: 'T-Mobile' },
+    ];
+    const { ranking } = bestNetwork(towers, point);
+    expect(ranking.map((r) => r.operator)).toEqual(['KPN', 'T-Mobile']);
+  });
+
+  it('returns null for no towers or a bad probe point', () => {
+    expect(bestNetwork([], point)).toBeNull();
+    expect(bestNetwork([{ lat: 52, lon: 5, radio: 'LTE' }], null)).toBeNull();
+  });
+
+  it('exposes the documented type weights (NR ≥ LTE > GSM > UMTS)', () => {
+    expect(TYPE_WEIGHT.NR).toBeGreaterThanOrEqual(TYPE_WEIGHT.LTE);
+    expect(TYPE_WEIGHT.LTE).toBeGreaterThan(TYPE_WEIGHT.GSM);
+    expect(TYPE_WEIGHT.GSM).toBeGreaterThan(TYPE_WEIGHT.UMTS);
   });
 });
 

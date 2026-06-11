@@ -655,6 +655,12 @@
                   <button class="btn btn--primary" type="button" id="showCellBtn">Show coverage</button>
                   <button class="btn" type="button" id="clearCellBtn">Clear</button>
                 </div>
+                <div class="bestnet" id="cellBestNet" hidden>
+                  <span class="bestnet__label">Best signal</span>
+                  <span class="bestnet__value" id="cellBestNetValue" data-numeric>—</span>
+                  <button class="btn btn--ghost btn--sm" type="button" id="cellBestNetPin" title="Drop a probe pin — best network is computed at the pin instead of the map centre" aria-pressed="false">Pin</button>
+                </div>
+
                 <p class="help" id="cellReadout" data-numeric></p>
                 <p class="help" id="cellAttribution"></p>
               </div>

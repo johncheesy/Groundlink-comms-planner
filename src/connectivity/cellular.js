@@ -17,6 +17,8 @@
  * map. See docs/M9-connectivity-layers.md.
  */
 
+import { haversineM } from '../coverage/model.js';
+
 // Resolve a CSS design token to its value, falling back to a literal. Same
 // pattern as the rest of the codebase, but guarded with try/catch because the
 // palette below resolves at module load — in the (node) unit-test environment
@@ -106,6 +108,43 @@ export function thresholdsForSensitivity(rxSensDbm = CELL_DEFAULTS.rxSensDbm) {
   return { excellent: s + 25, good: s + 15, marginal: s + 5, none: s };
 }
 
+// ── Best network (M22) ──────────────────────────────────────────────────────
+
+// Technology weighting for the best-network heuristic: a tower's distance is
+// divided by its weight, so more capable technologies win against slightly
+// closer legacy towers (a GSM tower must be ~30 % closer than LTE to win).
+export const TYPE_WEIGHT = Object.freeze({ NR: 1.1, LTE: 1.0, GSM: 0.7, UMTS: 0.6 });
+
+/** Group label for towers whose OSM node carries no operator tag. */
+export const UNKNOWN_OPERATOR = 'Unknown operator';
+
+/**
+ * Which operator likely has the strongest signal at `point` — a proximity
+ * heuristic over the fetched towers (closest tower per operator, distance
+ * discounted by technology weight), NOT a propagation result.
+ *
+ * @param {Array<{lat:number, lon:number, radio:string, operator?:string|null}>} towers
+ * @param {{lat:number, lng:number}} point
+ * @returns {{operator:string, radio:string, distanceM:number,
+ *            ranking:Array<{operator:string, radio:string, distanceM:number, score:number}>}|null}
+ */
+export function bestNetwork(towers = [], point) {
+  if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return null;
+  const perOperator = new Map(); // operator -> best-scoring tower entry
+  for (const t of towers) {
+    if (!t || !Number.isFinite(t.lat) || !Number.isFinite(t.lon)) continue;
+    const operator = (t.operator || '').trim() || UNKNOWN_OPERATOR;
+    const distanceM = haversineM(point.lat, point.lng, t.lat, t.lon);
+    const score = distanceM / (TYPE_WEIGHT[t.radio] ?? TYPE_WEIGHT.LTE);
+    const prev = perOperator.get(operator);
+    if (!prev || score < prev.score) perOperator.set(operator, { operator, radio: t.radio, distanceM, score });
+  }
+  if (!perOperator.size) return null;
+  const ranking = [...perOperator.values()].sort((a, b) => a.score - b.score);
+  const { operator, radio, distanceM } = ranking[0];
+  return { operator, radio, distanceM, ranking };
+}
+
 function inBbox(c, b) {
   return c.lat >= b.south && c.lat <= b.north && c.lon >= b.west && c.lon <= b.east;
 }
@@ -142,8 +181,33 @@ function inferRadioTypeFromTags(tags) {
 }
 
 /**
+ * Parse an Overpass response into tower objects, deduplicating nodes that
+ * match more than one selector. Pure (unit-tested); keeps the OSM operator
+ * tag for the M22 best-network indicator.
+ * @returns {Array<{lat:number, lon:number, radio:string, operator:string|null}>}
+ */
+export function parseOverpassTowers(data) {
+  const seen = new Set();
+  const towers = [];
+  for (const el of (data?.elements || [])) {
+    if (!Number.isFinite(el?.lat) || !Number.isFinite(el?.lon)) continue;
+    const key = `${el.lat},${el.lon}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    towers.push({
+      lat: el.lat,
+      lon: el.lon,
+      radio: inferRadioTypeFromTags(el.tags),
+      operator: (el.tags?.operator || '').trim() || null,
+    });
+  }
+  return towers;
+}
+
+/**
  * Fetch cell-tower nodes from OSM via Overpass API for the given bounding box.
- * Returns an array of { lat, lon, radio } objects compatible with selectTowers().
+ * Returns an array of { lat, lon, radio, operator } objects compatible with
+ * selectTowers() and bestNetwork().
  */
 async function fetchTowersFromOSM(bbox) {
   const { south, west, north, east } = bbox;
@@ -163,17 +227,7 @@ async function fetchTowersFromOSM(bbox) {
     body: 'data=' + encodeURIComponent(query),
   });
   if (!res.ok) throw new Error(`Overpass API ${res.status} ${res.statusText}`);
-  const data = await res.json();
-  // Deduplicate by lat/lon (some nodes match multiple selectors)
-  const seen = new Set();
-  const towers = [];
-  for (const el of (data.elements || [])) {
-    const key = `${el.lat},${el.lon}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    towers.push({ lat: el.lat, lon: el.lon, radio: inferRadioTypeFromTags(el.tags) });
-  }
-  return towers;
+  return parseOverpassTowers(await res.json());
 }
 
 /**
@@ -198,39 +252,67 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
   const TOWER_SRC = 'cell-towers';
   const TOWER_LAYER = 'cell-towers-layer';
 
+  // The latest FeatureCollection, kept so a deferred layer add (style still
+  // loading at call time) can flush it once the style is ready. M22 fix: the
+  // old code bailed on `!map.isStyleLoaded()` with no retry — isStyleLoaded()
+  // is false whenever any tile is in flight (constant after the M19/M20
+  // resize-heavy UI), so tower markers silently never appeared.
+  let pendingTowerData = null;
+  let retryArmed = false;
+
   function ensureTowerLayer() {
-    if (!map.isStyleLoaded()) return;
-    if (map.getSource(TOWER_SRC)) return; // already set up
-    map.addSource(TOWER_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-    const beforeId = map.getLayer('aoi-fill') ? 'aoi-fill' : undefined;
-    map.addLayer({
-      id: TOWER_LAYER,
-      type: 'circle',
-      source: TOWER_SRC,
-      paint: {
-        'circle-radius': 4,
-        'circle-color': [
-          'match', ['get', 'radio'],
-          'GSM',  CELL_TYPE_DEFAULTS.GSM.color,
-          'UMTS', CELL_TYPE_DEFAULTS.UMTS.color,
-          'LTE',  CELL_TYPE_DEFAULTS.LTE.color,
-          'NR',   CELL_TYPE_DEFAULTS.NR.color,
-          CELL_TYPE_DEFAULTS.LTE.color,
-        ],
-        'circle-stroke-width': 1.5,
-        // White contrast ring against the dark map canvas — no design token maps
-        // to pure white; kept as a literal intentionally.
-        'circle-stroke-color': '#ffffff',
-        'circle-opacity': 0.9,
-        'circle-stroke-opacity': 0.7,
-      },
-    }, beforeId);
+    if (map.getSource(TOWER_SRC)) return true; // already set up
+    try {
+      // addSource/addLayer only throw before the style's first `load` event;
+      // tiles merely being in flight is fine.
+      map.addSource(TOWER_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      const beforeId = map.getLayer('aoi-fill') ? 'aoi-fill' : undefined;
+      map.addLayer({
+        id: TOWER_LAYER,
+        type: 'circle',
+        source: TOWER_SRC,
+        paint: {
+          'circle-radius': 4,
+          'circle-color': [
+            'match', ['get', 'radio'],
+            'GSM',  CELL_TYPE_DEFAULTS.GSM.color,
+            'UMTS', CELL_TYPE_DEFAULTS.UMTS.color,
+            'LTE',  CELL_TYPE_DEFAULTS.LTE.color,
+            'NR',   CELL_TYPE_DEFAULTS.NR.color,
+            CELL_TYPE_DEFAULTS.LTE.color,
+          ],
+          'circle-stroke-width': 1.5,
+          // White contrast ring against the dark map canvas — no design token maps
+          // to pure white; kept as a literal intentionally.
+          'circle-stroke-color': '#ffffff',
+          'circle-opacity': 0.9,
+          'circle-stroke-opacity': 0.7,
+        },
+      }, beforeId);
+      return true;
+    } catch {
+      // Style genuinely not loaded yet — retry once it is, then flush the
+      // pending tower data recorded by updateTowerLayer().
+      if (!retryArmed) {
+        retryArmed = true;
+        map.once('load', () => {
+          retryArmed = false;
+          if (ensureTowerLayer() && pendingTowerData) setTowerData(pendingTowerData);
+        });
+      }
+      return false;
+    }
+  }
+
+  function setTowerData(fc) {
+    map.getSource(TOWER_SRC).setData(fc);
+    if (map.getLayer(TOWER_LAYER)) {
+      map.setLayoutProperty(TOWER_LAYER, 'visibility', fc.features.length ? 'visible' : 'none');
+    }
   }
 
   /** Update GeoJSON source with towers belonging to the given set of types. */
   function updateTowerLayer(towers, wantTypes) {
-    ensureTowerLayer();
-    if (!map.getSource(TOWER_SRC)) return;
     const features = towers
       .filter((t) => !wantTypes || wantTypes.has(t.radio))
       .map((t) => ({
@@ -238,10 +320,8 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
         geometry: { type: 'Point', coordinates: [t.lon, t.lat] },
         properties: { radio: t.radio },
       }));
-    map.getSource(TOWER_SRC).setData({ type: 'FeatureCollection', features });
-    if (map.getLayer(TOWER_LAYER)) {
-      map.setLayoutProperty(TOWER_LAYER, 'visibility', features.length ? 'visible' : 'none');
-    }
+    pendingTowerData = { type: 'FeatureCollection', features };
+    if (ensureTowerLayer()) setTowerData(pendingTowerData);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -342,7 +422,8 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     cachedTowers = [];
     cachedBbox = null;
     lastCount = 0;
-    // Clear tower markers.
+    // Clear tower markers (and any pending data awaiting a deferred add).
+    pendingTowerData = null;
     if (map.getSource(TOWER_SRC)) {
       map.getSource(TOWER_SRC).setData({ type: 'FeatureCollection', features: [] });
     }
@@ -358,6 +439,8 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     getCount: () => lastCount,
     getMeta: () => ({ ...meta }),
     hasData: () => cachedTowers.length > 0,
+    /** M22: best-network heuristic at a probe point, from the cached towers. */
+    bestNetworkAt: (point) => bestNetwork(cachedTowers, point),
   };
 }
 
