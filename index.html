@@ -797,6 +797,12 @@
                 <button class="btn btn--block" type="button" id="exportTakBtn">Export TAK package</button>
                 <p class="help" id="dataExportHelp">GeoTIFF for QGIS, KMZ for Google Earth, GeoJSON for any GIS, CivTAK data package for ATAK. Raster exports carry the last coverage run; vector exports carry your sites, route, points, waypoints and AOI. Generated locally — nothing is uploaded.</p>
               </div>
+              <!-- Mission file (M21) — save / open the whole mission -->
+              <div class="export-mission">
+                <button class="btn btn--block" type="button" id="saveMissionBtn">Save mission file</button>
+                <button class="btn btn--block" type="button" id="openMissionBtn">Open mission file</button>
+                <p class="help">Your full mission as a local <code>.groundlink.json</code> — inputs only, coverage recomputes on load. The file contains your coordinates — keep it local.</p>
+              </div>
             </div>
           </section>
 
@@ -985,6 +991,19 @@
 
       <!-- mobile slide-over scrim -->
       <div class="scrim" id="scrim" aria-hidden="true"></div>
+
+      <!-- Save mission dialog (M21) — OPSEC warning before the download -->
+      <div id="msaveDialog" class="msave" role="dialog" aria-modal="true" aria-labelledby="msaveTitle" hidden>
+        <div class="msave__card">
+          <h2 class="msave__title" id="msaveTitle">Save mission file</h2>
+          <p class="msave__name" id="msaveName" data-numeric></p>
+          <p class="msave__warn">This file contains your coordinates — keep it local. It stores inputs only; coverage is recomputed when the mission is opened.</p>
+          <div class="msave__actions">
+            <button class="btn" type="button" id="msaveCancel">Cancel</button>
+            <button class="btn btn--primary" type="button" id="msaveConfirm">Save file</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Full-screen Available Equipment grid (radar cards) -->
       <div id="equipmentOverlay" class="equipment-overlay" role="dialog" aria-label="Available equipment" hidden>

@@ -404,6 +404,19 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     getStructures,
     hasActive: () => !!(activeInfraId || activeFieldId),
     hasArsenal: () => arsenal.length > 0,
+    /**
+     * Replace the arsenal + structures wholesale (mission load, M21). Persists
+     * via the module's own gl.radioset.v1 contract, like any arsenal edit.
+     */
+    restore({ arsenal: nextArsenal = [], structures: nextStructures = [] } = {}) {
+      arsenal = nextArsenal.map(normalizeRadio);
+      inactive = new Set();
+      structures = nextStructures.map(({ id, name, infraId, fieldId }) => ({ id, name, infraId, fieldId }));
+      persist();
+      renderArsenal();
+      renderStructures();
+      onArsenalChange?.(getArsenal());
+    },
     destroy() {},
   };
 }

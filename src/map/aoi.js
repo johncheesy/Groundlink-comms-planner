@@ -319,6 +319,13 @@ export function createAoiController(map, { onChange, onHint } = {}) {
       commitPolygon(ring.map(([lng, lat]) => [lng, lat]));
       return true;
     },
+    /** Programmatically set a radius AOI from [lng, lat] + metres (mission load, M21). */
+    setRadius(center, radiusM) {
+      if (!Array.isArray(center) || !Number.isFinite(center[0]) || !Number.isFinite(center[1]) || !(radiusM > 0)) return false;
+      setMode(null);
+      commitRadius([center[0], center[1]], radiusM);
+      return true;
+    },
     summary,
     getAoi() {
       if (!committed) return null;
