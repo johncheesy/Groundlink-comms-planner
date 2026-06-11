@@ -1473,112 +1473,170 @@ select.input--sm { text-align: left; padding-right: 6px; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
-/* ---- Floating map toolbar (top-right of canvas) ------------------------ */
+/* ---- Right map rail (M20 §5 — one surface, top-right of canvas) -------- */
 
-.map-toolbar {
+.map-rail {
   position: absolute;
   top: var(--sp-3);
   right: var(--sp-3);
   z-index: var(--z-toolbar);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  align-items: flex-end;
-}
-
-.toolgroup {
-  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
   background: var(--surface);
   border: 1px solid var(--hair);
   border-radius: var(--r-md);
   box-shadow: var(--shadow);
-  overflow: hidden;
 }
 
-.toolgroup__btn {
+.map-rail__btn {
   -webkit-appearance: none;
   appearance: none;
   border: 0;
   background: transparent;
   color: var(--dim);
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: background 0.14s ease, color 0.14s ease;
 }
-
-.toolgroup__btn + .toolgroup__btn {
-  border-left: 1px solid var(--hair);
-}
-
-.toolgroup__btn:hover {
+.map-rail__btn:hover {
   background: var(--raise);
   color: var(--ink);
 }
-
-.toolgroup__btn.is-active {
+.map-rail__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.map-rail__btn.is-active {
   background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   color: var(--accent);
 }
-
-.toolgroup__btn .ico {
+.map-rail__btn .ico {
   width: 18px;
   height: 18px;
 }
-
-.toolgroup__btn--text {
-  font-family: var(--disp);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.02em;
+.map-rail__sep {
+  width: 18px;
+  height: 1px;
+  background: var(--hair);
+  margin: 2px 0;
+  flex: 0 0 auto;
 }
 
-/* Operation date/time chip in the map toolbar */
-.toolgroup--datetime {
-  padding: 0 6px;
-  gap: 4px;
-  align-items: center;
-}
-.toolgroup__label {
-  display: flex;
-  align-items: center;
-  color: var(--dim);
-  flex-shrink: 0;
-  padding: 2px 0;
-}
-.toolgroup__label .ico { width: 14px; height: 14px; }
-.toolgroup__datetime {
-  background: transparent;
-  border: none;
-  color: var(--ink);
-  font-family: var(--ui);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  padding: 0 2px;
-  cursor: pointer;
-  min-width: 0;
-  width: 10.5rem;
-  outline: none;
-}
-.toolgroup__datetime:focus-visible {
-  outline: 2px solid var(--accent);
-  border-radius: var(--r-sm);
-}
+/* ---- Rail flyouts (basemap / view) --------------------------------------- */
 
-/* 3D view sliders (tilt + bearing) — live in the map toolbar */
-.view-sliders {
+.map-flyout {
+  position: absolute;
+  top: var(--sp-3);
+  right: calc(var(--sp-3) + 40px + var(--sp-2)); /* left of the 40px rail */
+  z-index: calc(var(--z-toolbar) + 1);
+  width: 224px;
+  padding: var(--sp-3);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  padding: 10px 12px;
-  width: 188px;
+  gap: var(--sp-3);
   background: var(--surface);
   border: 1px solid var(--hair);
   border-radius: var(--r-md);
   box-shadow: var(--shadow);
+  animation: gl-flyout 0.14s ease-out;
+}
+@keyframes gl-flyout {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-flyout {
+    animation: none;
+  }
+}
+.map-flyout__title {
+  font-family: var(--disp);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+.map-flyout__row {
+  display: flex;
+  gap: var(--sp-2);
+}
+.map-flyout__toggle {
+  flex: 1 1 0;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  height: 30px;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.map-flyout__toggle:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+.map-flyout__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.map-flyout__toggle.is-active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent);
+}
+.map-flyout__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.map-flyout__datetime {
+  background: transparent;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  padding: 5px 7px;
+  cursor: pointer;
+  min-width: 0;
+  outline: none;
+}
+.map-flyout__datetime:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+/* Bottom sheet ≤ 900 px: the rail stays, flyouts dock above the status bar. */
+@media (max-width: 900px) {
+  .map-flyout {
+    position: absolute;
+    top: auto;
+    right: var(--sp-3);
+    bottom: var(--sp-3);
+    left: var(--sp-3);
+    width: auto;
+  }
+}
+
+/* 3D view sliders (tilt + bearing) — inside the view flyout */
+.view-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 .view-slider {
@@ -1752,107 +1810,123 @@ select.input--sm { text-align: left; padding-right: 6px; }
   color: var(--accent);
 }
 
-/* ---- Location search over the map -------------------------------------- */
+/* ---- Command palette (M20 §4 — replaces the in-map search box) --------- */
 
-.map-search {
+.palette {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-panel) + 10);
+}
+.palette__scrim {
   position: absolute;
-  top: var(--sp-3);
-  /* Constrain width so the bar never overlaps the panel-toggle or the
-     map toolbar. 300px accounts for ~50px left (toggle) + ~250px right
-     (basemap chips + zoom group). min() lets it shrink on narrow desktops. */
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+}
+.palette__panel {
+  position: absolute;
+  top: 14vh; /* centred in the top third */
   left: 50%;
   transform: translateX(-50%);
-  z-index: var(--z-toolbar);
-  width: min(420px, calc(100vw - 300px));
-}
-
-.map-search__form {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  height: 40px;
-  padding: 0 10px;
+  width: min(520px, calc(100vw - 2 * var(--sp-4)));
   background: var(--surface);
   border: 1px solid var(--hair);
   border-radius: var(--r-md);
   box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: gl-drop-c 0.16s ease-out;
 }
-
-.map-search__ico {
+@keyframes gl-drop-c {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .palette__panel {
+    animation: none;
+  }
+}
+.palette__form {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 44px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--hair);
+}
+.palette__ico {
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
   color: var(--dim);
 }
-
-.map-search__input {
+.palette__input {
   flex: 1 1 auto;
   min-width: 0;
   border: 0;
   background: transparent;
   color: var(--ink);
   font-family: var(--ui);
-  font-size: 13px;
+  font-size: 13.5px;
   outline: none;
 }
-.map-search__input::placeholder {
+.palette__input::placeholder {
   color: var(--faint);
 }
-
-.map-search__clear {
-  -webkit-appearance: none;
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--dim);
-  width: 26px;
-  height: 26px;
+.palette__kbd {
   flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 7px;
-  cursor: pointer;
-}
-.map-search__clear:hover {
-  background: var(--raise);
-  color: var(--ink);
-}
-.map-search__clear .ico {
-  width: 15px;
-  height: 15px;
-}
-
-.map-search__results {
-  list-style: none;
-  margin: var(--sp-2) 0 0;
-  padding: 4px;
-  background: var(--surface);
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--faint);
   border: 1px solid var(--hair);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow);
-  max-height: 280px;
+  border-radius: 5px;
+  padding: 2px 5px;
+  background: var(--raise);
+}
+.palette__list {
+  list-style: none;
+  margin: 0;
+  padding: 5px;
+  max-height: min(46vh, 380px);
   overflow-y: auto;
 }
-
-.map-search__result {
-  padding: 8px 10px;
-  border-radius: 8px;
+.palette__section {
+  padding: 7px 9px 3px;
+  font-family: var(--disp);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+.palette__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
   font-size: 12.5px;
   color: var(--ink);
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.map-search__result:hover,
-.map-search__result.is-active {
+.palette__item.is-active {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent);
 }
-
-.map-search__empty {
-  padding: 8px 10px;
+.palette__item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette__item-hint {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--faint);
+}
+.palette__empty {
+  padding: 10px 9px;
   font-size: 12.5px;
   color: var(--dim);
 }
@@ -1900,25 +1974,12 @@ select.input--sm { text-align: left; padding-right: 6px; }
   word-break: break-word;
 }
 
-/* ---- Basemap variant picker dropdown ----------------------------------- */
-/* Triggered by right-click (desktop) or second-press on the active chip.  */
+/* ---- Basemap variant list (M20 §5: inline in the basemap flyout) ------- */
 
 .basemap-variant-menu {
-  position: fixed;            /* JS sets top / right from getBoundingClientRect */
-  z-index: calc(var(--z-toolbar) + 1);
-  background: var(--surface);
-  border: 1px solid var(--hair);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow);
-  padding: 4px;
-  min-width: 160px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-}
-
-.basemap-variant-menu[hidden] {
-  display: none;
 }
 
 .basemap-variant-menu__item {
@@ -2084,13 +2145,6 @@ select.input--sm { text-align: left; padding-right: 6px; }
   .btn.panel-collapse {
     display: none;
   }
-  /* On tablet slide-over (541–760px): search bar anchored between toggle + toolbar */
-  .map-search {
-    left: 52px;          /* right of the 40px panel toggle + sp-3 padding */
-    right: 150px;        /* left of the toolbar (basemap chips + zoom group) */
-    width: auto;
-    transform: none;     /* cancel the desktop translateX(-50%) centering */
-  }
 }
 
 /* M19: the icon strip replaces the over-map toggle on collapsed desktop —
@@ -2115,18 +2169,6 @@ select.input--sm { text-align: left; padding-right: 6px; }
     z-index: calc(var(--z-panel) + 2);
   }
 
-  /* --- Search bar: full width at the top ---------------------------------- */
-  /* The toggle moved to the bottom, so nothing blocks the left edge.
-     The toolbar (3 × 44px zoom group = ~134px + 12px margin = 146px) sits
-     at the top-right, so leave 148px on the right. */
-  .map-search {
-    top: 12px;
-    left: 12px;
-    right: 148px;
-    width: auto;
-    transform: none;  /* undo the desktop translateX(-50%) centring */
-  }
-
   /* --- Minimum 44 × 44 px tap targets (Apple HIG / Material guidelines) -- */
   .btn {
     height: 44px;
@@ -2137,7 +2179,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
     height: 44px;
   }
 
-  .toolgroup__btn {
+  .map-rail__btn {
     width: 44px;
     height: 44px;
   }
@@ -2174,12 +2216,6 @@ select.input--sm { text-align: left; padding-right: 6px; }
     display: none;
   }
 
-  /* --- View sliders (3D): wider to stay usable on narrow screens ---------- */
-  .view-sliders {
-    width: calc(100vw - 80px);
-    min-width: 160px;
-    max-width: 300px;
-  }
 }
 
 /* ---- ALPHA notice + build badge --------------------------------------- */
@@ -2936,4 +2972,403 @@ select.input--sm { text-align: left; padding-right: 6px; }
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 50%;
+}
+
+/* ==========================================================================
+   M20 — UX refinement: grouped toolbar · stepper · group headers · badges ·
+   result card · stale pill · command palette · map rail.
+   Layout only — every colour below references an existing token.
+   ========================================================================== */
+
+/* ---- Grouped toolbar clusters (M20 §1) ----------------------------------- */
+
+.toolbar__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 7px;
+  flex: 0 0 auto;
+}
+.toolbar__group + .toolbar__group {
+  border-left: 1px solid var(--hair);
+}
+.toolbar__group-btns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.toolbar__group .toolbar__btn {
+  width: 30px;
+  height: 28px;
+}
+.toolbar__group-label {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--faint);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+/* ---- Plan stepper chip (M20 §1) ------------------------------------------ */
+
+.plan-stepper {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 6px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: var(--surface2);
+  flex: 0 0 auto;
+}
+.plan-stepper:empty {
+  display: none; /* before toolbar.js populates it */
+}
+.plan-stepper__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  font-family: var(--ui);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.plan-stepper__step:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+.plan-stepper__step:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.plan-stepper__step.is-current {
+  color: var(--ink);
+}
+.plan-stepper__step.is-done {
+  color: var(--accent);
+}
+.plan-stepper__num {
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+.plan-stepper__sep {
+  color: var(--faint);
+  user-select: none;
+}
+/* Stale plan: the Plan step ring goes amber (colour = meaning: amber event). */
+.plan-stepper.is-stale .plan-stepper__step[data-step='plan'] .plan-stepper__num {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+@media (max-width: 900px) {
+  .plan-stepper {
+    display: none;
+  }
+}
+
+/* ---- Left-menu group headers (M20 §2) ------------------------------------ */
+
+.panel-group__head {
+  position: sticky;
+  top: 0;
+  z-index: 2; /* above section heads while scrolling */
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-4);
+  border: none;
+  border-bottom: 1px solid var(--hair);
+  background: var(--bg2);
+  color: var(--dim);
+  font-family: var(--disp);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+}
+.panel-group__head:hover {
+  color: var(--ink);
+}
+.panel-group__head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.panel-group__chev {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  transition: transform 0.15s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-group__chev {
+    transition: none;
+  }
+}
+.panel-group[data-open='false'] .panel-group__chev {
+  transform: rotate(-90deg);
+}
+.panel-group__label {
+  flex: 1 1 auto;
+}
+.panel-group__badge {
+  flex: 0 0 auto;
+}
+.panel-group[data-open='false'] .panel-group__body {
+  display: none;
+}
+
+/* ---- Status badges (M20 §2): groups, sections, strip icons --------------- */
+
+.gl-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-family: var(--ui);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  background: var(--raise);
+  color: var(--dim);
+  border: 1px solid var(--hair);
+}
+.gl-badge--check {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.gl-badge--dot {
+  min-width: 9px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  background: var(--warn);
+  border-color: var(--warn);
+}
+.gl-badge--section {
+  margin-left: auto; /* right-aligned in the section header */
+}
+.section__hint ~ .gl-badge--section {
+  margin-left: 0; /* the hint already claimed the auto margin */
+}
+.panel-strip__btn {
+  position: relative; /* anchor for the corner badge */
+}
+.gl-badge--strip {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 14px;
+  height: 13px;
+  padding: 0 3px;
+  font-size: 9px;
+}
+.gl-badge--strip.gl-badge--dot {
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  top: 3px;
+  right: 3px;
+}
+
+/* ---- Result summary card (M20 §3) ---------------------------------------- */
+
+.result-card {
+  position: absolute;
+  bottom: var(--sp-4);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toolbar);
+  width: min(380px, calc(100% - 2 * var(--sp-4)));
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  animation: gl-rise 0.18s ease-out;
+}
+@keyframes gl-rise {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+}
+.result-card__close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.result-card__close:hover {
+  color: var(--ink);
+}
+.result-card__figures {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: baseline;
+}
+.result-card__fig {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.result-card__num {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.result-card__cap {
+  font-size: 11px;
+  color: var(--dim);
+}
+.result-card__zones {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.result-card__zone {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 3px 6px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--ui);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.result-card__zone:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+.result-card__actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+/* ---- Stale-plan pill (M20 §3) --------------------------------------------- */
+
+.stale-pill {
+  position: absolute;
+  top: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: calc(var(--z-toolbar) + 1);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px 8px 5px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--ink);
+  animation: gl-drop 0.18s ease-out;
+}
+@keyframes gl-drop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+}
+.stale-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--warn);
+  flex: 0 0 auto;
+}
+.stale-pill__cause {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.stale-pill__run {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+.stale-pill__run:hover {
+  background: var(--raise);
+}
+.stale-pill__count {
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.stale-pill__close {
+  border: none;
+  background: transparent;
+  color: var(--faint);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 999px;
+}
+.stale-pill__close:hover {
+  color: var(--ink);
+  background: var(--raise);
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-card,
+  .stale-pill {
+    animation: none;
+  }
+}
+
+/* The basemap chips lose their own card surface inside the flyout. */
+.map-flyout .basemap-switch {
+  box-shadow: none;
 }

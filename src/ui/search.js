@@ -1,31 +1,68 @@
 import maplibregl from 'maplibre-gl';
 import { parseCoordinate } from '../geo/coords.js';
+import { rankPalette } from './palette.js';
 
 /**
- * Location search + coordinate entry, sitting over the map.
+ * M20 §4 — command palette (⌘K / Ctrl-K), grown from the M2 map search box
+ * (which it replaces: one entry point).
  *
- * Two input modes, picked from the text the user types:
- *  - a coordinate in any supported format — decimal lat/long, DMS, MGRS or UTM
- *    (parseCoordinate) — flies straight there and drops a temporary pin;
- *  - free text geocodes via Nominatim (OpenStreetMap, token-free) and lists up
- *    to five matches; picking one flies to it (to its bbox when supplied).
+ * Sections, ranked by palette.js: Objects (registry: select/flyTo), Actions
+ * (the same handlers the UI already has), Go to (coordinate entry in any
+ * supported format + Nominatim place search), Tabs (open by label).
  *
- * Nominatim asks callers to be gentle: we debounce, cap at 5 results, and only
- * query on a settled input. No state is persisted.
+ * Coordinates fly straight there and drop a temporary pin. Free text geocodes
+ * via Nominatim (OpenStreetMap, token-free) — debounced, capped at 5, only on
+ * a settled input; results append to the Go-to section. No state persists.
+ *
+ * Keyboard: ⌘K/Ctrl-K toggles; ↑↓ move, Enter runs, Esc closes and returns
+ * focus to the map. role="dialog" + listbox semantics; outside click closes.
  */
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
-// Recognise any supported coordinate grammar; null → treat as a place name.
-const parseCoords = (text) => parseCoordinate(text);
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
+  );
+}
 
-export function createSearch(map, { input, form, results, clearBtn, onStatus } = {}) {
+/**
+ * providers: [{ key, title, getItems() → [{ label, keywords?, hint?, run() }] }]
+ * in display order (objects, actions, tabs). "Go to" is built in.
+ */
+export function createPalette(map, { providers = [], onStatus } = {}) {
   let pin = null;
   let debounce = 0;
   let lastQuery = '';
+  let places = []; // async Nominatim results for the current query
+  let flat = []; // rendered items in visual order
   let activeIndex = -1;
-  let items = [];
+  let isOpen = false;
 
+  // ── Overlay DOM ──────────────────────────────────────────────────────────
+  const root = document.createElement('div');
+  root.className = 'palette';
+  root.hidden = true;
+  root.innerHTML =
+    '<div class="palette__scrim"></div>' +
+    '<div class="palette__panel" role="dialog" aria-modal="true" aria-label="Command palette">' +
+    '<form class="palette__form" role="search" autocomplete="off">' +
+    '<svg class="palette__ico ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>' +
+    '<input class="palette__input" id="paletteInput" type="text" ' +
+    'placeholder="Search objects, actions, tabs, places — or lat/long · MGRS · UTM" ' +
+    'aria-label="Search objects, actions, tabs, places, or enter coordinates" ' +
+    'role="combobox" aria-expanded="true" aria-controls="paletteList" />' +
+    '<kbd class="palette__kbd" aria-hidden="true">esc</kbd>' +
+    '</form>' +
+    '<ul class="palette__list" id="paletteList" role="listbox"></ul>' +
+    '</div>';
+  document.body.appendChild(root);
+
+  const input = root.querySelector('.palette__input');
+  const list = root.querySelector('.palette__list');
+  const form = root.querySelector('.palette__form');
+
+  // ── Map helpers (kept from the M2 search box) ────────────────────────────
   function dropPin(lng, lat) {
     if (pin) pin.remove();
     const el = document.createElement('div');
@@ -47,140 +84,185 @@ export function createSearch(map, { input, form, results, clearBtn, onStatus } =
     map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 13), duration: 800 });
   }
 
-  function hideResults() {
-    results.hidden = true;
-    results.innerHTML = '';
-    items = [];
-    activeIndex = -1;
-  }
-
-  function showResults(list) {
-    items = list;
-    activeIndex = -1;
-    if (!list.length) {
-      results.innerHTML = '<li class="map-search__empty">No matches</li>';
-      results.hidden = false;
-      return;
+  // ── Sections → flat render ───────────────────────────────────────────────
+  function gotoItems(q) {
+    const items = [];
+    const point = q ? parseCoordinate(q) : null;
+    if (point) {
+      items.push({
+        label: `Go to ${q}`,
+        hint: `${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}`,
+        run() {
+          dropPin(point.lng, point.lat);
+          flyTo(point.lng, point.lat);
+          onStatus?.(`Centred on ${point.lat.toFixed(4)}, ${point.lng.toFixed(4)}`);
+        },
+      });
     }
-    results.innerHTML = list
-      .map(
-        (r, i) =>
-          `<li class="map-search__result" role="option" data-i="${i}" tabindex="-1">${escapeHtml(
-            r.display_name
-          )}</li>`
-      )
-      .join('');
-    results.hidden = false;
+    for (const r of places) {
+      const lng = Number(r.lon);
+      const lat = Number(r.lat);
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) continue;
+      items.push({
+        label: r.display_name,
+        hint: 'place',
+        run() {
+          dropPin(lng, lat);
+          flyTo(lng, lat, r.boundingbox);
+          onStatus?.(`Found “${r.display_name.split(',')[0]}”`);
+        },
+      });
+    }
+    return items;
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+  function render() {
+    const q = input.value.trim();
+    const ranked = rankPalette(
+      q,
+      providers.map((p) => ({ key: p.key, title: p.title, items: p.getItems() })),
     );
+    // A parsed coordinate replaces everything (rankPalette short-circuits the
+    // same way when given the parser; we keep goto async so build it here).
+    const goto = gotoItems(q);
+    const sections = parseCoordinate(q)
+      ? [{ key: 'goto', title: 'Go to', items: goto }]
+      : goto.length
+        ? [...ranked, { key: 'goto', title: 'Go to', items: goto }]
+        : ranked;
+
+    flat = [];
+    let html = '';
+    for (const s of sections) {
+      html += `<li class="palette__section" role="presentation">${escapeHtml(s.title)}</li>`;
+      for (const item of s.items) {
+        const i = flat.length;
+        flat.push(item);
+        html +=
+          `<li class="palette__item" role="option" id="palette-item-${i}" data-i="${i}" aria-selected="false">` +
+          `<span class="palette__item-label">${escapeHtml(item.label)}</span>` +
+          (item.hint ? `<span class="palette__item-hint">${escapeHtml(item.hint)}</span>` : '') +
+          '</li>';
+      }
+    }
+    if (!flat.length) {
+      html += `<li class="palette__empty">${q ? 'No matches' : 'Type to search'}</li>`;
+    }
+    list.innerHTML = html;
+    setActive(flat.length ? 0 : -1);
   }
 
-  function pick(r) {
-    const lng = Number(r.lon);
-    const lat = Number(r.lat);
-    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
-    dropPin(lng, lat);
-    flyTo(lng, lat, r.boundingbox);
-    hideResults();
-    input.value = r.display_name.split(',').slice(0, 2).join(',');
-    clearBtn.hidden = false;
-    onStatus?.(`Found “${input.value}”`);
+  function setActive(i) {
+    activeIndex = i;
+    list.querySelectorAll('.palette__item').forEach((li) => {
+      const on = Number(li.dataset.i) === i;
+      li.classList.toggle('is-active', on);
+      li.setAttribute('aria-selected', String(on));
+      if (on) li.scrollIntoView({ block: 'nearest' });
+    });
+    if (i >= 0) input.setAttribute('aria-activedescendant', `palette-item-${i}`);
+    else input.removeAttribute('aria-activedescendant');
   }
 
+  function pick(i) {
+    const item = flat[i];
+    if (!item) return;
+    close();
+    item.run?.();
+  }
+
+  // ── Nominatim (gentle: debounced, settled input, 5 results) ─────────────
   async function geocode(q) {
     try {
       onStatus?.('Searching…');
       const url = `${NOMINATIM}?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=0`;
       const res = await fetch(url, { headers: { Accept: 'application/json' } });
       if (!res.ok) throw new Error(`Nominatim ${res.status}`);
-      const list = await res.json();
-      if (q !== lastQuery) return; // a newer query superseded this one
-      showResults(list);
-      onStatus?.(list.length ? `${list.length} match${list.length > 1 ? 'es' : ''}` : 'No matches');
+      const found = await res.json();
+      if (q !== lastQuery || !isOpen) return; // superseded or closed meanwhile
+      places = found;
+      render();
+      onStatus?.(found.length ? `${found.length} match${found.length > 1 ? 'es' : ''}` : 'No matches');
     } catch (err) {
-      console.warn('[search] geocode failed', err);
-      showResults([]);
-      onStatus?.('Search unavailable');
+      console.warn('[palette] geocode failed', err);
+      onStatus?.('Place search unavailable');
     }
   }
 
-  function submit() {
-    const text = input.value.trim();
-    if (!text) return;
-    const coords = parseCoords(text);
-    if (coords) {
-      dropPin(coords.lng, coords.lat);
-      flyTo(coords.lng, coords.lat);
-      hideResults();
-      clearBtn.hidden = false;
-      onStatus?.(`Centred on ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`);
-      return;
-    }
-    lastQuery = text;
-    geocode(text);
+  // ── Open / close ─────────────────────────────────────────────────────────
+  function open() {
+    if (isOpen) return;
+    isOpen = true;
+    root.hidden = false;
+    input.value = '';
+    places = [];
+    render();
+    input.focus();
   }
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (activeIndex >= 0 && items[activeIndex]) pick(items[activeIndex]);
-    else submit();
-  });
+  function close() {
+    if (!isOpen) return;
+    isOpen = false;
+    root.hidden = true;
+    window.clearTimeout(debounce);
+    places = [];
+    // Esc / pick returns focus to the map (acceptance: keyboard round-trip).
+    map.getCanvas()?.focus?.();
+  }
+
+  // ── Events ───────────────────────────────────────────────────────────────
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (isOpen) close();
+      else open();
+    } else if (e.key === 'Escape' && isOpen) {
+      e.stopPropagation(); // the profile tool's Esc handler must not also fire
+      close();
+    }
+  }, true);
+
+  root.querySelector('.palette__scrim').addEventListener('click', close);
 
   input.addEventListener('input', () => {
-    const text = input.value.trim();
-    clearBtn.hidden = !text;
+    const q = input.value.trim();
+    places = [];
+    render();
     window.clearTimeout(debounce);
-    if (!text || parseCoords(text)) {
-      hideResults();
-      return;
-    }
+    if (!q || parseCoordinate(q)) return; // coordinates never hit the network
     debounce = window.setTimeout(() => {
-      lastQuery = text;
-      geocode(text);
+      lastQuery = q;
+      geocode(q);
     }, 350);
   });
 
   input.addEventListener('keydown', (e) => {
-    if (results.hidden || !items.length) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
+      if (!flat.length) return;
       const dir = e.key === 'ArrowDown' ? 1 : -1;
-      activeIndex = (activeIndex + dir + items.length) % items.length;
-      results.querySelectorAll('.map-search__result').forEach((li, i) =>
-        li.classList.toggle('is-active', i === activeIndex)
-      );
-    } else if (e.key === 'Escape') {
-      hideResults();
+      setActive((activeIndex + dir + flat.length) % flat.length);
     }
   });
 
-  results.addEventListener('click', (e) => {
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (activeIndex >= 0) pick(activeIndex);
+  });
+
+  list.addEventListener('click', (e) => {
     const li = e.target.closest('[data-i]');
-    if (!li) return;
-    pick(items[Number(li.dataset.i)]);
+    if (li) pick(Number(li.dataset.i));
   });
-
-  clearBtn.addEventListener('click', () => {
-    input.value = '';
-    clearBtn.hidden = true;
-    hideResults();
-    if (pin) {
-      pin.remove();
-      pin = null;
-    }
-    input.focus();
-  });
-
-  // Click elsewhere closes the result list.
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.map-search')) hideResults();
+  list.addEventListener('mousemove', (e) => {
+    const li = e.target.closest('[data-i]');
+    if (li && Number(li.dataset.i) !== activeIndex) setActive(Number(li.dataset.i));
   });
 
   return {
+    open,
+    close,
+    toggle: () => (isOpen ? close() : open()),
     clearPin() {
       if (pin) {
         pin.remove();

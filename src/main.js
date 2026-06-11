@@ -30,7 +30,7 @@ import { atakConsumedMah, powerbankRecommendation } from './power/atak.js';
 import { buildPace } from './pace/pace.js';
 import { exportReport } from './pace/report.js';
 import { createHfPanel } from './hf/hf-panel.js';
-import { createSearch } from './ui/search.js';
+import { createPalette } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { createExportPanel } from './export/export-panel.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
@@ -39,7 +39,13 @@ import { createObjectRegistry, RF_KINDS } from './ui/objects.js';
 import { createObjectList } from './ui/objlist.js';
 import { createSectionTabs } from './ui/tabs.js';
 import { createContextMenu } from './ui/ctxmenu.js';
-import { createToolbar, TOOLBAR_MODULES } from './ui/toolbar.js';
+import { createToolbar, TOOLBAR_MODULES, MODULE_BY_KEY } from './ui/toolbar.js';
+import { planState } from './ui/planstate.js';
+import { createPanelGroups } from './ui/groups.js';
+import { computeBadges, renderBadge } from './ui/badges.js';
+import { summarizeCoverage } from './analysis/summary.js';
+import { createResultCard, createStalePill } from './ui/resultcard.js';
+import { createRailState } from './ui/rail.js';
 import { createLeftPanel } from './ui/lpanel.js';
 import { initDragMove } from './ui/dragmove.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
@@ -340,11 +346,16 @@ function switchBasemap(category, variantId) {
   reflectBasemap(result.category);
 }
 
-// ---- Variant picker dropdown -------------------------------------------
-let variantMenuOpen = false;
-let variantMenuCategory = null;
+// ---- Variant list (M20 §5: inline in the basemap flyout) ------------------
+// Replaces the M10 long-press / right-click dropdown — the variants are now
+// always visible (and left-clickable) inside the flyout.
 
-function buildVariantMenu(category) {
+function activeBasemapCategory() {
+  return basemapSwitch.querySelector('.basemap-switch__btn.is-active')?.dataset.basemap ?? 'imagery';
+}
+
+function renderVariantMenu() {
+  const category = activeBasemapCategory();
   variantMenu.innerHTML = '';
   const label = document.createElement('div');
   label.className = 'basemap-variant-menu__label';
@@ -359,78 +370,51 @@ function buildVariantMenu(category) {
     btn.type = 'button';
     if (v.id === currentVariant) btn.classList.add('is-active');
     btn.addEventListener('click', () => {
-      switchBasemap(category, v.id, true);
-      closeVariantMenu();
+      switchBasemap(category, v.id);
+      renderVariantMenu();
     });
     variantMenu.appendChild(btn);
   }
 }
 
-function openVariantMenu(category, anchorBtn) {
-  if (variantMenuOpen && variantMenuCategory === category) {
-    closeVariantMenu();
-    return;
-  }
-  buildVariantMenu(category);
-  // Position dropdown below the basemap switch, flush to the right of the toolbar.
-  // The menu uses position:fixed so getBoundingClientRect() values are used directly.
-  const switchRect = anchorBtn.closest('.basemap-switch').getBoundingClientRect();
-  variantMenu.style.right = (window.innerWidth - switchRect.right) + 'px';
-  variantMenu.style.top = (switchRect.bottom + 4) + 'px';
-  variantMenu.style.left = 'auto';
-  variantMenu.removeAttribute('hidden');
-  variantMenuOpen = true;
-  variantMenuCategory = category;
-}
-
-function closeVariantMenu() {
-  variantMenu.setAttribute('hidden', '');
-  variantMenuOpen = false;
-  variantMenuCategory = null;
-}
-
-// Close when clicking outside the menu or the basemap switch
-document.addEventListener('click', (e) => {
-  if (variantMenuOpen && !variantMenu.contains(e.target) && !basemapSwitch.contains(e.target)) {
-    closeVariantMenu();
-  }
-});
-
-// Click on chip: if it's the active one → open variant picker;
-//                if it's a different one → switch category.
+// Chip click switches category; the variant list follows the active chip.
 basemapSwitch.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-basemap]');
   if (!btn) return;
-  const category = btn.dataset.basemap;
-  if (btn.classList.contains('is-active')) {
-    // second press on active chip → variant picker
-    openVariantMenu(category, btn);
-  } else {
-    closeVariantMenu();
-    switchBasemap(category);
-  }
+  if (!btn.classList.contains('is-active')) switchBasemap(btn.dataset.basemap);
+  renderVariantMenu();
 });
 
-// Desktop right-click on any chip → variant picker for that category
-basemapSwitch.addEventListener('contextmenu', (e) => {
-  const btn = e.target.closest('[data-basemap]');
-  if (!btn) return;
-  e.preventDefault();
-  openVariantMenu(btn.dataset.basemap, btn);
+// ---- Right map rail flyouts (M20 §5) ---------------------------------------
+// One flyout open at a time; Esc and outside clicks close (rail.js machine).
+
+const railFlyouts = {
+  basemap: { btn: $('#railBasemapBtn'), panel: $('#railFlyoutBasemap') },
+  view: { btn: $('#railViewBtn'), panel: $('#railFlyoutView') },
+};
+
+const railState = createRailState({
+  onChange(current) {
+    for (const [key, f] of Object.entries(railFlyouts)) {
+      const open = current === key;
+      f.panel.hidden = !open;
+      f.btn.setAttribute('aria-expanded', String(open));
+      f.btn.classList.toggle('is-active', open);
+    }
+    if (current === 'basemap') renderVariantMenu();
+  },
 });
 
-// Long-press on touch (≥500 ms) → variant picker
-let longPressTimer = null;
-basemapSwitch.addEventListener('pointerdown', (e) => {
-  const btn = e.target.closest('[data-basemap]');
-  if (!btn) return;
-  longPressTimer = setTimeout(() => {
-    longPressTimer = null;
-    openVariantMenu(btn.dataset.basemap, btn);
-  }, 500);
+railFlyouts.basemap.btn.addEventListener('click', () => railState.toggle('basemap'));
+railFlyouts.view.btn.addEventListener('click', () => railState.toggle('view'));
+
+// Outside click (incl. the map canvas) closes the open flyout.
+document.addEventListener('pointerdown', (e) => {
+  if (railState.current() && !e.target.closest('.map-rail, .map-flyout')) railState.close();
 });
-basemapSwitch.addEventListener('pointerup', () => { clearTimeout(longPressTimer); longPressTimer = null; });
-basemapSwitch.addEventListener('pointercancel', () => { clearTimeout(longPressTimer); longPressTimer = null; });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && railState.current()) railState.close();
+});
 
 // ---- AOI + coverage (need the style loaded) -----------------------------
 
@@ -468,10 +452,13 @@ let radios = null;
 let cellular = null; // M9 cellular controller (own coverage layer)
 let hfPanel = null; // M12 HF ionosphere panel
 let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
+let palette = null; // M20 ⌘K command palette (created once the style is ready)
 let teams = null; // M13 per-team/operator model
 let teamsPanel = null; // M13 teams panel UI
 let currentAoiAreaM2 = 0;
 let lastPlan = null; // last PACE plan built (M6) — fed to the report export
+let planStale = false; // M20 §3: an RF move/settings change armed a recompute
+let lastPaint = null; // M20 §3: last painted class grid {classes, cols, rows, bounds}
 
 function whenStyleReady(fn) {
   if (map.isStyleLoaded()) fn();
@@ -501,6 +488,7 @@ whenStyleReady(() => {
         aoiReadout.textContent = 'No area defined yet. Pick a tool, then draw on the map.';
         statusAoi.textContent = '—';
         statusMode.textContent = 'Ready';
+        refreshWorkflowUi(); // stepper/badges lose the mission tick
         return;
       }
       if (s.type === 'radius') {
@@ -514,6 +502,7 @@ whenStyleReady(() => {
       }
       statusMode.textContent = 'AOI set';
       syncToolButtons();
+      refreshWorkflowUi();
     },
     onHint(text) {
       drawHint.classList.toggle('is-visible', Boolean(text));
@@ -565,6 +554,18 @@ whenStyleReady(() => {
     },
     onStatus(state, info) {
       if (state === 'cleared') refreshExportPanel();
+      if (state === 'cleared') {
+        lastPaint = null;
+        planStale = false; // nothing painted → nothing to be stale
+        stalePill.disarm();
+        resultCard.hide();
+      }
+      if (state === 'done') {
+        planStale = false; // a fresh run supersedes any pending stale state
+        stalePill.disarm();
+        showResultCard();
+      }
+      if (state === 'cleared' || state === 'done') refreshWorkflowUi();
       if (state === 'error') {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
       } else if (state === 'done') {
@@ -599,6 +600,7 @@ whenStyleReady(() => {
     // M15: after each paint, mark the digital-cliff band (class 3) for digital
     // modes. Analogue degrades gracefully → no cliff overlay.
     onPaint(classes, cols, rows, bounds) {
+      lastPaint = { classes, cols, rows, bounds }; // feeds the M20 result card
       const mode = digitalModeSelect?.value ?? 'Analogue';
       updateCliffLayer(map, classes, cols, rows, bounds, mode !== 'Analogue');
     },
@@ -957,6 +959,7 @@ whenStyleReady(() => {
     onArsenalChange() {
       if (rolesList && !rolesList.hidden) renderRoles();
       teamsPanel?.render(); // keep the per-team radio picker in sync with the arsenal
+      refreshWorkflowUi();
     },
   });
 
@@ -987,6 +990,7 @@ whenStyleReady(() => {
     lastPlan = buildPace(gatherPaceContext());
     renderPace(lastPlan);
     statusMode.textContent = 'Comms plan ready';
+    refreshWorkflowUi();
   });
 
   exportReportBtn.addEventListener('click', () => {
@@ -1006,13 +1010,53 @@ whenStyleReady(() => {
   // ---- Power & endurance (M8) ------------------------------------------
   buildPowerBtn.addEventListener('click', buildPowerPlan);
 
-  // ---- Location search + coordinate entry ------------------------------
-  createSearch(map, {
-    input: $('#searchInput'),
-    form: $('#searchForm'),
-    results: $('#searchResults'),
-    clearBtn: $('#searchClear'),
+  // ---- Command palette (M20 §4) -----------------------------------------
+  // ⌘K / Ctrl-K or the toolbar search button. Replaces the in-map search box;
+  // place + coordinate entry live in its Go-to section.
+  palette = createPalette(map, {
     onStatus: (msg) => { statusMode.textContent = msg; },
+    providers: [
+      {
+        key: 'objects',
+        title: 'Objects',
+        getItems: () =>
+          registry.all().map((e) => ({
+            label: e.name,
+            keywords: e.kind,
+            hint: e.kind,
+            run() {
+              map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 13), duration: 800 });
+              statusMode.textContent = `Centred on ${e.name}`;
+            },
+          })),
+      },
+      {
+        key: 'actions',
+        title: 'Actions',
+        getItems: () => [
+          { label: 'Recompute coverage', keywords: 'run analyse rf plot', run: () => runCoverage() },
+          { label: 'Clear coverage', keywords: 'remove raster', run: () => clearCoverageBtn.click() },
+          { label: 'Recommend sites', keywords: 'masts relay advice', run: () => { jumpToAnchor('siteTitle'); if (!recommendBtn.disabled) recommendBtn.click(); } },
+          { label: 'Build comms plan', keywords: 'pace report', run: () => { jumpToAnchor('paceTitle'); buildPaceBtn.click(); } },
+          { label: 'Export report', keywords: 'pdf word excel download', run: () => { jumpToAnchor('paceTitle'); exportReportBtn.click(); } },
+          { label: 'Toggle 3D terrain', keywords: 'view tilt relief', run: () => toggle3dBtn?.click() },
+          { label: 'Toggle buildings', keywords: 'view extrusion', run: () => buildingsBtn?.click() },
+          { label: 'Toggle light / dark theme', keywords: 'appearance mode', run: () => $('#themeToggle')?.click() },
+          { label: 'Import data file', keywords: 'kml kmz gpx geojson', run: () => $('#importBtn')?.click() },
+        ],
+      },
+      {
+        key: 'tabs',
+        title: 'Tabs',
+        getItems: () =>
+          TOOLBAR_MODULES.map((m) => ({
+            label: m.label,
+            keywords: 'tab open section',
+            hint: 'tab',
+            run: () => jumpToAnchor(m.anchor),
+          })),
+      },
+    ],
   });
 
   // ---- Import KML / KMZ / GPX (+ promote to mission input) -------------
@@ -1084,6 +1128,9 @@ whenStyleReady(() => {
     const pg = importer.getFeatures().find((f) => f.geometry?.type === 'Polygon');
     if (pg) aoi.setPolygon(pg.geometry.coordinates[0]);
   }
+  // Initial state once the modules above exist (covers a restored arsenal).
+  refreshWorkflowUi();
+
   function finishPromotion() {
     // Promoted data now lives in the mission (with its own markers); drop the
     // passive overlay so nothing is shown twice.
@@ -1942,6 +1989,9 @@ async function runCloudRF(compBounds, center, params, fallback) {
     return;
   }
   paintCloudRFResult(result);
+  planStale = false; // hosted run supersedes any pending stale state
+  stalePill.disarm();
+  refreshWorkflowUi();
   progress.hidden = true;
   progressBar.style.width = '0%';
   opacityRow.hidden = false;
@@ -2064,7 +2114,11 @@ const lpanelCtl = createLeftPanel({
   strip: $('#panelStrip'),
   collapseBtn: panelCollapse,
   onResize: resize,
-  reveal: (anchor) => sectionTabs.reveal(anchor),
+  reveal: (anchor) => {
+    const k = MODULE_KEY_BY_ANCHOR[anchor];
+    if (k) panelGroups.openForModule(k); // group may be collapsed (M20 §2)
+    sectionTabs.reveal(anchor);
+  },
 });
 
 panelToggle.addEventListener('click', () => {
@@ -2100,10 +2154,30 @@ const sectionTabs = createSectionTabs($('#panel .panel__body') ?? $('.panel__bod
   },
 });
 
-/** Expand the panel, open a section's tab and scroll to it. */
+// M20 §2: group headers (Mission / Radios / Analysis / Output) collapse their
+// member tabs together; closed set persists in gl.ui.groups.v1.
+const panelGroups = createPanelGroups($('#panel .panel__body') ?? $('.panel__body'), { renderBadge });
+
+const MODULE_KEY_BY_ANCHOR = Object.fromEntries(TOOLBAR_MODULES.map((m) => [m.anchor, m.key]));
+
+// M20 §2: per-module badge spans on the section headers (right-aligned).
+const sectionBadgeEls = new Map(); // module key -> span
+for (const key of ['objects', 'aoi', 'radios', 'coverage']) {
+  const head = document.getElementById(MODULE_BY_KEY[key].anchor)?.closest('.section')?.querySelector('.section__head');
+  if (!head) continue;
+  const span = document.createElement('span');
+  span.className = 'gl-badge gl-badge--section';
+  span.hidden = true;
+  head.appendChild(span);
+  sectionBadgeEls.set(key, span);
+}
+
+/** Expand the panel + the owning group, open a section's tab, scroll to it. */
 function jumpToAnchor(anchorId) {
   lpanelCtl.setCollapsed(false, { persist: false });
   if (mq.matches) openPanel();
+  const moduleKey = MODULE_KEY_BY_ANCHOR[anchorId];
+  if (moduleKey) panelGroups.openForModule(moduleKey);
   setTimeout(() => sectionTabs.reveal(anchorId), 180);
 }
 
@@ -2119,6 +2193,7 @@ const dragMove = initDragMove(map, registry, {
   onLiveCoord(pt) {
     lastCursor = pt;
     renderCursor();
+    resultCard.hide(); // §3: the card never blocks the view while dragging
   },
   onStatus(msg) { statusMode.textContent = msg; },
 });
@@ -2180,39 +2255,118 @@ const objList = createObjectList(
   },
 );
 
+// ---- M20 workflow state → stepper + badges --------------------------------
+// One gather + one refresh: every state-changing path (AOI, registry, arsenal,
+// coverage paint/clear, plan build, stale flag) funnels through here.
+
+function gatherUiState() {
+  const all = registry.all();
+  return {
+    aoiSet: Boolean(aoi?.getAoi?.()),
+    objectCount: all.length,
+    rfObjectCount: all.filter((e) => RF_KINDS.includes(e.kind)).length,
+    arsenalCount: radios?.getArsenal?.().length ?? 0,
+    hasResult: Boolean(coverage?.hasCoverage?.() || lastPlan || map.getLayer?.(CLOUDRF_LAYER)),
+    stale: planStale,
+  };
+}
+
+function refreshWorkflowUi() {
+  const s = gatherUiState();
+  toolbarCtl?.updateStepper(planState(s));
+  const b = computeBadges(s);
+  panelGroups.setBadges(b.groups);
+  for (const [key, el] of sectionBadgeEls) renderBadge(el, b.modules[key]);
+  lpanelCtl?.setBadges(b.modules);
+}
+
+// ---- M20 §3: result summary card + stale-plan pill -------------------------
+
+const resultCard = createResultCard(document.querySelector('.map-wrap'), {
+  onZoneClick(z) {
+    map.flyTo({ center: [z.centroid.lng, z.centroid.lat], zoom: Math.max(map.getZoom(), 12), duration: 800 });
+  },
+  onRelayAdvice() {
+    jumpToAnchor('siteTitle');
+    if (!recommendBtn.disabled) recommendBtn.click();
+  },
+  onReport() {
+    jumpToAnchor('paceTitle');
+    buildPaceBtn.click();
+  },
+});
+
+let pendingRecompute = null; // what the armed pill will run (drone vs coverage)
+const stalePill = createStalePill(document.querySelector('.map-wrap'), {
+  onRecompute() {
+    pendingRecompute?.(); // planStale clears when the run paints ('done')
+  },
+  onCancel() {
+    // Plan stays stale: the §2 badge dot and the amber stepper ring remain.
+    statusMode.textContent = 'Auto-recompute cancelled — plan is outdated';
+  },
+});
+
+/** Summarise the last painted raster against the AOI and show the card. */
+function showResultCard() {
+  if (!lastPaint) return;
+  const area = aoi?.getAoi?.();
+  const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
+  resultCard.show(
+    summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds }),
+  );
+}
+
+// M20 §1: a stepper click jumps to that step's "do this next" tab.
+const STEP_ANCHORS = { mission: 'aoiTitle', radios: 'radioTitle', plan: 'coverageTitle' };
+
 toolbarCtl = createToolbar(
-  { root: $('#toolbar'), modulesHost: $('#toolbarModules'), rightHost: $('#toolbarRight') },
+  {
+    root: $('#toolbar'),
+    modulesHost: $('#toolbarModules'),
+    stepperHost: $('#planStepper'),
+    rightHost: $('#toolbarRight'),
+  },
   {
     onModule(m) {
       // Collapsed strip or mobile: always open + reveal; otherwise toggle.
       if (mq.matches || lpanelCtl.isCollapsed()) jumpToAnchor(m.anchor);
       else if (sectionTabs.isOpen(m.anchor)) sectionTabs.setOpen(m.anchor, false);
-      else sectionTabs.reveal(m.anchor);
+      else {
+        panelGroups.openForModule(m.key); // group may be collapsed (M20 §2)
+        sectionTabs.reveal(m.anchor);
+      }
     },
-    onSearch() { $('#searchInput')?.focus(); },
-    onBasemap() { document.querySelector('.basemap-switch__btn:not(.is-active)')?.click(); },
+    onSearch() { palette?.open(); },
+    onBasemap() { railState.toggle('basemap'); }, // M20 §5: open the rail flyout
     onSettings() { jumpToAnchor('coverageTitle'); }, // backend settings live there
+    onStep(stepKey) { jumpToAnchor(STEP_ANCHORS[stepKey]); },
   },
 );
 // Mirror the restored open/closed state onto the toolbar icons.
 for (const m of TOOLBAR_MODULES) toolbarCtl.setPressed(m.anchor, sectionTabs.isOpen(m.anchor));
+refreshWorkflowUi();
 
-// Debounced RF recompute (§0): moving or re-tuning a tx/mast/repeater/drone
-// re-runs the analyse path ~400 ms after the change. Recommended masts are
-// skipped — recommend.js cancels-and-restarts its own combined raster.
-let rfRecomputeTimer = null;
+// RF recompute on move/re-tune (M19 §0, made visible by M20 §3): moving or
+// re-tuning a tx/mast/repeater/drone marks the plan stale and arms the pill's
+// 5 s countdown instead of M19's silent 400 ms debounce. Recommended masts
+// are skipped — recommend.js cancels-and-restarts its own combined raster.
 document.addEventListener('objects:changed', (ev) => {
   const { type, id } = ev.detail || {};
   if (type !== 'move' && type !== 'settings') return;
   const e = registry.get(id);
   if (!e || !RF_KINDS.includes(e.kind) || e.owner === 'recommend') return;
-  clearTimeout(rfRecomputeTimer);
-  rfRecomputeTimer = setTimeout(() => {
-    if (!coverage?.hasCoverage?.()) return; // nothing painted → nothing to refresh
-    if (e.kind === 'drone') drone?.computeRelay();
-    else if (!recommender?.hasSites?.()) runCoverage();
-  }, 400);
+  if (!coverage?.hasCoverage?.()) return; // nothing painted → nothing to refresh
+  if (e.kind !== 'drone' && recommender?.hasSites?.()) return; // recommend owns the raster
+  planStale = true;
+  resultCard.hide(); // the figures no longer describe the map
+  refreshWorkflowUi();
+  pendingRecompute = e.kind === 'drone' ? () => drone?.computeRelay() : () => runCoverage();
+  stalePill.arm(`${e.name} ${type === 'move' ? 'moved' : 'updated'}`);
 });
+
+// Any registry change can move the stepper/badges (add/remove/move/rename).
+document.addEventListener('objects:changed', () => refreshWorkflowUi());
 
 // The object list shows grid refs in the active coordinate format.
 statusCoords.addEventListener('click', () => objList.refresh());
@@ -2244,5 +2398,13 @@ if (import.meta.env.DEV) {
     lpanel: lpanelCtl,
     get toolbar() { return toolbarCtl; },
     ctxMenu,
+    // M20 handles
+    groups: panelGroups,
+    get palette() { return palette; },
+    rail: railState,
+    resultCard,
+    stalePill,
+    refreshWorkflowUi,
+    gatherUiState,
   };
 }
