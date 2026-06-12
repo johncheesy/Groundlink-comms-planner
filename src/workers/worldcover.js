@@ -45,6 +45,9 @@ export const CLUTTER = {
 
 export const clutterDbForClass = (cls) => CLUTTER[cls]?.db ?? 0;
 
+/** Representative clutter height (m above ground) — the P.1812 profile input. */
+export const clutterHeightForClass = (cls) => CLUTTER[cls]?.h ?? 0;
+
 function getMapUrl(bounds, W, H) {
   const { west, south, east, north } = bounds;
   const p = new URLSearchParams({

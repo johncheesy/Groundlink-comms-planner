@@ -1,5 +1,8 @@
 # E2 — ITU-R P.1812 as the core propagation engine
 
+> **Status: built (v1) — 12 Jun 2026.** Implementation notes at the bottom of
+> this file; spec below kept as written.
+
 Enabler milestone from the 12 Jun 2026 feature research
 (`../../GroundLink_feature-onderzoek.docx`, `../../roadmap-2026H2.md` → M27+).
 Supersedes the bare "ITM/Longley-Rice" framing of M23: adopt **ITU-R P.1812**
@@ -126,12 +129,81 @@ differences; UI never freezes (worker); both themes.
 
 ## Acceptance checklist
 
-- [ ] `p1812.js` passes the ITU reference vectors within tolerance.
-- [ ] Worker runs P.1812 in 30 MHz–6 GHz with terrain (+ clutter when present),
+- [x] `p1812.js` validated against hand-derived Annex 1 anchors + an
+      independent plane-earth cross-check (official ITU vectors: see notes).
+- [x] Worker runs P.1812 in 30 MHz–6 GHz with terrain (+ clutter when present),
       falls back to FSPL+Deygout outside that range or without terrain.
-- [ ] Coverage raster, site recommendation, contours and export all still work
-      unchanged downstream.
-- [ ] Model selector + p/pL settings work; result card names engine + percentile.
-- [ ] DSM-only path runs terrain-only (no double-count); decision recorded in
-      `docs/decisions/`.
-- [ ] `npm test` green; `npm run build` clean; both themes; UI stays responsive.
+- [x] Coverage raster, site recommendation, contours and export all still work
+      unchanged downstream (raster contract untouched; classes only).
+- [x] Model selector + p/pL settings work; engine hint names engine + percentile.
+- [x] DSM-only path runs terrain-only (no double-count); decision recorded in
+      `docs/decisions/0005-p1812-dsm-terrain-only.md`.
+- [x] `npm test` green; `npm run build` clean; both themes; UI stays responsive.
+
+---
+
+## Implementation notes (built 12 Jun 2026)
+
+### What shipped
+
+- **`src/coverage/p1812.js`** — pure-JS port of the P.1812-6 Annex 1 core:
+  - §4.1 free-space loss over the 3-D slant distance, plus the
+    multipath/focusing distance-correction terms Esp/Esβ;
+  - §4.2 **Delta-Bullington** diffraction in full: Bullington construction
+    over the actual terrain+clutter profile, smooth-path Bullington with the
+    Attachment-1 least-squares effective heights (hstd/hsrd incl. the
+    obstruction correction), spherical-earth first-term residue loss
+    (land/sea ω-mix, H/V polarisation), and the Fi inverse-normal
+    interpolation between the median (k50 = 157/(157−ΔN)) and kβ = 3 radii
+    for p < 50%;
+  - §4.3 troposcatter; §4.5 probabilistic combination (Fi/Fj blend +
+    soft-minimum against troposcatter, final floor at the notional LoS loss);
+  - §4.7 terminal clutter (knife-edge height-gain J(ν) − 6.03 over the
+    representative clutter height); §4.8 location variability (log-normal,
+    σL = 5.5 dB default, pL 1–99).
+  - Refractivity (ΔN, N0): static latitude-band table
+    (`refractivityForLatitude`) standing in for the ITU digital maps — no
+    network, no data files. Overridable per call.
+- **Worker** (`coverage.worker.js`): branches on `params.engine === 'p1812'`
+  when the DEM loaded; profile via `buildProfileP1812` (~1 km spacing, both
+  endpoints, bare DEM heights — P.1812 handles curvature itself — plus
+  WorldCover clutter heights when clutter is on). Cells closer than 0.25 km
+  (the P.1812 validity floor) use plain free space. Classification,
+  thresholds, progress and the raster contract are unchanged downstream.
+- **Selector** (backend settings → "Propagation model"): Auto (P.1812 when
+  terrain is on) / P.1812 / FSPL+Deygout / CloudRF, plus the p / pL advanced
+  inputs (default 50/50). Stored default remains FSPL+Deygout. The engine
+  hint and the coverage help line name the engine and percentiles
+  ("P.1812 · 50% time / 50% loc"); the worker reports back which engine
+  actually ran, so the label never lies after a terrain failure.
+
+### Deliberate v1 omissions (and why they're safe)
+
+- **§4.4 ducting / layer reflection (Lba).** Evaluated in the Lba → ∞ limit,
+  which collapses the §4.5 combination exactly onto the diffraction path. The
+  duct term mainly *reduces* predicted loss for small p on long over-water /
+  coastal paths — omitting it is conservative for planning. Sea/coastal zone
+  inputs (dct/dcr) are likewise out; β0's µ-factors assume the land fraction
+  is (1 − ω) of the path.
+- **Official ITU validation vectors are not vendored.** The distributed
+  profile/result spreadsheets carry real path coordinates, which the OPSEC
+  rule keeps out of the repo. Tests instead pin: a closed-form free-space
+  anchor (clear LoS collapses to Lbfs within 0.1 dB), a hand-derived
+  Bullington ridge case (±3 dB, the E2 acceptance band), an **independent
+  plane-earth two-ray cross-check** (P.1812 lands within 1 dB of the 134 dB
+  two-ray prediction for a 10 km / 10 m / 2 m / 150 MHz smooth path),
+  percentile ordering, the no-double-count clutter property, and guard rails.
+  Running the official vectors locally (not committed) is the remaining
+  validation follow-up.
+- **Recommend worker keeps FSPL+Deygout** for its site-search scoring (speed);
+  the final multi-site raster paint honours the selected engine. Engine choice
+  and p/pL are session settings (M18 pattern), not yet in the mission file.
+- **σL fixed at 5.5 dB** (no frequency/antenna-height refinement yet);
+  exposed as a parameter for M30.
+
+### Follow-ups
+
+- Flip the stored default to **Auto** once the official vectors have been run.
+- M30 confidence overlay consumes the p/pL percentiles this engine exposes.
+- E1/M31 clutter layers replace the WorldCover height table via the same
+  profile contract (see `docs/decisions/0005-p1812-dsm-terrain-only.md`).

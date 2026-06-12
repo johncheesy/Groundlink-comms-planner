@@ -66,7 +66,7 @@ export function createCoverageController(
       else if (msg.type === 'done') {
         paint(msg);
         onProgress?.(1, 'compute');
-        onStatus?.('done', { terrain: msg.terrain, clutter: msg.clutter });
+        onStatus?.('done', { terrain: msg.terrain, clutter: msg.clutter, engine: msg.engine });
         if (pendingResolve) {
           const r = pendingResolve;
           pendingResolve = null;
