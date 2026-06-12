@@ -11,14 +11,44 @@ import { rankPalette } from './palette.js';
  * supported format + Nominatim place search), Tabs (open by label).
  *
  * Coordinates fly straight there and drop a temporary pin. Free text geocodes
- * via Nominatim (OpenStreetMap, token-free) — debounced, capped at 5, only on
- * a settled input; results append to the Go-to section. No state persists.
+ * via Photon (photon.komoot.io — OSM data, token-free, built for as-you-type
+ * prefix search; Nominatim's /search endpoint cannot autocomplete, see
+ * docs/M23-fixes.md §1) — min 3 chars, 300 ms debounce, capped at 5; results
+ * append to the Go-to section while the user types. No state persists.
  *
  * Keyboard: ⌘K/Ctrl-K toggles; ↑↓ move, Enter runs, Esc closes and returns
  * focus to the map. role="dialog" + listbox semantics; outside click closes.
  */
 
-const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
+const PHOTON = 'https://photon.komoot.io/api/';
+const GEOCODE_MIN_CHARS = 3;
+const GEOCODE_DEBOUNCE_MS = 300;
+
+/**
+ * Map a Photon GeoJSON response to the Nominatim-style places the palette
+ * renders: { display_name, lat, lon, boundingbox }. Pure (unit-tested).
+ * Photon extent is [west, north, east, south]; Nominatim boundingbox is
+ * [south, north, west, east].
+ */
+export function photonToPlaces(geojson) {
+  const places = [];
+  for (const f of geojson?.features ?? []) {
+    const [lon, lat] = f?.geometry?.coordinates ?? [];
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    const p = f.properties ?? {};
+    const display_name = [p.name, p.city, p.state ?? p.county, p.country]
+      .filter((part, i, all) => part && all.indexOf(part) === i)
+      .join(', ');
+    if (!display_name) continue;
+    const e = p.extent;
+    const boundingbox =
+      Array.isArray(e) && e.length === 4 && e.every(Number.isFinite)
+        ? [e[3], e[1], e[0], e[2]]
+        : undefined;
+    places.push({ display_name, lat, lon, boundingbox });
+  }
+  return places;
+}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
@@ -171,14 +201,14 @@ export function createPalette(map, { providers = [], onStatus } = {}) {
     item.run?.();
   }
 
-  // ── Nominatim (gentle: debounced, settled input, 5 results) ─────────────
+  // ── Photon typeahead (gentle: min chars, debounced, 5 results) ──────────
   async function geocode(q) {
     try {
       onStatus?.('Searching…');
-      const url = `${NOMINATIM}?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=0`;
+      const url = `${PHOTON}?q=${encodeURIComponent(q)}&limit=5`;
       const res = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!res.ok) throw new Error(`Nominatim ${res.status}`);
-      const found = await res.json();
+      if (!res.ok) throw new Error(`Photon ${res.status}`);
+      const found = photonToPlaces(await res.json());
       if (q !== lastQuery || !isOpen) return; // superseded or closed meanwhile
       places = found;
       render();
@@ -229,11 +259,12 @@ export function createPalette(map, { providers = [], onStatus } = {}) {
     places = [];
     render();
     window.clearTimeout(debounce);
-    if (!q || parseCoordinate(q)) return; // coordinates never hit the network
+    // Coordinates never hit the network; short fragments wait for more input.
+    if (q.length < GEOCODE_MIN_CHARS || parseCoordinate(q)) return;
     debounce = window.setTimeout(() => {
       lastQuery = q;
       geocode(q);
-    }, 350);
+    }, GEOCODE_DEBOUNCE_MS);
   });
 
   input.addEventListener('keydown', (e) => {

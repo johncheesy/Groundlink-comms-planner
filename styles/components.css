@@ -1970,6 +1970,49 @@ select.input--sm { text-align: left; padding-right: 6px; }
   height: 100%;
 }
 
+/* "Show my location" pulsing dot (M23 §3) */
+.locate-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: locate-pulse 2s ease-out infinite;
+}
+@keyframes locate-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  70% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .locate-dot { animation: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+}
+
+/* Transient toast chip (M23 §3) — over the map, above the rail */
+.gl-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--status-h) + 14px);
+  transform: translate(-50%, 6px);
+  z-index: calc(var(--z-toolbar) + 2);
+  padding: 8px 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+  pointer-events: none;
+}
+.gl-toast--in {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 /* ---- Imported-feature popup ------------------------------------------- */
 
 .maplibregl-popup-content {

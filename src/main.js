@@ -35,6 +35,8 @@ import { createImportController } from './io/import.js';
 import { createExportPanel } from './export/export-panel.js';
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { initPwa } from './ui/pwa.js';
+import { createLocateControl } from './ui/locate.js';
+import { showToast } from './ui/toast.js';
 import { createObjectRegistry, RF_KINDS } from './ui/objects.js';
 import { createObjectList } from './ui/objlist.js';
 import { createSectionTabs } from './ui/tabs.js';
@@ -211,6 +213,13 @@ buildingsBtn?.addEventListener('click', () => {
 // ---- Path profile tool (M14) --------------------------------------------
 // Click two points → terrain cross-section, Fresnel zone + link budget in a
 // slide-up drawer over the map. Markers persist until the panel is closed.
+// "Show my location" rail button (M23 §3) — geolocate, fly, pulsing dot.
+createLocateControl(map, {
+  button: $('#locateBtn'),
+  onError: (msg) => showToast(msg),
+  onStatus: (msg) => { statusMode.textContent = msg; },
+});
+
 const profileToolBtn = $('#profileToolBtn');
 
 function reflectProfileBtn() {
@@ -744,8 +753,12 @@ whenStyleReady(() => {
   });
 
   // ---- Cellular coverage (M9) ------------------------------------------
-  // One coverage instance per network type, each on its own coloured layer
-  // beneath the RF coverage raster. Independent of mission radio coverage.
+  // One coverage instance per network type, each on its own layer beneath
+  // the RF coverage raster. Independent of mission radio coverage. No tint:
+  // cells colour by signal class on the --s1…--s5 spectrum (the M23 §2
+  // restoration of the e4d7d13 signal scale — a later commit had flattened
+  // it to one colour per network type). Type colours stay on the tower
+  // markers and the checkbox dots.
   const cellCoverages = {};
   for (const type of Object.keys(CELL_TYPE_DEFAULTS)) {
     cellCoverages[type] = createCoverageController(map, {
@@ -753,7 +766,6 @@ whenStyleReady(() => {
       layer: `cellular-${type}-layer`,
       before: 'coverage-layer',
       opacity: 0.55,
-      tint: CELL_TYPE_DEFAULTS[type].color, // one flat colour per network type
       onStatus(state) {
         if (state === 'error') cellHelp.textContent = 'Cellular worker failed — see console.';
       },
@@ -1961,15 +1973,37 @@ function initBestNetIndicator() {
 
 /** Wire the cellular layer visibility and Show/Clear buttons. */
 function initCellularControls() {
+  // M23 §2: the Show coverage button is a true toggle. Shown → a click hides
+  // the rasters + tower markers without dropping the fetched towers; hidden →
+  // a click (re)computes and shows them.
+  let cellShown = false;
+  const reflectCellBtn = () => {
+    showCellBtn.textContent = cellShown ? 'Hide coverage' : 'Show coverage';
+    showCellBtn.setAttribute('aria-pressed', String(cellShown));
+  };
+
   cellEnabled.addEventListener('change', () => {
     const on = cellEnabled.checked;
     cellPanel.hidden = !on;
     cellular.setVisible(on);
-    if (!on) { cellular.clear(); cellReadout.textContent = ''; clearBestNetPin(); }
+    if (!on) {
+      cellular.clear();
+      cellReadout.textContent = '';
+      clearBestNetPin();
+      cellShown = false;
+      reflectCellBtn();
+    }
     updateBestNet();
   });
 
   showCellBtn.addEventListener('click', async () => {
+    if (cellShown) {
+      cellular.setVisible(false);
+      cellShown = false;
+      reflectCellBtn();
+      statusMode.textContent = 'Cellular coverage hidden';
+      return;
+    }
     cellEnabled.checked = true;
     cellPanel.hidden = false;
     cellular.setVisible(true);
@@ -1998,6 +2032,8 @@ function initCellularControls() {
           .map(([t, n]) => `${CELL_TYPE_DEFAULTS[t].label.split(' · ')[0]} ${n}`)
           .join(' · ');
         cellReadout.textContent = `${result.count} OSM tower${result.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
+        cellShown = true;
+        reflectCellBtn();
       }
       statusMode.textContent = 'Cellular coverage computing';
       updateBestNet();
@@ -2016,6 +2052,8 @@ function initCellularControls() {
     cellPanel.hidden = true;
     clearBestNetPin();
     updateBestNet();
+    cellShown = false;
+    reflectCellBtn();
     statusMode.textContent = 'Cellular cleared';
   });
 
