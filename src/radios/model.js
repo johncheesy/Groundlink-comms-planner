@@ -59,6 +59,11 @@ export function normalizeRadio(partial = {}) {
     source: partial.source || 'manual',
     notes: partial.notes || '',
     indicative: partial.indicative ?? false,
+    // M26: optional user-entered unit price (currency-neutral number; null =
+    // unpriced — the BOM never invents a figure). Persists with the arsenal.
+    price: Number.isFinite(Number(partial.price)) && partial.price !== '' && partial.price != null && Number(partial.price) >= 0
+      ? Number(partial.price)
+      : null,
     // Native battery spec (M8 power budget) — carried through when present.
     ...(Number.isFinite(Number(partial.batteryMah)) ? { batteryMah: Number(partial.batteryMah) } : {}),
     ...(Number.isFinite(Number(partial.batteryV)) ? { batteryV: Number(partial.batteryV) } : {}),

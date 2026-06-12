@@ -4032,3 +4032,18 @@ select.input--sm { text-align: left; padding-right: 6px; }
   flex: 0 0 auto;
   /* zone colours resolve from the --srv-* tokens at runtime */
 }
+
+/* ── Costed BOM (M26) ─────────────────────────────────────────────────────── */
+.power-bom__price { width: 72px; }
+.power-bom__total td {
+  border-top: 1px solid var(--hair);
+  font-weight: 600;
+  color: var(--ink);
+}
+.power-bom__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.power-bom__actions .help { margin: 0; }
