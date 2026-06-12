@@ -678,13 +678,14 @@
                 </div>
 
                 <!-- Signal scale (M23 §2) — same spectrum as the RF coverage raster;
-                     dBm boundaries from the LTE reference sensitivity (−100 dBm). -->
+                     RSRP-style bands from the −110 dBm reference-signal
+                     sensitivity (thresholdsForSensitivity in cellular.js). -->
                 <div class="legend" aria-label="Cellular signal scale">
-                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s1)"></span>Excellent <span class="legend__val" data-numeric>≥ -75 dBm</span></div>
-                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s2)"></span>Good <span class="legend__val" data-numeric>≥ -85 dBm</span></div>
-                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s3)"></span>Marginal <span class="legend__val" data-numeric>≥ -95 dBm</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s1)"></span>Excellent <span class="legend__val" data-numeric>≥ -85 dBm</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s2)"></span>Good <span class="legend__val" data-numeric>≥ -95 dBm</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s3)"></span>Marginal <span class="legend__val" data-numeric>≥ -105 dBm</span></div>
                   <div class="legend__row"><span class="legend__swatch" style="background: var(--s4)"></span>Poor <span class="legend__val">transition</span></div>
-                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s5)"></span>None <span class="legend__val" data-numeric>&lt; -100 dBm</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s5)"></span>None <span class="legend__val" data-numeric>&lt; -110 dBm</span></div>
                 </div>
 
                 <p class="help" id="cellReadout" data-numeric></p>

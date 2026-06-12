@@ -55,12 +55,19 @@ export const RADIO_TYPES = [
 ];
 
 // Macro-cell defaults (editable). Downlink-style: the binding link is tower→device.
-// EIRP ≈ +58 dBm omni approximation of a few hundred W ERP per sector.
+// Reference-signal basis — the level a device actually reports (RSRP-style),
+// not total sector power. A few hundred W ERP per sector is ≈ +58 dBm wideband
+// EIRP, but spread across ~600 resource elements (10 MHz LTE) the per-
+// reference-signal EIRP is ≈ 58 − 10·log10(600) ≈ +30 dBm. Classified against
+// the RSRP-style bands below, terrain shadowing moves cells through the whole
+// Excellent→None scale at planning distances; the old wideband +58 dBm against
+// a −75 dBm "excellent" bar saturated every AOI-scale cell into class 0 (the
+// raster looked like one flat tint — see docs/fix-cellular-signal-scale.md).
 export const CELL_DEFAULTS = Object.freeze({
-  eirpDbm: 58,
+  eirpDbm: 30,
   txHeightM: 30,
   rxHeightM: 1.5,
-  rxSensDbm: -100, // LTE reference
+  rxSensDbm: -110, // RSRP edge of service
 });
 
 // Per-generation defaults used by the "Show coverage" flow: the sensible band
@@ -105,7 +112,11 @@ export function towersToTxs(towers = [], txHeightM = CELL_DEFAULTS.txHeightM) {
   return (towers || []).map((t) => ({ lat: t.lat, lng: t.lon, txHeightM }));
 }
 
-/** Signal thresholds (dBm) derived from a device RX sensitivity. */
+/**
+ * Signal thresholds (dBm) derived from a device RX sensitivity. With the
+ * −110 dBm RSRP default this lands on the operator-conventional bands:
+ * excellent ≥ −85, good ≥ −95, marginal ≥ −105, none ≥ −110.
+ */
 export function thresholdsForSensitivity(rxSensDbm = CELL_DEFAULTS.rxSensDbm) {
   const s = Number.isFinite(rxSensDbm) ? rxSensDbm : CELL_DEFAULTS.rxSensDbm;
   return { excellent: s + 25, good: s + 15, marginal: s + 5, none: s };

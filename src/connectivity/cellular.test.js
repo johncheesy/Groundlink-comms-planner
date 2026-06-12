@@ -38,17 +38,17 @@ describe('band presets', () => {
 });
 
 describe('macro defaults', () => {
-  it('are the documented macro-cell values', () => {
-    expect(CELL_DEFAULTS.eirpDbm).toBe(58);
+  it('are the documented reference-signal macro values', () => {
+    expect(CELL_DEFAULTS.eirpDbm).toBe(30); // per-reference-signal, not wideband sector EIRP
     expect(CELL_DEFAULTS.txHeightM).toBe(30);
     expect(CELL_DEFAULTS.rxHeightM).toBe(1.5);
-    expect(CELL_DEFAULTS.rxSensDbm).toBe(-100);
+    expect(CELL_DEFAULTS.rxSensDbm).toBe(-110); // RSRP edge of service
   });
 
   it('cellDefaults() returns an editable copy', () => {
     const d = cellDefaults();
     d.eirpDbm = 40;
-    expect(CELL_DEFAULTS.eirpDbm).toBe(58); // original untouched
+    expect(CELL_DEFAULTS.eirpDbm).toBe(30); // original untouched
   });
 });
 
@@ -57,8 +57,8 @@ describe('thresholdsForSensitivity', () => {
     const t = thresholdsForSensitivity(-100);
     expect(t).toEqual({ excellent: -75, good: -85, marginal: -95, none: -100 });
   });
-  it('defaults to the LTE reference when unset', () => {
-    expect(thresholdsForSensitivity().none).toBe(-100);
+  it('defaults to the operator-conventional RSRP bands when unset', () => {
+    expect(thresholdsForSensitivity()).toEqual({ excellent: -85, good: -95, marginal: -105, none: -110 });
   });
 });
 
