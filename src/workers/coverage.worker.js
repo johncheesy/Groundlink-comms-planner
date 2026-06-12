@@ -32,8 +32,7 @@
  */
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
 import { receivedDbmP1812 } from '../coverage/p1812.js';
-import { buildDem } from './dem.js';
-import { buildLandcover, clutterDbForClass } from './worldcover.js';
+import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
 import { buildProfile, buildProfileP1812 } from './profile.js';
 import { createYielder } from './yield.js';
 
@@ -56,17 +55,24 @@ self.onmessage = async (e) => {
   const { west, south, east, north } = bounds;
   const { thresholds, floorDbm } = params;
 
-  // Optional terrain + clutter (fetched in parallel before the sweep).
+  // Optional terrain + clutter samplers (fetched in parallel before the
+  // sweep) via the E1 source interfaces: local COG file → OPFS offline
+  // package → network (Terrarium / WorldCover). msg.files carries user-loaded
+  // COGs (File objects clone cleanly into the worker; nothing is uploaded).
   let dem = null;
-  let landcover = null;
+  let clutter = null;
   if (params.useTerrain || params.useClutter) {
     self.postMessage({ type: 'progress', id, done: 0, total: rows, phase: 'data' });
     const [d, lc] = await Promise.all([
-      params.useTerrain ? buildDem(bounds).catch(() => null) : Promise.resolve(null),
-      params.useClutter ? buildLandcover(bounds).catch(() => null) : Promise.resolve(null),
+      params.useTerrain
+        ? buildElevationSampler({ bounds, cog: msg.files?.elevationCog ?? null }).catch(() => null)
+        : Promise.resolve(null),
+      params.useClutter
+        ? buildClutterSampler({ bounds, cog: msg.files?.clutterCog ?? null }).catch(() => null)
+        : Promise.resolve(null),
     ]);
     dem = d;
-    landcover = lc;
+    clutter = lc;
     if (aborted()) return; // superseded/cancelled while fetching tiles
   }
 
@@ -111,7 +117,7 @@ self.onmessage = async (e) => {
       }
       // Rx-side terms depend only on the cell, not the transmitter.
       const rxElev = (dem ? dem.sample(lng, lat) : 0) + rxHeight;
-      const clutterDb = landcover ? clutterDbForClass(landcover.sample(lng, lat)) : params.clutterDb || 0;
+      const clutterDb = clutter ? clutter.dbAt(lng, lat) : params.clutterDb || 0;
 
       let maxDbm = -Infinity;
       for (let ti = 0; ti < txList.length; ti++) {
@@ -120,8 +126,8 @@ self.onmessage = async (e) => {
         let dbm;
         if (useP1812 && dist > P1812_MIN_DIST_M) {
           // Clutter rides in the profile (heights) + terminal correction —
-          // never also as the WorldCover dB term, so nothing counts twice.
-          const prof = buildProfileP1812(t, { lng, lat }, dist, dem, params.useClutter ? landcover : null);
+          // never also as the per-class dB term, so nothing counts twice.
+          const prof = buildProfileP1812(t, { lng, lat }, dist, dem, params.useClutter ? clutter : null);
           dbm = receivedDbmP1812(params, prof, {
             p: params.p ?? 50,
             pL: params.pL ?? 50,
@@ -157,8 +163,9 @@ self.onmessage = async (e) => {
   self.postMessage(
     {
       type: 'done', id, cols, rows, classes,
-      terrain: !!dem, clutter: !!landcover,
+      terrain: !!dem, clutter: !!clutter,
       engine: useP1812 ? 'p1812' : 'fallback',
+      elevSource: dem?.id ?? null, clutterSource: clutter?.id ?? null,
       totalCells: cols * rows,
       inAoi: aoi ? inAoiCount : null,
       coveredInAoi: aoi ? coveredInAoiCount : null,

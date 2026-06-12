@@ -1,5 +1,4 @@
 import { earthBulgeM } from '../coverage/model.js';
-import { clutterHeightForClass } from './worldcover.js';
 
 /**
  * Elevation profile between tx and rx, sampled at ~2 km spacing (8–40 points),
@@ -39,12 +38,12 @@ export function buildProfile(tx, rx, totalDist, dem) {
  * @param tx   { lng, lat }
  * @param rx   { lng, lat }
  * @param totalDist  haversine distance in metres (pre-computed)
- * @param dem  DEM sampler from buildDem() — required (caller falls back to
+ * @param dem  elevation sampler ({ sample }) — required (caller falls back to
  *             FSPL+Deygout without terrain)
- * @param landcover  land-cover sampler from buildLandcover(), or null
+ * @param clutter  E1 clutter sampler ({ heightM }), or null
  * @returns    Array of { distM, terrainM, clutterM }
  */
-export function buildProfileP1812(tx, rx, totalDist, dem, landcover) {
+export function buildProfileP1812(tx, rx, totalDist, dem, clutter) {
   const n = Math.max(10, Math.min(60, Math.round(totalDist / 1000)));
   const profile = [];
   for (let i = 0; i <= n; i++) {
@@ -54,7 +53,7 @@ export function buildProfileP1812(tx, rx, totalDist, dem, landcover) {
     profile.push({
       distM: f * totalDist,
       terrainM: dem.sample(lng, lat),
-      clutterM: landcover ? clutterHeightForClass(landcover.sample(lng, lat)) : 0,
+      clutterM: clutter ? clutter.heightM(lng, lat) : 0,
     });
   }
   return profile;

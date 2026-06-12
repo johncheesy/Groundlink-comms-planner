@@ -58,6 +58,8 @@ import { createEmptyState } from './ui/emptystate.js';
 import { createUndoStack } from './ui/undo.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
+import { setOvertureBuildings } from './map/pmtiles.js';
+import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -200,15 +202,45 @@ toggle3dBtn?.addEventListener('click', () => {
 });
 
 // ---- Buildings toggle (independent of terrain 3D) -----------------------
+// E1: two sources behind one toggle — OpenFreeMap live vector tiles (M10
+// default) or the static Overture PMTiles archive; the Data flyout picks.
 const buildingsBtn = $('#toggleBuildings');
 let buildingsOn = false;
+let buildingsSource = 'openfreemap';
+
+async function applyBuildings() {
+  if (buildingsSource === 'overture') {
+    mapApi.setBuildings(false);
+    const ok = await setOvertureBuildings(map, buildingsOn);
+    if (buildingsOn && !ok) {
+      mapApi.setBuildings(true); // degrade to the live source, say so
+      statusMode.textContent = 'Overture PMTiles unavailable — using OpenFreeMap buildings';
+    }
+  } else {
+    await setOvertureBuildings(map, false);
+    mapApi.setBuildings(buildingsOn);
+  }
+}
+
 buildingsBtn?.addEventListener('click', () => {
   buildingsOn = !buildingsOn;
-  mapApi.setBuildings(buildingsOn);
+  applyBuildings();
   buildingsBtn.classList.toggle('is-active', buildingsOn);
   buildingsBtn.setAttribute('aria-pressed', String(buildingsOn));
   statusMode.textContent = buildingsOn ? 'Buildings on' : 'Buildings off';
 });
+
+const bldSrcBtns = { openfreemap: $('#bldSrcOfm'), overture: $('#bldSrcOverture') };
+for (const [src, btn] of Object.entries(bldSrcBtns)) {
+  btn?.addEventListener('click', () => {
+    buildingsSource = src;
+    for (const [s, b] of Object.entries(bldSrcBtns)) {
+      b?.classList.toggle('is-active', s === src);
+      b?.setAttribute('aria-pressed', String(s === src));
+    }
+    applyBuildings();
+  });
+}
 
 // ---- Path profile tool (M14) --------------------------------------------
 // Click two points → terrain cross-section, Fresnel zone + link budget in a
@@ -406,6 +438,7 @@ basemapSwitch.addEventListener('click', (e) => {
 const railFlyouts = {
   basemap: { btn: $('#railBasemapBtn'), panel: $('#railFlyoutBasemap') },
   view: { btn: $('#railViewBtn'), panel: $('#railFlyoutView') },
+  data: { btn: $('#railDataBtn'), panel: $('#railFlyoutData') }, // E1
 };
 
 const railState = createRailState({
@@ -422,6 +455,86 @@ const railState = createRailState({
 
 railFlyouts.basemap.btn.addEventListener('click', () => railState.toggle('basemap'));
 railFlyouts.view.btn.addEventListener('click', () => railState.toggle('view'));
+railFlyouts.data.btn.addEventListener('click', () => railState.toggle('data'));
+
+// ---- E1: local COG samplers + offline AOI package -------------------------
+// File objects stay in memory only (never persisted, never uploaded); they are
+// structured-cloned into the coverage worker per run.
+const dataFiles = { clutterCog: null, elevationCog: null };
+
+function wireCogInput(inputId, statusId, key, idleText) {
+  const input = $(inputId);
+  const status = $(statusId);
+  input?.addEventListener('change', () => {
+    dataFiles[key] = input.files?.[0] ?? null;
+    if (status) {
+      status.textContent = dataFiles[key]
+        ? `Loaded: ${dataFiles[key].name} (${(dataFiles[key].size / 1e6).toFixed(1)} MB) — applies on the next compute.`
+        : idleText;
+    }
+  });
+}
+wireCogInput('#clutterCogInput', '#clutterCogStatus', 'clutterCog',
+  'Canopy or building-height GeoTIFF — sampled in-browser, never uploaded.');
+wireCogInput('#elevationCogInput', '#elevationCogStatus', 'elevationCog',
+  'Overrides AWS terrain where the file has data.');
+
+const offlinePackBtn = $('#offlinePackBtn');
+const offlineClearBtn = $('#offlineClearBtn');
+const offlineStatus = $('#offlineStatus');
+
+function reflectOfflineManifest(m) {
+  if (!offlineStatus) return;
+  if (m) {
+    offlineStatus.textContent =
+      `Packaged: ${m.tiles} DEM tiles, z${m.zooms[0]}–${m.zooms[m.zooms.length - 1]}, ` +
+      `${(m.bytes / 1e6).toFixed(1)} MB (OPFS). Coverage for this area works offline.`;
+    if (offlineClearBtn) offlineClearBtn.hidden = false;
+  } else {
+    offlineStatus.textContent = 'Nothing packaged. Stored privately in this browser (OPFS), never uploaded.';
+    if (offlineClearBtn) offlineClearBtn.hidden = true;
+  }
+}
+readManifest().then(reflectOfflineManifest).catch(() => {});
+
+offlinePackBtn?.addEventListener('click', async () => {
+  const bbox = mission?.bbox?.();
+  if (!bbox) {
+    offlineStatus.textContent = 'Draw an AOI or place a site first — the package covers your mission area.';
+    return;
+  }
+  // Package the same window coverage computes over (the WINDOW_CAP_MULT cap
+  // around the mission), so offline runs find every tile they'd fetch online.
+  const halfLat = Math.max((bbox.north - bbox.south) / 2, MIN_HALF_DEG);
+  const halfLng = Math.max((bbox.east - bbox.west) / 2, MIN_HALF_DEG);
+  const c = { lat: (bbox.north + bbox.south) / 2, lng: (bbox.east + bbox.west) / 2 };
+  const pack = {
+    west: c.lng - WINDOW_CAP_MULT * halfLng,
+    east: c.lng + WINDOW_CAP_MULT * halfLng,
+    south: c.lat - WINDOW_CAP_MULT * halfLat,
+    north: c.lat + WINDOW_CAP_MULT * halfLat,
+  };
+  offlinePackBtn.disabled = true;
+  try {
+    const manifest = await packageAoi(pack, {
+      zooms: [8, 9, 10, 11, 12],
+      onProgress: (f) => { offlineStatus.textContent = `Packaging… ${Math.round(f * 100)}%`; },
+    });
+    reflectOfflineManifest(manifest);
+    statusMode.textContent = manifest ? 'Offline package ready' : 'Offline storage unavailable in this browser';
+    if (!manifest) offlineStatus.textContent = 'This browser does not expose private storage (OPFS) — offline packaging unavailable.';
+  } catch (err) {
+    offlineStatus.textContent = `Packaging failed: ${err?.message ?? err}`;
+  } finally {
+    offlinePackBtn.disabled = false;
+  }
+});
+
+offlineClearBtn?.addEventListener('click', async () => {
+  await clearOfflinePack();
+  reflectOfflineManifest(null);
+  statusMode.textContent = 'Offline package cleared';
+});
 
 // Outside click (incl. the map canvas) closes the open flyout.
 document.addEventListener('pointerdown', (e) => {
@@ -688,11 +801,14 @@ whenStyleReady(() => {
         coverageEngine.textContent =
           (ranP1812 ? engineLabel('p1812') : (terrain ? 'FSPL+Deygout' : 'FSPL · flat')) +
           (clutter ? ' · clutter' : '');
-        // update status bar terrain indicator
+        // update status bar terrain indicator — names the E1 source actually
+        // used (offline package / local COG / network tiles)
         if (statusTerrain) {
-          statusTerrain.textContent = terrain
-            ? (clutter ? 'DEM + clutter' : 'DEM')
-            : 'flat';
+          const demTag =
+            info?.elevSource === 'offline' ? 'DEM (offline)'
+            : info?.elevSource?.startsWith('cog') ? 'DEM (COG)'
+            : 'DEM';
+          statusTerrain.textContent = terrain ? (clutter ? `${demTag} + clutter` : demTag) : 'flat';
         }
         const bits = [];
         const stats = coverage.getStats();
@@ -707,10 +823,12 @@ whenStyleReady(() => {
         if (resolveEngine() === 'p1812' && !ranP1812 && useTerrainInput.checked) {
           bits.push('P.1812 needs terrain — ran the FSPL fallback.');
         }
+        if (info?.elevSource === 'offline') bits.push('Elevation from the offline package (OPFS).');
+        else if (info?.elevSource?.startsWith('cog')) bits.push('Elevation from your local COG.');
         if (useClutterInput.checked) {
           bits.push(clutter
-            ? 'ESA WorldCover clutter applied.'
-            : 'Clutter unavailable here (Africa-only source).');
+            ? (info?.clutterSource === 'cog' ? 'Clutter heights from your local COG.' : 'ESA WorldCover clutter applied.')
+            : 'Clutter unavailable here (Africa-only source — or load a local COG in the Data flyout).');
         }
         bits.push('Planning-grade, not survey-grade.');
         coverageHelp.textContent = bits.join(' ');
@@ -2283,6 +2401,7 @@ function runCoverage() {
       aoi: aoiMask,
       txs,
       marker: !txs, // multi-site markers stand in for the single tx marker
+      files: { ...dataFiles }, // E1: local COGs ride along (in-browser only)
     });
     coverageEngine.textContent = engineLabel(params.engine);
   };
@@ -2425,6 +2544,7 @@ async function runTeamCoverage(team) {
     aoi: aoiMask,
     txs,
     marker: !txs,
+    files: { ...dataFiles }, // E1
   });
   teamsPanel?.updateTeamCoverage(team.id, stats);
   statusMode.textContent = `${team.name} coverage ready`;

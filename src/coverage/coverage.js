@@ -66,7 +66,13 @@ export function createCoverageController(
       else if (msg.type === 'done') {
         paint(msg);
         onProgress?.(1, 'compute');
-        onStatus?.('done', { terrain: msg.terrain, clutter: msg.clutter, engine: msg.engine });
+        onStatus?.('done', {
+          terrain: msg.terrain,
+          clutter: msg.clutter,
+          engine: msg.engine,
+          elevSource: msg.elevSource ?? null,
+          clutterSource: msg.clutterSource ?? null,
+        });
         if (pendingResolve) {
           const r = pendingResolve;
           pendingResolve = null;
@@ -201,7 +207,9 @@ export function createCoverageController(
     // shape rather than the bbox; absent for drone-relay calls.
     // opts.txs (optional) is the M3 multi-site list; when present the worker
     // paints the combined (max-dBm) coverage across all sites.
-    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null, txs: opts.txs ?? null, clipToAoi: opts.clipToAoi ?? false });
+    // opts.files (optional, E1) carries user-loaded local COGs (File objects
+    // structured-clone into the worker; read in-browser, never uploaded).
+    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null, txs: opts.txs ?? null, clipToAoi: opts.clipToAoi ?? false, files: opts.files ?? null });
     return jobId;
   }
 
