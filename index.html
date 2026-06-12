@@ -497,6 +497,19 @@
                 <button class="btn" type="button" id="clearCoverage">Clear</button>
               </div>
 
+              <!-- M24: best-server / interference view (multi-site runs only) -->
+              <div class="srv-view-row" id="serverViewRow" hidden>
+                <div class="basemap-switch" role="group" aria-label="Coverage view">
+                  <button class="basemap-switch__btn is-active" type="button" id="viewQualityBtn" aria-pressed="true" title="Signal-quality spectrum (default)">Quality</button>
+                  <button class="basemap-switch__btn" type="button" id="viewServerBtn" aria-pressed="false" title="Colour each cell by the site with the strongest signal">Best server</button>
+                </div>
+                <label class="check srv-view-row__chk" title="Shade cells where the top two sites are within 6 dB — co-channel interference / handover candidates">
+                  <input type="checkbox" id="interferenceChk" />
+                  <span>Overlap &lt; 6 dB</span>
+                </label>
+              </div>
+              <div class="srv-legend" id="bestServerLegend" hidden></div>
+
               <p class="help" id="coverageHelp">
                 Draw an AOI, then compute. The transmitter defaults to the AOI centre.
                 Terrain uses AWS elevation tiles — no token needed.

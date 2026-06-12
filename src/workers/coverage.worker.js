@@ -32,6 +32,7 @@
  */
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
 import { receivedDbmP1812 } from '../coverage/p1812.js';
+import { NO_SERVER, MARGIN_SINGLE, quantizeMarginDb } from '../coverage/bestserver.js';
 import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
 import { buildProfile, buildProfileP1812 } from './profile.js';
 import { createYielder } from './yield.js';
@@ -77,6 +78,12 @@ self.onmessage = async (e) => {
   }
 
   const classes = new Uint8Array(cols * rows);
+  // M24: with ≥2 transmitters and collectServer set, also record which site
+  // wins each cell + the best-vs-second margin (quarter-dB) for the
+  // best-server / interference views. Two extra bytes per cell — cheap.
+  const collectServer = !!params.collectServer && (msg.txs?.length ?? 0) >= 2;
+  const servers = collectServer ? new Uint8Array(cols * rows) : null;
+  const marginQ = collectServer ? new Uint8Array(cols * rows) : null;
   const lngSpan = east - west;
   const latSpan = north - south;
   const reportEvery = Math.max(1, Math.floor(rows / 40));
@@ -113,6 +120,7 @@ self.onmessage = async (e) => {
       // the expensive compute. Enabled when `clipToAoi` is set (cellular layers).
       if (clipToAoi && aoi && !inAoi(aoi, lng, lat)) {
         classes[rowOff + c] = 255; // COVERAGE_CLASS.TRANSPARENT
+        if (collectServer) servers[rowOff + c] = NO_SERVER;
         continue;
       }
       // Rx-side terms depend only on the cell, not the transmitter.
@@ -120,6 +128,8 @@ self.onmessage = async (e) => {
       const clutterDb = clutter ? clutter.dbAt(lng, lat) : params.clutterDb || 0;
 
       let maxDbm = -Infinity;
+      let secondDbm = -Infinity;
+      let bestIdx = -1;
       for (let ti = 0; ti < txList.length; ti++) {
         const t = txList[ti];
         const dist = haversineM(t.lat, t.lng, lat, lng);
@@ -142,10 +152,26 @@ self.onmessage = async (e) => {
           }
           dbm = receivedDbm(params, dist, diffraction, useP1812 ? 0 : clutterDb);
         }
-        if (dbm > maxDbm) maxDbm = dbm;
+        if (dbm > maxDbm) {
+          secondDbm = maxDbm;
+          maxDbm = dbm;
+          bestIdx = ti;
+        } else if (dbm > secondDbm) {
+          secondDbm = dbm;
+        }
       }
       const cls = classifyDbm(maxDbm, thresholds, floorDbm);
       classes[rowOff + c] = cls;
+      if (collectServer) {
+        const off = rowOff + c;
+        if (cls === 255) {
+          servers[off] = NO_SERVER;
+        } else {
+          servers[off] = bestIdx;
+          // Second site below the floor → effectively a single server here.
+          marginQ[off] = secondDbm < floorDbm ? MARGIN_SINGLE : quantizeMarginDb(maxDbm - secondDbm);
+        }
+      }
       if (aoi && inAoi(aoi, lng, lat)) {
         inAoiCount += 1;
         if (cls <= 2) coveredInAoiCount += 1; // excellent/good/marginal = usable
@@ -163,6 +189,7 @@ self.onmessage = async (e) => {
   self.postMessage(
     {
       type: 'done', id, cols, rows, classes,
+      servers, marginQ, // M24 best-server data (null unless collected)
       terrain: !!dem, clutter: !!clutter,
       engine: useP1812 ? 'p1812' : 'fallback',
       elevSource: dem?.id ?? null, clutterSource: clutter?.id ?? null,
@@ -171,7 +198,7 @@ self.onmessage = async (e) => {
       coveredInAoi: aoi ? coveredInAoiCount : null,
       coveredFracAoi: aoi && inAoiCount ? coveredInAoiCount / inAoiCount : null,
     },
-    [classes.buffer],
+    [classes.buffer, ...(servers ? [servers.buffer, marginQ.buffer] : [])],
   );
 };
 

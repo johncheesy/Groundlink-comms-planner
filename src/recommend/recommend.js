@@ -180,6 +180,12 @@ export function createRecommendController(map, coverage, { onProgress, onDone, o
       marker: false,
       txs,
       aoi: input.aoi, // may be null for route/points-only missions
+      // M24: zone names for the best-server legend — locked sites keep their
+      // mission names, recommended masts match their numbered markers.
+      txNames: [
+        ...(input.lockedSites || []).map((s, i) => s.name || `Locked ${i + 1}`),
+        ...sites.map((_, i) => `Mast ${i + 1}`),
+      ],
     });
   }
 

@@ -3992,3 +3992,43 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-top: var(--sp-2);
 }
 .mast-wizard__actions .help { margin: 0; }
+
+/* ── Best-server / interference view (M24) ───────────────────────────────── */
+.srv-view-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.srv-view-row[hidden] { display: none; }
+.srv-view-row__chk { margin: 0; }
+.srv-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.srv-legend[hidden] { display: none; }
+.srv-legend__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--surface2);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  padding: 2px 8px;
+}
+.srv-legend__chip b {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.srv-legend__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  /* zone colours resolve from the --srv-* tokens at runtime */
+}
