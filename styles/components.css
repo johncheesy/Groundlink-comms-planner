@@ -729,8 +729,8 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--feat-track, #46a6ff);
-  border: 2px solid #fff;
+  background: var(--feat-track);
+  border: 2px solid var(--mapring);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -739,7 +739,7 @@
   transition: transform 0.1s;
 }
 .wp-marker:hover { transform: scale(1.15); }
-.wp-marker svg { width: 12px; height: 12px; fill: #fff; pointer-events: none; }
+.wp-marker svg { width: 12px; height: 12px; fill: var(--mapring); pointer-events: none; }
 
 .wp-popup-name {
   font-weight: 600;
@@ -804,13 +804,13 @@ input.wp-popup-name:focus {
 .wp-icon-btn svg { width: 15px; height: 15px; }
 .wp-icon-btn.is-active {
   border-color: var(--accent);
-  background: var(--accent-faint, rgba(13, 148, 136, 0.15));
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
 }
 .wp-delete {
   margin-top: 0.4rem;
   font-size: 0.75rem;
-  color: var(--red, #ef4444);
+  color: var(--bad);
   background: none;
   border: none;
   cursor: pointer;
@@ -900,7 +900,7 @@ input.wp-popup-name:focus {
   justify-content: center;
   padding: 0;
 }
-.radio-slot__clear:hover { color: var(--ink); background: var(--surface3); }
+.radio-slot__clear:hover { color: var(--ink); background: var(--raise); }
 .radio-slot__role {
   font-size: 11px;
   color: var(--dim);
@@ -910,32 +910,6 @@ input.wp-popup-name:focus {
 .radio-slot__name { color: var(--ink); font-weight: 600; }
 .radio-slot__band { color: var(--dim); font-size: 11px; }
 .radio-slot__empty { color: var(--faint); }
-
-/* Saved coverage structures (named radio pairs → PACE tiers) */
-.structure-list {
-  list-style: none;
-  margin: var(--sp-2) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.structure-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border: 1px solid var(--hair);
-  border-radius: var(--r-sm);
-  background: var(--surface2);
-}
-.structure-item__name { font-weight: 600; color: var(--ink); font-size: 12px; flex: 0 0 auto; }
-.structure-item__radios { color: var(--dim); font-size: 11px; flex: 1 1 auto; min-width: 0; }
-.structure-item__remove {
-  border: 0; background: transparent; color: var(--bad);
-  font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; flex: 0 0 auto;
-}
-.structure-item__remove:hover { color: color-mix(in srgb, var(--bad) 70%, var(--ink)); }
 
 .radio-results {
   list-style: none;
@@ -1302,7 +1276,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   justify-content: center;
   padding: 0;
 }
-.structure-item__remove:hover { color: var(--ink); background: var(--surface3); }
+.structure-item__remove:hover { color: var(--ink); background: var(--raise); }
 
 .arsenal { margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px solid var(--hair); }
 .arsenal__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -2453,7 +2427,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .hf-tick-label {
   fill: var(--dim);
   font-size: 4.5px;
-  font-family: var(--font-body, inherit);
+  font-family: var(--ui);
   text-anchor: middle;
 }
 
@@ -2488,7 +2462,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   height: 12px;
   border-radius: 50%;
   background: var(--bad);
-  border: 2px solid #fff;
+  border: 2px solid var(--mapring);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
@@ -2517,7 +2491,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-bottom: var(--sp-2);
 }
 .profile-panel__title {
-  font-family: var(--font-display, inherit);
+  font-family: var(--disp);
   font-weight: 600;
   font-size: 14px;
   color: var(--ink);
@@ -2564,7 +2538,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .profile-chart__tick {
   fill: var(--dim);
   font-size: 9px;
-  font-family: var(--font-body, inherit);
+  font-family: var(--ui);
 }
 .profile-chart__los {
   stroke: var(--accent);
@@ -2580,14 +2554,14 @@ select.input--sm { text-align: left; padding-right: 6px; }
   fill: var(--ink);
   font-size: 10px;
   font-weight: 600;
-  font-family: var(--font-body, inherit);
+  font-family: var(--ui);
 }
 .profile-chart__obstruction { fill: var(--bad); stroke: #fff; stroke-width: 1; }
 .profile-chart__obstruction-label {
   fill: var(--bad);
   font-size: 9px;
   font-weight: 600;
-  font-family: var(--font-body, inherit);
+  font-family: var(--ui);
 }
 
 /* Link-budget table beside the chart. */

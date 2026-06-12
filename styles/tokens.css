@@ -29,6 +29,7 @@
   /* ---- map canvas + on-map feature colours (theme-independent) ---- */
   --mapbg: #0b1018;
   --mapink: #cfe7e2;
+  --mapring: #ffffff; /* contrast ring on map markers — the canvas is dark in both themes */
   --feat-site: #34e6c2; /* site / recommended mast — teal */
   --feat-track: #46a6ff; /* subject / tracked unit / route — azure */
   --feat-event: #ffd479; /* event / alert — amber */
