@@ -15,7 +15,10 @@
  * the MapLibre protocol — one reader for remote and offline archives.
  */
 
-import { PMTiles, zxyToTileId } from 'pmtiles';
+// Only the tiny vendored tileId codec is imported statically — the PMTiles
+// reader class (which carries fflate, ~35 kB minified) loads lazily in
+// offlineTileGetter so it stays out of the main app chunk.
+import { zxyToTileId } from './tileid.js';
 
 const DIR_NAME = 'groundlink-offline';
 const PACK_FILE = 'terrarium.pmtiles';
@@ -255,6 +258,7 @@ export async function offlineTileGetter(bounds) {
   if (!dir) return null;
   try {
     const file = await (await dir.getFileHandle(PACK_FILE)).getFile();
+    const { PMTiles } = await import('pmtiles');
     const pm = new PMTiles(new BlobSource(file, 'groundlink-offline'));
     return {
       manifest,

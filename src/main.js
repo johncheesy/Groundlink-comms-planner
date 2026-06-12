@@ -29,8 +29,10 @@ import {
 import { atakConsumedMah, powerbankRecommendation } from './power/atak.js';
 import { costedBom, bomToCsv } from './power/cost.js';
 import { buildPace } from './pace/pace.js';
-import { exportReport } from './pace/report.js';
-import { createHfPanel } from './hf/hf-panel.js';
+// report.js (HTML/Word/Excel writers) loads lazily on the export click —
+// startup never needs it.
+// hf-panel.js (M12 ionosphere model + chart) loads lazily after boot —
+// non-critical UI, ~6 kB minified off the startup path.
 import { createPalette } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { createExportPanel } from './export/export-panel.js';
@@ -741,9 +743,10 @@ whenStyleReady(() => {
 
   // HF ionosphere planner (M12) — date/time + solar cycle + path → MUF/LUF/
   // NVIS over the AOI centre, falling back to London (51.5, 0) before any AOI.
-  (() => {
+  (async () => {
     const host = $('#hfPanelInner');
     if (!host) return;
+    const { createHfPanel } = await import('./hf/hf-panel.js');
     let hf;
     const refresh = () => {
       const p = hf.getParams();
@@ -1238,13 +1241,14 @@ whenStyleReady(() => {
     refreshWorkflowUi();
   });
 
-  exportReportBtn.addEventListener('click', () => {
+  exportReportBtn.addEventListener('click', async () => {
     if (!lastPlan) return;
     const formats = { pdf: fmtPdf.checked, word: fmtWord.checked, excel: fmtExcel.checked };
     if (!formats.pdf && !formats.word && !formats.excel) {
       exportHelp.textContent = 'Tick at least one format (PDF, Word or Excel) to export.';
       return;
     }
+    const { exportReport } = await import('./pace/report.js');
     const { done, popupBlocked } = exportReport(lastPlan, formats);
     exportHelp.textContent = popupBlocked
       ? 'Pop-up blocked — the PDF was saved as a standalone HTML file instead. Allow pop-ups for a direct print view.'

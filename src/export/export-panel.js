@@ -8,11 +8,17 @@
  * require a computed coverage run.
  */
 
-import { encodeCoverageGeoTIFF, worldFile } from './geotiff.js';
-import { buildKmz } from './kml.js';
-import { buildMissionGeoJSON } from './geojson.js';
-import { buildTakPackage } from './tak.js';
-import { makeZip, dataUrlToBytes } from './zip.js';
+// The format writers (geotiff/kml/geojson/tak/zip) load lazily on the first
+// export click — together they're ~15 kB minified the startup path never
+// needs. Handlers below are async and await this.
+const writers = () =>
+  Promise.all([
+    import('./geotiff.js'),
+    import('./kml.js'),
+    import('./geojson.js'),
+    import('./tak.js'),
+    import('./zip.js'),
+  ]).then(([geotiff, kml, geojson, tak, zip]) => ({ ...geotiff, ...kml, ...geojson, ...tak, ...zip }));
 
 function downloadBytes(bytes, mime, filename) {
   const blob = new Blob([bytes], { type: mime });
@@ -57,10 +63,11 @@ export function createExportPanel({ els, getExport, onStatus }) {
     return data;
   }
 
-  geotiffBtn?.addEventListener('click', () => {
+  geotiffBtn?.addEventListener('click', async () => {
     const data = requireCoverage();
     if (!data) return;
     try {
+      const { encodeCoverageGeoTIFF, worldFile, makeZip, dataUrlToBytes } = await writers();
       const { canvas, bounds } = data;
       const tiff = encodeCoverageGeoTIFF(canvas, bounds);
       const png = dataUrlToBytes(canvas.toDataURL('image/png'));
@@ -84,6 +91,7 @@ export function createExportPanel({ els, getExport, onStatus }) {
     const data = requireCoverage();
     if (!data) return;
     try {
+      const { buildKmz } = await writers();
       const { canvas, bounds, sites, waypoints, points, route, aoi, missionName } = data;
       const kmz = await buildKmz({
         overlayPng: canvas.toDataURL('image/png'),
@@ -104,7 +112,7 @@ export function createExportPanel({ els, getExport, onStatus }) {
     }
   });
 
-  geojsonBtn?.addEventListener('click', () => {
+  geojsonBtn?.addEventListener('click', async () => {
     const data = getExport?.();
     const hasVector = data && (
       data.sites?.length || data.waypoints?.length || data.points?.length ||
@@ -115,6 +123,7 @@ export function createExportPanel({ els, getExport, onStatus }) {
       return;
     }
     try {
+      const { buildMissionGeoJSON } = await writers();
       const fc = buildMissionGeoJSON(data);
       const bytes = new TextEncoder().encode(JSON.stringify(fc, null, 2));
       downloadBytes(bytes, 'application/geo+json', `groundlink-${stamp()}.geojson`);
@@ -130,6 +139,7 @@ export function createExportPanel({ els, getExport, onStatus }) {
     const data = requireCoverage();
     if (!data) return;
     try {
+      const { buildTakPackage } = await writers();
       const { canvas, bounds, sites, waypoints, missionName } = data;
       const pkg = await buildTakPackage({
         sites,

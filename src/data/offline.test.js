@@ -77,3 +77,21 @@ describe('writePmtiles ↔ pmtiles reader round-trip', () => {
     expect(() => writePmtiles([], {})).toThrow();
   });
 });
+
+describe('vendored tileid codec', () => {
+  it('matches the reference pmtiles zxyToTileId across zooms and corners', async () => {
+    const { zxyToTileId: reference } = await import('pmtiles');
+    const { zxyToTileId: vendored } = await import('./tileid.js');
+    const cases = [];
+    for (let z = 0; z <= 14; z++) {
+      const max = (1 << z) - 1;
+      cases.push([z, 0, 0], [z, max, 0], [z, 0, max], [z, max, max], [z, max >> 1, max >> 2]);
+    }
+    cases.push([26, 12345, 67890]);
+    for (const [z, x, y] of cases) {
+      expect(vendored(z, x, y), `z${z}/${x}/${y}`).toBe(reference(z, x, y));
+    }
+    expect(() => vendored(27, 0, 0)).toThrow();
+    expect(() => vendored(3, 8, 0)).toThrow();
+  });
+});
