@@ -16,12 +16,17 @@
  * never hard-fails (spec §B).
  */
 
-import { fromUrl, fromBlob, fromArrayBuffer } from 'geotiff';
+// geotiff loads lazily on the first COG open: its core (+fflate) is ~120 kB
+// minified that only COG users pay for — statically it sat in the main app
+// chunk (the coverage worker has its own bundle and pays it either way).
+const geotiff = () => import('geotiff');
 
 // fromBlob slices lazily via FileReader (browser-only). Under node/vitest
 // FileReader is absent — read the whole blob instead (tests use tiny tiffs).
 const openBlob = (b) =>
-  typeof FileReader === 'undefined' ? b.arrayBuffer().then(fromArrayBuffer) : fromBlob(b);
+  typeof FileReader === 'undefined'
+    ? b.arrayBuffer().then(async (buf) => (await geotiff()).fromArrayBuffer(buf))
+    : geotiff().then((g) => g.fromBlob(b));
 
 /** Tiny LRU used for read windows; exported for tests. */
 export function createLru(max = 8) {
@@ -143,7 +148,7 @@ const sourceLabel = (src) => (typeof src === 'string' ? src : `file:${src.name ?
 
 function tiffFor(source) {
   if (typeof source === 'string') {
-    if (!urlTiffCache.has(source)) urlTiffCache.set(source, fromUrl(source));
+    if (!urlTiffCache.has(source)) urlTiffCache.set(source, geotiff().then((g) => g.fromUrl(source)));
     return urlTiffCache.get(source);
   }
   if (!blobTiffCache.has(source)) {

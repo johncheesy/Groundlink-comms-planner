@@ -11,7 +11,9 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import { Protocol, PMTiles } from 'pmtiles';
+// pmtiles loads lazily on first use (buildings toggle / metadata discovery) —
+// statically it pulled fflate into the main chunk for users who never enable
+// the Overture layer.
 
 export const OVERTURE_BUILDINGS_URL =
   'https://data.source.coop/cholmes/overture/overture-buildings.pmtiles';
@@ -21,9 +23,10 @@ const BUILDING_COLOR = '#3b4250'; // same muted neutral as the M10 layer
 
 let protocol = null;
 
-/** Register the pmtiles:// protocol with MapLibre (idempotent). */
-export function registerPmtilesProtocol() {
+/** Register the pmtiles:// protocol with MapLibre (idempotent, async). */
+export async function registerPmtilesProtocol() {
   if (protocol) return protocol;
+  const { Protocol } = await import('pmtiles');
   protocol = new Protocol();
   maplibregl.addProtocol('pmtiles', protocol.tile);
   return protocol;
@@ -34,6 +37,7 @@ export function registerPmtilesProtocol() {
  * (tippecanoe `vector_layers`) instead of guessing — survives re-publishes.
  */
 export async function discoverBuildingLayer(url = OVERTURE_BUILDINGS_URL) {
+  const { PMTiles } = await import('pmtiles');
   const pm = new PMTiles(url);
   const meta = await pm.getMetadata();
   const layers = meta?.vector_layers ?? [];
@@ -53,7 +57,7 @@ export async function setOvertureBuildings(map, on, { url = OVERTURE_BUILDINGS_U
   }
   try {
     if (!map.getSource(OVERTURE_SRC)) {
-      registerPmtilesProtocol();
+      await registerPmtilesProtocol();
       const sourceLayer = await discoverBuildingLayer(url);
       if (!sourceLayer) return false;
       map.addSource(OVERTURE_SRC, {
