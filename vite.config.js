@@ -24,9 +24,17 @@ const build = {
 // GitHub Pages subpath; .map files are excluded.
 // Both PWA plugins must act only on the top-level app build. Nested worker
 // builds (each `new Worker(new URL(...))`, and geotiff's own decoder worker)
-// run the same plugin hooks but never contain index.html — and their
+// run the same plugin hooks but never carry the app's main entry — and their
 // closeBundle fires while the app build is still transforming.
-const isAppBundle = (bundle) => Boolean(bundle['index.html']);
+// Key on the main entry chunk, NOT bundle['index.html']: Vite 6 emits the
+// HTML after plugin generateBundle, so the html key never matched and both
+// plugins silently no-opped — deploys shipped an unstamped sw.js (byte-
+// identical across builds → clients pinned to their first cached build) and
+// no sw-assets.json (404). See docs/fix-sw-update-stamping.md.
+const isAppBundle = (bundle) =>
+  Object.values(bundle).some(
+    (o) => o.type === 'chunk' && o.isEntry && /^assets\/index-/.test(o.fileName),
+  );
 
 function swAssetsPlugin() {
   return {
