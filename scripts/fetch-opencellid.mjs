@@ -35,7 +35,7 @@
  * We keep only: { lat, lon, radio, mcc, net, range, samples }.
  */
 
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -140,6 +140,28 @@ async function main() {
   await mkdir(dirname(outPath), { recursive: true });
   await writeFile(outPath, JSON.stringify(snapshot));
   console.error(`Wrote ${cells.length} towers → ${outPath}`);
+
+  // Keep public/cells/index.json current — the app reads it at runtime to
+  // decide whether a snapshot covers the requested area (src/connectivity/
+  // cellsnap.js); anything uncovered falls back to live Overpass.
+  const indexPath = resolve(REPO, 'public', 'cells', 'index.json');
+  let index = { regions: [] };
+  try {
+    index = JSON.parse(await readFile(indexPath, 'utf8'));
+    if (!Array.isArray(index.regions)) index.regions = [];
+  } catch { /* first snapshot — start fresh */ }
+  const entry = {
+    region: snapshot.region,
+    file: `${args.region}.json`,
+    bbox: snapshot.bbox,
+    generated: snapshot.generated,
+    count: cells.length,
+  };
+  const i = index.regions.findIndex((r) => r.file === entry.file);
+  if (i >= 0) index.regions[i] = entry;
+  else index.regions.push(entry);
+  await writeFile(indexPath, JSON.stringify(index, null, 2));
+  console.error(`Updated ${indexPath} (${index.regions.length} region${index.regions.length === 1 ? '' : 's'})`);
 }
 
 function round(n, d) {

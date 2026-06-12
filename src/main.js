@@ -901,9 +901,9 @@ whenStyleReady(() => {
   cellular = createCellularController(map, cellCoverages, {
     onStatus(state, info) {
       if (state === 'loading') {
-        if (cellReadout) cellReadout.textContent = 'Fetching towers from OpenStreetMap…';
+        if (cellReadout) cellReadout.textContent = 'Loading towers (snapshot, else OpenStreetMap)…';
       } else if (state === 'error') {
-        if (cellReadout) cellReadout.textContent = `Error: ${info?.message || 'Overpass fetch failed.'}`;
+        if (cellReadout) cellReadout.textContent = `Error: ${info?.message || 'Tower fetch failed.'}`;
       }
       // 'computing' and 'empty' states are handled in the showCellBtn click handler
     },
@@ -2144,8 +2144,8 @@ function initCellularControls() {
       cellReadout.textContent = 'Tick at least one network type, then Show coverage.';
       return;
     }
-    cellReadout.textContent = 'Fetching towers from OpenStreetMap…';
-    statusMode.textContent = 'Cellular: fetching towers…';
+    cellReadout.textContent = 'Loading towers (snapshot, else OpenStreetMap)…';
+    statusMode.textContent = 'Cellular: loading towers…';
     showCellBtn.disabled = true;
     try {
       const result = await cellular.showCoverage(types, {
@@ -2163,14 +2163,16 @@ function initCellularControls() {
           .filter(([, n]) => n > 0)
           .map(([t, n]) => `${CELL_TYPE_DEFAULTS[t].label.split(' · ')[0]} ${n}`)
           .join(' · ');
-        cellReadout.textContent = `${result.count} OSM tower${result.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
+        // Name the source actually used — OpenCelliD snapshot or live OSM.
+        const src = meta.source === 'opencellid' ? `OpenCelliD ${meta.region}` : 'OSM';
+        cellReadout.textContent = `${result.count} ${src} tower${result.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
         cellShown = true;
         reflectCellBtn();
       }
       statusMode.textContent = 'Cellular coverage computing';
       updateBestNet();
     } catch (err) {
-      cellReadout.textContent = `Overpass fetch failed: ${err.message}. Check your connection and try again.`;
+      cellReadout.textContent = `Tower fetch failed: ${err.message}. Check your connection and try again.`;
       statusMode.textContent = 'Cellular fetch error';
     } finally {
       showCellBtn.disabled = false;
