@@ -60,6 +60,8 @@ import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/m
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
+import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
+import { createMastWizard } from './ui/mast-wizard.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1278,6 +1280,11 @@ whenStyleReady(() => {
           { label: 'Recompute coverage', keywords: 'run analyse rf plot', run: () => runCoverage() },
           { label: 'Clear coverage', keywords: 'remove raster', run: () => clearCoverageBtn.click() },
           { label: 'Recommend sites', keywords: 'masts relay advice', run: () => { jumpToAnchor('siteTitle'); if (!recommendBtn.disabled) recommendBtn.click(); } },
+          { label: 'Optimise mast height', keywords: 'antenna height wizard clearance fresnel mast drone', run: () => {
+            const rf = ['mast', 'repeater', 'tx', 'drone'].flatMap((k) => registry.byKind(k));
+            if (rf.length) mastWizard.openFor(rf[0].id);
+            else statusMode.textContent = 'No mast to optimise — place a site or the drone first';
+          } },
           { label: 'Build comms plan', keywords: 'pace report', run: () => { jumpToAnchor('paceTitle'); buildPaceBtn.click(); } },
           { label: 'Export report', keywords: 'pdf word excel download', run: () => { jumpToAnchor('paceTitle'); exportReportBtn.click(); } },
           { label: 'Toggle 3D terrain', keywords: 'view tilt relief', run: () => toggle3dBtn?.click() },
@@ -2935,7 +2942,58 @@ const ctxMenu = createContextMenu({
   onAction(action, entry) {
     if (action === 'settings') jumpToAnchor(anchorForEntry(entry));
     else if (action === 'move') dragMove.armMove(entry.id);
+    else if (action === 'optimise') mastWizard.openFor(entry.id); // M35
   },
+});
+
+// ---- Mast-height wizard (M35) — advisory minimum clearing height -----------
+// Applying routes through the normal flows: drone altitude via registry.sync
+// (→ stale pill), the global tx height via the same objects:changed event the
+// settings re-tune path uses. Both push an undo op.
+function applyMastHeight(entry, heightM) {
+  if (entry.kind === 'drone') {
+    const from = drone?.getAltitude?.() ?? 120;
+    drone?.setAltitude?.(heightM);
+    undoStack.push({
+      label: `${entry.name} altitude ${heightM} m`,
+      undo: () => drone?.setAltitude?.(from),
+      redo: () => drone?.setAltitude?.(heightM),
+    });
+    statusMode.textContent = `${entry.name}: altitude ${heightM} m AGL applied`;
+    return; // setAltitude → registry.sync → objects:changed arms the recompute
+  }
+  const from = clampNum(txHeightInput.value, 1, 300, 10);
+  const setH = (v) => { txHeightInput.value = String(v); };
+  setH(heightM);
+  undoStack.push({
+    label: `Tx height ${heightM} m`,
+    undo: () => setH(from),
+    redo: () => setH(heightM),
+  });
+  document.dispatchEvent(new CustomEvent('objects:changed', { detail: { type: 'settings', id: entry.id } }));
+  statusMode.textContent = `Tx height ${heightM} m applied (was ${from} m)`;
+}
+
+const mastWizard = createMastWizard(document.querySelector('.map-wrap'), {
+  registry,
+  getAoi: () => aoi?.getAoi?.() ?? null,
+  getPoints: () => mission?.getPoints?.() ?? [],
+  getFreqMHz: () => clampNum(freqInput.value, 30, 6000, 150),
+  getRxHeightM: () => clampNum(rxHeightInput.value, 0.5, 50, 1.5),
+  getEirpDbm: () => wattsToDbm(clampNum(powerInput.value, 0.01, 100, 5)) + TX_GAIN_DBI,
+  getThresholdDbm: () => clampNum(thMarginal.value, -200, 0, -103),
+  getMaxM: (e) => (e.kind === 'drone' ? 120 : 30),
+  // E1 seam: the wizard sees the same data the coverage run would — local
+  // COGs, the OPFS offline package, or network tiles.
+  async buildSamplers(bounds) {
+    const dem = await buildElevationSampler({ bounds, cog: dataFiles.elevationCog });
+    const clutter = useClutterInput.checked
+      ? await buildClutterSampler({ bounds, cog: dataFiles.clutterCog })
+      : null;
+    return { dem, clutter };
+  },
+  onApply: applyMastHeight,
+  onStatus: (msg) => { statusMode.textContent = msg; },
 });
 
 // Object hit-test ahead of the map's coords-only contextmenu popup: markers

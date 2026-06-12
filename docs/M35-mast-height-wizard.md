@@ -1,5 +1,8 @@
 # M35 — Antenna / mast height optimisation wizard
 
+> **Status: built (link mode) — 12 Jun 2026.** Implementation notes at the
+> bottom; spec kept as written.
+
 Feature from the 12 Jun 2026 research (`../../GroundLink_feature-onderzoek.docx`,
 `../../roadmap-2026H2.md` → M35). Inspired by Cambium LINKPlanner's automatic
 height optimisation: for a placed site, find the **minimum antenna height that
@@ -113,10 +116,40 @@ the link close; undo restores the prior height.
 
 ## Acceptance checklist
 
-- [ ] Link mode returns the minimum clearing height for a selected link, with
+- [x] Link mode returns the minimum clearing height for a selected link, with
       the path-profile preview and limiting-obstacle readout.
-- [ ] "Apply" writes the height via the normal dirty/recompute/undo flow.
-- [ ] `limited` case reports best margin + blocking obstacle instead of a false
+- [x] "Apply" writes the height via the normal dirty/recompute/undo flow.
+- [x] `limited` case reports best margin + blocking obstacle instead of a false
       number.
-- [ ] Works for masts/relays and the drone relay (as AGL altitude).
-- [ ] `npm test` green; `npm run build` clean; both themes; keyboard-operable.
+- [x] Works for masts/relays and the drone relay (as AGL altitude, ceiling cap).
+- [x] `npm test` green; `npm run build` clean; both themes; keyboard-operable.
+
+---
+
+## Implementation notes (built 12 Jun 2026)
+
+- **Closed form instead of bisection.** The locked decision assumed a numeric
+  search over the monotone clearance-vs-height function; the clearance margin
+  at every profile sample is actually *linear* in the tx tip height
+  (los(t) = txTip·(1−t) + rxTip·t), so each sample demands
+  txTip ≥ (eff + frac·r1 − rxTip·t)/(1−t) and the answer is the max over
+  interior samples — one pass, exact, same monotonicity guarantee (asserted in
+  tests: the returned height clears, half a metre less never does). Same
+  intent as the bisection — fast, deterministic, explainable — just exact.
+- **Geometry**: effective profile = ground + k = 4/3 earth bulge + clutter
+  (bare at the terminals, the P.1812/E2 convention). One notch more physical
+  than the M14 chart, which omits the bulge over short paths. Samplers come
+  through the **E1 seam**, so local COGs and the OPFS offline package feed the
+  wizard exactly like a coverage run.
+- **Apply paths**: drone → `drone.setAltitude` (registry.sync already arms the
+  stale pill); masts → the global `#txHeight` input + the same
+  `objects:changed {type:'settings'}` event the settings re-tune uses. Both
+  push an undo op (verified live: apply 7.7 m → undo restores 10 → redo).
+- **Entry points**: object context menu ("Optimise height…", RF kinds) and the
+  ⌘K palette. The spec's "site's panel section" anchor is folded into the
+  context menu (the Objects row kebab opens the same menu).
+- **Out of scope as specced**: coverage-mode tab (the optional height-sweep
+  variant) — link mode shipped first; revisit when M30/M36 land.
+- Verified in the browser against live terrain: an alpine ridge case reports
+  `> 30 m … −869.7 m at the blocker (terrain 2379 m) — consider relocating`
+  with Apply hidden; a clear 600 m link recommends 7.7 m and applies it.
