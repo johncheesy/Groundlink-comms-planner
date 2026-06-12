@@ -65,6 +65,8 @@ import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
 import { createMastWizard } from './ui/mast-wizard.js';
+// analysis/calibration.js (M27) loads lazily on the first CSV import /
+// calibration export — see calMod() below.
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -664,6 +666,10 @@ let missionTools = null;
 let waypoints = null;
 let radios = null;
 let cellular = null; // M9 cellular controller (own coverage layer)
+// M27 field calibration — fitted per-radio offsets; offsets + choice persist
+// (gl.calibration.v1, try/catch), measurement points stay in-memory only.
+const CAL_STORE_KEY = 'gl.calibration.v1';
+const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applied: false };
 let hfPanel = null; // M12 HF ionosphere panel
 let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
 let palette = null; // M20 ⌘K command palette (created once the style is ready)
@@ -914,6 +920,7 @@ whenStyleReady(() => {
     },
   });
   initCellularControls();
+  initCalibrationControls();
 
   // ---- Mission tools (M4): Sites / Route / Points ----------------------
   missionTools = createMissionTools(map, mission, {
@@ -2154,6 +2161,288 @@ function initBestNetIndicator() {
 }
 
 /** Wire the cellular layer visibility and Show/Clear buttons. */
+// ---- M27: field calibration (RSSI import) ---------------------------------
+// Pure logic in src/analysis/calibration.js — this wires the CSV input, the
+// per-radio fit table, the deviation dots layer and the apply/persist flow.
+// Spec + honesty notes: docs/M27-field-calibration.md.
+const CAL_SRC = 'cal-points';
+const CAL_LAYER = 'cal-points-layer';
+let calRetryArmed = false;
+let calPendingData = null;
+let calModP = null;
+const calMod = () => (calModP ??= import('./analysis/calibration.js'));
+
+/** Active offset (dB) for a radio-keyed compute (teams). 0 when not applied. */
+function calOffsetDb(radioId) {
+  if (!calState.applied || !radioId) return 0;
+  return Number(calState.offsets[radioId] ?? 0) || 0;
+}
+
+/** Active offset for the main (form) coverage — the radio chosen in the panel. */
+function calFormOffsetDb() {
+  return calOffsetDb(calState.formRadioId);
+}
+
+function saveCalStore() {
+  try {
+    localStorage.setItem(CAL_STORE_KEY, JSON.stringify({
+      offsets: calState.offsets,
+      formRadioId: calState.formRadioId,
+      applied: calState.applied,
+    }));
+  } catch { /* embedded preview / private mode — offsets stay in-memory */ }
+}
+
+function loadCalStore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(CAL_STORE_KEY) ?? 'null');
+    if (!s || typeof s !== 'object') return;
+    calState.offsets = s.offsets && typeof s.offsets === 'object' ? s.offsets : {};
+    calState.formRadioId = typeof s.formRadioId === 'string' ? s.formRadioId : null;
+    calState.applied = !!s.applied && Object.keys(calState.offsets).length > 0;
+  } catch { /* ignore */ }
+}
+
+/** Per-point link params: form params, freq/EIRP overridden from the arsenal
+ *  radio when the CSV's radio_id matches an arsenal id or label. */
+function calParamsForRadio(radioId) {
+  const params = { ...coverageParams() };
+  const radio = radioId
+    ? (radios?.getArsenal?.() ?? []).find((r) => r.id === radioId || r.label === radioId)
+    : null;
+  if (radio) {
+    if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + TX_GAIN_DBI;
+  }
+  return params;
+}
+
+// Deviation dots: azure = model conservative (measured stronger), rose =
+// model optimistic (the dangerous direction), teal = within ±3 dB.
+function ensureCalLayer() {
+  if (map.getSource(CAL_SRC)) return true;
+  try {
+    map.addSource(CAL_SRC, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer({
+      id: CAL_LAYER,
+      type: 'circle',
+      source: CAL_SRC,
+      paint: {
+        'circle-radius': 5,
+        'circle-color': [
+          'match', ['get', 'bucket'],
+          'conservative', cssToken('--feat-track', '#46a6ff'),
+          'optimistic', cssToken('--s5', '#ff6b8a'),
+          cssToken('--s1', '#34e6c2'),
+        ],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#ffffff',
+        'circle-opacity': 0.9,
+        'circle-stroke-opacity': 0.8,
+      },
+    });
+    return true;
+  } catch {
+    // Style still loading — same retry pattern as the tower/raster layers.
+    if (!calRetryArmed) {
+      calRetryArmed = true;
+      map.once('load', () => {
+        calRetryArmed = false;
+        if (ensureCalLayer() && calPendingData) map.getSource(CAL_SRC).setData(calPendingData);
+      });
+    }
+    return false;
+  }
+}
+
+function cssToken(name, fallback) {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function updateCalLayer(samples) {
+  calPendingData = {
+    type: 'FeatureCollection',
+    features: (samples ?? []).map((s) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+      properties: { bucket: s.bucket },
+    })),
+  };
+  if (ensureCalLayer()) map.getSource(CAL_SRC).setData(calPendingData);
+}
+
+const fmtSignedDb = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`;
+
+/** Minimal HTML escape for user-supplied radio ids in the fit table. */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
+  );
+}
+
+/** Import + predict + fit from CSV text (exposed on __gl for tests). */
+async function importCalText(text) {
+  const calReadout = $('#calReadout');
+  const { parseRssiCsv, predictDbm, fitCalibration, deviationBucket } = await calMod();
+  const { points, skipped, error } = parseRssiCsv(text);
+  if (error) { calReadout.textContent = error; return; }
+
+  const sites = mission.getSites();
+  const area = aoi?.getAoi?.();
+  const txHeightM = clampNum(txHeightInput.value, 1, 300, 10);
+  let txs;
+  if (sites.length) txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM }));
+  else if (area) txs = [{ lat: area.center.lat, lng: area.center.lng, txHeightM }];
+  else {
+    calReadout.textContent = 'Set up the mission first — prediction needs your transmitter (fixed site or AOI centre).';
+    return;
+  }
+
+  calReadout.textContent = `Predicting at ${points.length} point${points.length === 1 ? '' : 's'}…`;
+  let dem = null;
+  if (useTerrainInput.checked) {
+    const lats = points.map((p) => p.lat).concat(txs.map((t) => t.lat));
+    const lngs = points.map((p) => p.lon).concat(txs.map((t) => t.lng));
+    const pad = 0.02;
+    const bounds = {
+      west: Math.min(...lngs) - pad, east: Math.max(...lngs) + pad,
+      south: Math.min(...lats) - pad, north: Math.max(...lats) + pad,
+    };
+    dem = await buildElevationSampler({ bounds, cog: dataFiles.elevationCog ?? null }).catch(() => null);
+  }
+
+  const paramsCache = new Map();
+  const samples = points.map((pt) => {
+    const key = pt.radioId ?? '';
+    if (!paramsCache.has(key)) paramsCache.set(key, calParamsForRadio(pt.radioId));
+    const predictedDbm = predictDbm(pt, txs, paramsCache.get(key), dem);
+    const deltaDb = pt.dBm - predictedDbm;
+    return { ...pt, predictedDbm, deltaDb, bucket: deviationBucket(deltaDb) };
+  });
+  calState.samples = samples;
+  calState.fits = fitCalibration(
+    samples.map((s) => ({ radioId: s.radioId, measuredDbm: s.dBm, predictedDbm: s.predictedDbm })),
+  );
+  renderCalUi({ skipped, terrain: !!dem });
+  updateCalLayer(samples);
+}
+
+function renderCalUi({ skipped = 0, terrain = false } = {}) {
+  const calReadout = $('#calReadout');
+  const table = $('#calTable');
+  const wrap = $('#calTableWrap');
+  const applyRow = $('#calApplyRow');
+  const actionRow = $('#calActionRow');
+  const select = $('#calFormRadio');
+  const clearBtn = $('#calClearBtn');
+  const n = calState.samples.length;
+  if (!n) {
+    calReadout.textContent = '';
+    wrap.hidden = true; applyRow.hidden = true; actionRow.hidden = true; clearBtn.hidden = true;
+    return;
+  }
+  const agree = calState.samples.filter((s) => s.bucket === 'agree').length;
+  calReadout.textContent =
+    `${n} point${n === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped)` : ''} · ` +
+    `${terrain ? 'terrain-aware prediction' : 'flat FSPL prediction — terrain unavailable'} · ` +
+    `${agree}/${n} within ±3 dB. Dots: azure = model conservative, rose = model optimistic.`;
+
+  table.innerHTML =
+    '<thead><tr><th>Radio</th><th>n</th><th>Offset</th><th>RMSE before → after</th></tr></thead><tbody>' +
+    calState.fits.map((f) =>
+      `<tr><td>${escapeHtml(f.radioId ?? '(no radio id)')}</td><td>${f.n}</td>` +
+      `<td>${fmtSignedDb(f.offsetDb)}</td><td>${f.rmseBefore.toFixed(1)} → ${f.rmseAfter.toFixed(1)} dB</td></tr>`,
+    ).join('') + '</tbody>';
+  wrap.hidden = false;
+  clearBtn.hidden = false;
+
+  const ids = calState.fits.map((f) => f.radioId).filter(Boolean);
+  select.innerHTML =
+    '<option value="">— no offset —</option>' +
+    ids.map((id) => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('');
+  if (ids.length === 1) select.value = ids[0];
+  else if (calState.formRadioId && ids.includes(calState.formRadioId)) select.value = calState.formRadioId;
+  applyRow.hidden = ids.length === 0;
+  actionRow.hidden = false;
+}
+
+function initCalibrationControls() {
+  const fileInput = $('#calFileInput');
+  const importBtn = $('#calImportBtn');
+  const clearBtn = $('#calClearBtn');
+  const applyBtn = $('#calApplyBtn');
+  const exportBtn = $('#calExportBtn');
+  const select = $('#calFormRadio');
+  if (!importBtn) return;
+
+  loadCalStore();
+
+  importBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    if (!file) return;
+    try {
+      await importCalText(await file.text());
+      statusMode.textContent = 'Calibration points imported';
+    } catch (err) {
+      $('#calReadout').textContent = `Import failed: ${err.message}`;
+    }
+  });
+
+  applyBtn?.addEventListener('click', () => {
+    if (!calState.fits.length) return;
+    calState.offsets = Object.fromEntries(
+      calState.fits.filter((f) => f.radioId).map((f) => [f.radioId, f.offsetDb]),
+    );
+    calState.formRadioId = select.value || null;
+    calState.applied = Object.keys(calState.offsets).length > 0;
+    saveCalStore();
+    stalePill.arm('Calibration applied');
+    const parts = Object.entries(calState.offsets).map(([id, o]) => `${id} ${fmtSignedDb(o)}`);
+    statusMode.textContent = `Calibration applied — ${parts.join(' · ')}`;
+    $('#calReadout').textContent =
+      `Offsets active: ${parts.join(' · ')}. Team coverage uses each team's radio; ` +
+      (calState.formRadioId
+        ? `the main coverage applies ${calState.formRadioId}'s offset. Recompute to see the effect.`
+        : 'pick a radio above to also shift the main coverage, then recompute.');
+  });
+
+  exportBtn?.addEventListener('click', async () => {
+    if (!calState.fits.length) return;
+    const { calibrationFile } = await calMod();
+    const file = calibrationFile(calState.fits, {
+      engine: 'fspl-deygout',
+      generated: new Date().toISOString(),
+    });
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'groundlink-calibration.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    statusMode.textContent = 'Calibration exported';
+  });
+
+  clearBtn?.addEventListener('click', () => {
+    calState.samples = [];
+    calState.fits = [];
+    calState.offsets = {};
+    calState.formRadioId = null;
+    calState.applied = false;
+    saveCalStore();
+    updateCalLayer([]);
+    renderCalUi();
+    statusMode.textContent = 'Calibration cleared';
+  });
+}
+
 function initCellularControls() {
   // M23 §2: the Show coverage button is a true toggle. Shown → a click hides
   // the rasters + tower markers without dropping the fetched towers; hidden →
@@ -2428,6 +2717,10 @@ function runCoverage() {
     ...coverageParams(),
     txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
   };
+  // M27: shift the link budget by the fitted field-calibration offset when
+  // the user tied the main coverage to a calibrated radio.
+  const calOff = calFormOffsetDb();
+  if (calOff) params.eirpDbm += calOff;
   const sites = mission.getSites();
   const area = aoi?.getAoi?.();
   const bbox = mission.bbox();
@@ -2577,6 +2870,8 @@ async function runTeamCoverage(team) {
     if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
     if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + TX_GAIN_DBI;
   }
+  // M27: per-radio field-calibration offset (mean measured − predicted).
+  params.eirpDbm += calOffsetDb(team.radioId);
 
   const sites = mission.getSites();
   const area = aoi?.getAoi?.();
@@ -3395,5 +3690,7 @@ if (import.meta.env.DEV) {
       load: loadMissionFromText,
       serialize: () => serializeMission(gatherMissionState(), { savedAt: new Date().toISOString() }),
     },
+    // M27 handles (testing): import CSV text directly, inspect fits/offsets.
+    calibration: { importText: importCalText, state: calState },
   };
 }

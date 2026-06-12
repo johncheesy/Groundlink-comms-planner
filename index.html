@@ -522,6 +522,34 @@
                 <summary>HF Ionosphere</summary>
                 <div id="hfPanelInner"></div>
               </details>
+
+              <!-- M27: field calibration — measured RSSI vs the model -->
+              <details class="disclosure adv-block" id="calibrationPanel">
+                <summary>Field calibration (RSSI)</summary>
+                <p class="help">
+                  Import measured signal points (CSV with <span data-numeric>lat, lon, dBm, radio_id</span> columns)
+                  to compare against the model and fit a per-radio offset —
+                  mean(measured &minus; predicted). Points never leave your browser;
+                  the exported calibration carries statistics only, no coordinates.
+                </p>
+                <div class="input-row">
+                  <input type="file" id="calFileInput" accept=".csv,text/csv" hidden />
+                  <button class="btn" type="button" id="calImportBtn">Import CSV…</button>
+                  <button class="btn" type="button" id="calClearBtn" hidden>Clear</button>
+                </div>
+                <p class="help" id="calReadout" data-numeric></p>
+                <div class="teams-table-wrap" id="calTableWrap" hidden>
+                  <table class="teams-table" id="calTable" data-numeric></table>
+                </div>
+                <div class="input-row" id="calApplyRow" hidden>
+                  <label class="field-label" for="calFormRadio" style="flex:0 0 auto"><span>Main coverage uses</span></label>
+                  <select class="input" id="calFormRadio"></select>
+                </div>
+                <div class="input-row" id="calActionRow" hidden>
+                  <button class="btn btn--primary" type="button" id="calApplyBtn">Apply offsets</button>
+                  <button class="btn" type="button" id="calExportBtn">Export calibration (JSON)</button>
+                </div>
+              </details>
             </div>
           </section>
 
