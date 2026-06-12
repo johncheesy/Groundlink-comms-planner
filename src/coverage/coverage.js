@@ -1,5 +1,9 @@
 import maplibregl from 'maplibre-gl';
 import { COVERAGE_CLASS } from './model.js';
+import {
+  buildServerImage, serverLegend, SERVER_PALETTE_FALLBACK, CONTEST_FALLBACK,
+  DEFAULT_INTERFERENCE_DB,
+} from './bestserver.js';
 
 /**
  * Coverage controller (main thread) for MapLibre GL.
@@ -42,6 +46,11 @@ export function createCoverageController(
     hexToRgb(cssVar('--s4', '#ff9f7a')),
     hexToRgb(cssVar('--s5', '#ff6b8a')),
   ];
+  // M24 categorical site palette + contested colour from the --srv-* tokens.
+  const serverPalette = SERVER_PALETTE_FALLBACK.map((fb, i) =>
+    hexToRgb(cssVar(`--srv-${i + 1}`, ''), fb),
+  );
+  const contestRgb = hexToRgb(cssVar('--srv-contest', ''), CONTEST_FALLBACK);
 
   let worker = null;
   let jobId = 0;
@@ -55,6 +64,13 @@ export function createCoverageController(
   let lastCanvas = null; // last rendered coverage canvas (for M16 raster export)
   let lastPaintBounds = null; // bbox of that canvas (for georeferencing exports)
   let pendingResolve = null; // for computeAsync()
+  // M24 best-server view state.
+  let lastRaw = null; // { classes, servers, marginQ, cols, rows, bounds }
+  let view = 'quality'; // 'quality' | 'server'
+  let interference = false;
+  let interferenceDb = DEFAULT_INTERFERENCE_DB;
+  let lastServer = null; // { counts, covered, contested } from the last server render
+  let currentTxNames = null; // site names captured at compute time (legend)
 
   function ensureWorker() {
     if (worker) return worker;
@@ -103,29 +119,17 @@ export function createCoverageController(
     const { classes, cols, rows, terrain, clutter, inAoi, coveredInAoi, coveredFracAoi } = msg;
     const bounds = currentBounds;
     if (!bounds) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = cols;
-    canvas.height = rows;
-    const ctx = canvas.getContext('2d');
-    const img = ctx.createImageData(cols, rows);
-    const data = img.data;
+    // Keep the raw worker arrays so the M24 view toggle re-renders without a
+    // recompute (classes for quality, servers/marginQ for best-server).
+    lastRaw = { classes, servers: msg.servers ?? null, marginQ: msg.marginQ ?? null, cols, rows, bounds };
+    if (!lastRaw.servers && view === 'server') view = 'quality'; // single-tx run
     const byClass = [0, 0, 0, 0, 0];
     let covered = 0;
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
-      const o = i * 4;
-      if (cls === COVERAGE_CLASS.TRANSPARENT || cls > 4) {
-        data[o + 3] = 0;
-        continue;
-      }
+      if (cls === COVERAGE_CLASS.TRANSPARENT || cls > 4) continue;
       byClass[cls] += 1;
       if (cls <= 2) covered += 1; // excellent/good/marginal = usable
-
-      const [r, g, b] = tintRgb || palette[cls];
-      data[o] = r;
-      data[o + 1] = g;
-      data[o + 2] = b;
-      data[o + 3] = 255;
     }
     const total = classes.length;
     lastStats = {
@@ -142,6 +146,45 @@ export function createCoverageController(
       clutter: !!clutter,
     };
     if (!currentRender) return; // stats-only pass (e.g. gain-vs-ground baseline)
+    renderRaster();
+    // Let callers paint a derived overlay (e.g. the M15 digital-cliff band) from
+    // the same class grid and bbox we just rendered.
+    onPaint?.(classes, cols, rows, bounds);
+  }
+
+  /** Paint lastRaw to the image source according to the active view (M24). */
+  function renderRaster() {
+    if (!lastRaw) return;
+    const { classes, servers, marginQ, cols, rows, bounds } = lastRaw;
+    const canvas = document.createElement('canvas');
+    canvas.width = cols;
+    canvas.height = rows;
+    const ctx = canvas.getContext('2d');
+    let img;
+    if (view === 'server' && servers) {
+      const res = buildServerImage(servers, marginQ, {
+        palette: serverPalette,
+        interference,
+        thresholdDb: interferenceDb,
+        contestColor: contestRgb,
+      });
+      lastServer = res;
+      img = new ImageData(res.data, cols, rows);
+    } else {
+      lastServer = null;
+      const data = new Uint8ClampedArray(cols * rows * 4);
+      for (let i = 0; i < classes.length; i++) {
+        const cls = classes[i];
+        const o = i * 4;
+        if (cls === COVERAGE_CLASS.TRANSPARENT || cls > 4) continue;
+        const [r, g, b] = tintRgb || palette[cls];
+        data[o] = r;
+        data[o + 1] = g;
+        data[o + 2] = b;
+        data[o + 3] = 255;
+      }
+      img = new ImageData(data, cols, rows);
+    }
     ctx.putImageData(img, 0, 0);
     lastCanvas = canvas; // keep a reference for raster export (GeoTIFF/KMZ/TAK)
     lastPaintBounds = bounds;
@@ -172,9 +215,6 @@ export function createCoverageController(
       );
       hasLayer = true;
     }
-    // Let callers paint a derived overlay (e.g. the M15 digital-cliff band) from
-    // the same class grid and bbox we just rendered.
-    onPaint?.(classes, cols, rows, bounds);
   }
 
   function placeTx(tx) {
@@ -209,7 +249,12 @@ export function createCoverageController(
     // paints the combined (max-dBm) coverage across all sites.
     // opts.files (optional, E1) carries user-loaded local COGs (File objects
     // structured-clone into the worker; read in-browser, never uploaded).
-    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params, aoi: opts.aoi ?? null, txs: opts.txs ?? null, clipToAoi: opts.clipToAoi ?? false, files: opts.files ?? null });
+    // M24: with ≥2 sites, always collect best-server data (2 bytes/cell) so
+    // the view toggle works without a recompute; names feed the zone legend.
+    const multi = (opts.txs?.length ?? 0) >= 2;
+    currentTxNames = multi ? (opts.txNames ?? null) : null;
+    const p = multi ? { ...params, collectServer: true } : params;
+    w.postMessage({ type: 'compute', id: jobId, bounds, cols, rows, tx, params: p, aoi: opts.aoi ?? null, txs: opts.txs ?? null, clipToAoi: opts.clipToAoi ?? false, files: opts.files ?? null });
     return jobId;
   }
 
@@ -249,6 +294,9 @@ export function createCoverageController(
     hasLayer = false;
     lastCanvas = null;
     lastPaintBounds = null;
+    lastRaw = null;
+    lastServer = null;
+    view = 'quality';
     txMarker?.remove();
     txMarker = null;
     onStatus?.('cleared');
@@ -264,6 +312,34 @@ export function createCoverageController(
     getLastCanvas: () => lastCanvas,
     getLastBounds: () => lastPaintBounds,
     hasCoverage: () => hasLayer,
+    // ── M24 best-server view ────────────────────────────────────────────
+    hasServerData: () => !!lastRaw?.servers,
+    getView: () => view,
+    /** Switch quality ↔ best-server; re-renders from cached data, no recompute. */
+    setView(v) {
+      view = v === 'server' && lastRaw?.servers ? 'server' : 'quality';
+      if (lastRaw) renderRaster();
+      return view;
+    },
+    /** Toggle the contested-overlap band (and optionally its dB threshold). */
+    setInterference(on, thresholdDb) {
+      interference = !!on;
+      if (Number.isFinite(thresholdDb)) interferenceDb = thresholdDb;
+      if (lastRaw && view === 'server') renderRaster();
+    },
+    /** Zone legend + stats for the last server render (null in quality view). */
+    getServerInfo() {
+      if (!lastServer) return null;
+      return {
+        covered: lastServer.covered,
+        contested: lastServer.contested,
+        contestedFrac: lastServer.covered ? lastServer.contested / lastServer.covered : 0,
+        interference,
+        thresholdDb: interferenceDb,
+        legend: serverLegend(lastServer.counts, lastServer.covered, currentTxNames ?? []),
+        colors: serverPalette.map((rgb) => `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`),
+      };
+    },
     clear,
     destroy() {
       clear();

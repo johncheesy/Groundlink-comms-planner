@@ -41,6 +41,18 @@
   --s4: #ff9f7a; /* poor       (transition) */
   --s5: #ff6b8a; /* none       < -110 dBm */
 
+  /* ---- best-server zones (M24): categorical site colours on the dark map.
+         Distinct hues, no purple/indigo (design-system rule); cycle past 8. */
+  --srv-1: #46a6ff; /* azure   */
+  --srv-2: #34e6c2; /* teal    */
+  --srv-3: #ffd479; /* amber   */
+  --srv-4: #ff6b8a; /* rose    */
+  --srv-5: #86e6a0; /* green   */
+  --srv-6: #ff9f7a; /* orange  */
+  --srv-7: #67e8f9; /* cyan    */
+  --srv-8: #d9f99d; /* lime    */
+  --srv-contest: #f4f4f5; /* contested overlap band (near-white on dark map) */
+
   /* ---- type, shape, depth ---- */
   --disp: 'Sora', system-ui, sans-serif;
   --ui: 'Hanken Grotesk', system-ui, sans-serif;

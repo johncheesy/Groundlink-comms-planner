@@ -792,6 +792,7 @@ whenStyleReady(() => {
         stalePill.disarm();
         showResultCard();
       }
+      if (state === 'cleared' || state === 'done') refreshServerViewUi(); // M24
       if (state === 'cleared' || state === 'done') refreshWorkflowUi();
       if (state === 'error') {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
@@ -2409,6 +2410,7 @@ function runCoverage() {
     coverage.compute(compBounds, center, params, {
       aoi: aoiMask,
       txs,
+      txNames: txs ? sites.map((s, i) => s.name || `Site ${i + 1}`) : null, // M24 legend
       marker: !txs, // multi-site markers stand in for the single tx marker
       files: { ...dataFiles }, // E1: local COGs ride along (in-browser only)
     });
@@ -2552,6 +2554,7 @@ async function runTeamCoverage(team) {
   const stats = await coverage.computeAsync(coverageBoundsFor(bbox, center, params), center, params, {
     aoi: aoiMask,
     txs,
+    txNames: txs ? sites.map((s, i) => s.name || `Site ${i + 1}`) : null, // M24 legend
     marker: !txs,
     files: { ...dataFiles }, // E1
   });
@@ -3099,6 +3102,76 @@ const stalePill = createStalePill(document.querySelector('.map-wrap'), {
     // Plan stays stale: the §2 badge dot and the amber stepper ring remain.
     statusMode.textContent = 'Auto-recompute cancelled — plan is outdated';
   },
+});
+
+// ---- M24: best-server / interference view ----------------------------------
+// Multi-site runs carry per-cell winner + margin data; the toggle re-renders
+// the SAME raster from cached arrays (no recompute). The legend names the
+// zones; the contested band marks cells where the top two sites sit within
+// the threshold (co-channel interference / handover candidates).
+const serverViewRow = $('#serverViewRow');
+const viewQualityBtn = $('#viewQualityBtn');
+const viewServerBtn = $('#viewServerBtn');
+const interferenceChk = $('#interferenceChk');
+const bestServerLegend = $('#bestServerLegend');
+
+const escHtml = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function renderServerLegend() {
+  if (!bestServerLegend) return;
+  const info = coverage?.getView?.() === 'server' ? coverage.getServerInfo() : null;
+  if (!info) {
+    bestServerLegend.hidden = true;
+    bestServerLegend.innerHTML = '';
+    return;
+  }
+  const chip = (color, label, pct) =>
+    `<span class="srv-legend__chip"><i class="srv-legend__swatch" style="background:${color}"></i>` +
+    `${label}<b data-numeric>${pct}%</b></span>`;
+  const rows = info.legend.map((r) =>
+    chip(info.colors[r.index % info.colors.length], escHtml(r.name), Math.round(r.frac * 100)),
+  );
+  if (info.interference) {
+    rows.push(chip('var(--srv-contest)', `Contested &lt; ${info.thresholdDb} dB`, Math.round(info.contestedFrac * 100)));
+  }
+  bestServerLegend.innerHTML = rows.join('');
+  bestServerLegend.hidden = false;
+}
+
+function reflectServerView() {
+  const v = coverage?.getView?.() ?? 'quality';
+  viewQualityBtn?.classList.toggle('is-active', v === 'quality');
+  viewQualityBtn?.setAttribute('aria-pressed', String(v === 'quality'));
+  viewServerBtn?.classList.toggle('is-active', v === 'server');
+  viewServerBtn?.setAttribute('aria-pressed', String(v === 'server'));
+  renderServerLegend();
+  // The M15 cliff band describes quality classes — hide it in server view.
+  if (lastPaint) {
+    const mode = digitalModeSelect?.value ?? 'Analogue';
+    updateCliffLayer(map, lastPaint.classes, lastPaint.cols, lastPaint.rows, lastPaint.bounds, v === 'quality' && mode !== 'Analogue');
+  }
+}
+
+function refreshServerViewUi() {
+  const has = coverage?.hasServerData?.() ?? false;
+  if (serverViewRow) serverViewRow.hidden = !has;
+  if (has) reflectServerView();
+  else renderServerLegend();
+}
+
+viewQualityBtn?.addEventListener('click', () => {
+  coverage?.setView('quality');
+  reflectServerView();
+});
+viewServerBtn?.addEventListener('click', () => {
+  coverage?.setView('server');
+  reflectServerView();
+  statusMode.textContent = 'Best-server zones — strongest site per cell';
+});
+interferenceChk?.addEventListener('change', () => {
+  coverage?.setInterference(interferenceChk.checked);
+  renderServerLegend();
 });
 
 /** Summarise the last painted raster against the AOI and show the card. */
