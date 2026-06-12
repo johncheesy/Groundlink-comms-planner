@@ -44,6 +44,15 @@ describe('context-menu model — per-kind items', () => {
     }
   });
 
+  it('RF kinds get Optimise height (M35); markers and waypoints do not', () => {
+    for (const kind of ['mast', 'repeater', 'tx', 'drone']) {
+      expect(itemIds(buildMenuModel(entry({ kind })))).toContain('optimise');
+    }
+    for (const kind of ['marker', 'waypoint']) {
+      expect(itemIds(buildMenuModel(entry({ kind })))).not.toContain('optimise');
+    }
+  });
+
   it('unlocked objects get Rename, Move and Delete', () => {
     const ids = itemIds(buildMenuModel(entry()));
     expect(ids).toContain('rename');

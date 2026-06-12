@@ -28,7 +28,10 @@ export function buildMenuModel(entry) {
     text: formatCoordinate(pt, fmt),
   }));
   const items = [{ id: 'rename', label: 'Rename…' }];
-  if (SETTINGS_KINDS.includes(entry.kind)) items.push({ id: 'settings', label: 'Settings…' });
+  if (SETTINGS_KINDS.includes(entry.kind)) {
+    items.push({ id: 'settings', label: 'Settings…' });
+    items.push({ id: 'optimise', label: 'Optimise height…' }); // M35 wizard
+  }
   items.push(entry.locked ? { id: 'unlock', label: 'Unlock' } : { id: 'move', label: 'Move' });
   items.push({ id: 'delete', label: 'Delete' });
   return {

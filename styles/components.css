@@ -3948,3 +3948,47 @@ select.input--sm { text-align: left; padding-right: 6px; }
     animation: none;
   }
 }
+
+/* ── Mast-height wizard (M35) — extends the profile-panel drawer ─────────── */
+.mast-wizard { height: auto; max-height: 420px; }
+.mast-wizard__controls {
+  display: flex;
+  align-items: end;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-2);
+}
+.mast-wizard__controls .field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+.mast-wizard__controls select.input { min-width: 160px; }
+.mast-wizard__result[hidden] { display: none; }
+.mast-wizard__verdict {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.mast-wizard__height {
+  font-family: var(--disp);
+  font-weight: 600;
+  font-size: 22px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mast-wizard__obstacle {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.mast-wizard .profile-panel__body { min-height: 150px; }
+.mast-wizard__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+.mast-wizard__actions .help { margin: 0; }
