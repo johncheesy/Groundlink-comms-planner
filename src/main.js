@@ -27,6 +27,7 @@ import {
   networkBom, profileForRadioRole,
 } from './power/power.js';
 import { atakConsumedMah, powerbankRecommendation } from './power/atak.js';
+import { costedBom, bomToCsv } from './power/cost.js';
 import { buildPace } from './pace/pace.js';
 import { exportReport } from './pace/report.js';
 import { createHfPanel } from './hf/hf-panel.js';
@@ -1817,7 +1818,7 @@ function gatherPaceContext() {
       routeLengthKm,
       points: mission.getPoints().length,
     },
-    bom: lastPowerBom,
+    bom: lastCostedBom?.rows ?? lastPowerBom, // M26: costed rows when built
     build: BUILD,
     generatedAt: new Date().toISOString(),
   };
@@ -1977,7 +1978,10 @@ function buildPowerPlan() {
     lat,
     duty,
   });
-  powerBom.innerHTML = renderBomTable(lastPowerBom, hasDrone);
+  // M26: costed quote over the same lines + the role-assigned radios.
+  lastBomNodes = nodes;
+  lastCostedBom = costedBom({ nodes, powerLines: lastPowerBom, priceMap: bomPriceMap });
+  powerBom.innerHTML = renderBomTable(lastCostedBom, hasDrone);
 
   // M21: structured mirror for the Power focus dashboard.
   lastPowerModel = {
@@ -2007,21 +2011,62 @@ function powerRow(name, radioLabel, supply, metricsHtml) {
   );
 }
 
-function renderBomTable(bom, hasDrone) {
-  if (!bom.length) return '<p class="help">No nodes to roll up yet — add radios to the Arsenal and build the plan.</p>';
+// M26: per-power-line user prices (item label → number), session-scoped like
+// the rest of the power form. Radio prices live on the arsenal radios.
+const bomPriceMap = {};
+let lastCostedBom = null;
+let lastBomNodes = [];
+
+// Re-cost on price entry ('change' fires on blur/Enter, so the re-render
+// never steals focus mid-typing); export the quote as CSV on demand.
+powerBom?.addEventListener('change', (e) => {
+  const input = e.target.closest?.('[data-bom-item]');
+  if (!input) return;
+  bomPriceMap[input.dataset.bomItem] = input.value;
+  lastCostedBom = costedBom({ nodes: lastBomNodes, powerLines: lastPowerBom, priceMap: bomPriceMap });
+  powerBom.innerHTML = renderBomTable(lastCostedBom, !!drone?.hasDrone?.());
+});
+powerBom?.addEventListener('click', (e) => {
+  if (e.target?.id !== 'exportBomCsv' || !lastCostedBom) return;
+  const blob = new Blob([bomToCsv(lastCostedBom)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `GroundLink-BOM_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  statusMode.textContent = 'BOM exported (CSV) — generated locally';
+});
+
+function renderBomTable(costed, hasDrone) {
+  if (!costed?.rows.length) return '<p class="help">No nodes to roll up yet — add radios to the Arsenal and build the plan.</p>';
   const note = hasDrone ? '' : '<p class="help">Place a drone relay to include airborne-relay batteries.</p>';
-  const rows = bom
-    .map(
-      (l) =>
+  const fmt = (n) => (n == null ? '—' : n.toLocaleString('en', { minimumFractionDigits: 0, maximumFractionDigits: 2 }));
+  const rows = costed.rows
+    .map((l) => {
+      // Radio prices come from the arsenal (edit the radio); power-line
+      // prices are typed right here. Both stay user-entered — never fetched.
+      const priceCell = l.kind === 'power'
+        ? `<input class="input input--mini power-bom__price" data-bom-item="${htmlEsc(l.item)}" type="number" min="0" step="1" value="${l.unitPrice ?? ''}" aria-label="Unit price for ${htmlEsc(l.item)}" />`
+        : (l.unitPrice == null ? '<span title="Set a price on the radio (Edit in the arsenal)">—</span>' : fmt(l.unitPrice));
+      return (
         `<tr><td>${htmlEsc(l.item)}</td>` +
-        `<td class="power-bom__qty">${l.qty}</td>` +
-        `<td>${htmlEsc(l.unitSpec)}</td>` +
-        `<td class="power-bom__why">${htmlEsc(l.rationale)}</td></tr>`,
-    )
+        `<td class="power-bom__qty" data-numeric>${l.qty}</td>` +
+        `<td>${htmlEsc(l.unitSpec ?? '')}</td>` +
+        `<td class="power-bom__qty" data-numeric>${priceCell}</td>` +
+        `<td class="power-bom__qty" data-numeric>${fmt(l.total)}</td>` +
+        `<td class="power-bom__why">${htmlEsc(l.rationale ?? '')}</td></tr>`
+      );
+    })
     .join('');
+  const totalRow =
+    `<tr class="power-bom__total"><td>Total (priced items)</td><td></td><td></td><td></td>` +
+    `<td data-numeric>€ ${fmt(costed.totalKnown)}</td><td>${costed.unpricedCount ? `${costed.unpricedCount} item(s) unpriced — lower bound` : 'all items priced'}</td></tr>`;
   return (
     `<div class="power-bom__title">Mission bill of materials</div>` +
-    `<table><thead><tr><th>Item</th><th>Qty</th><th>Spec</th><th>Rationale</th></tr></thead><tbody>${rows}</tbody></table>${note}`
+    `<table><thead><tr><th>Item</th><th>Qty</th><th>Spec</th><th>Unit €</th><th>Total €</th><th>Rationale</th></tr></thead>` +
+    `<tbody>${rows}${totalRow}</tbody></table>${note}` +
+    `<div class="power-bom__actions"><button class="btn" type="button" id="exportBomCsv">Export BOM (CSV)</button>` +
+    `<span class="help">Indicative quote from your own prices — nothing is fetched.</span></div>`
   );
 }
 

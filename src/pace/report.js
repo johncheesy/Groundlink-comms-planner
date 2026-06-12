@@ -231,15 +231,27 @@ function mixTable(plan) {
   return `<table><thead><tr><th>Rank</th><th>Band</th><th>PACE</th><th>Rationale</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// M8 — power & endurance bill of materials. Empty unless a power plan was built.
+// M8 — power & endurance bill of materials; M26 — costed columns when the
+// rows carry user-entered prices (the costed quote, never fetched figures).
 function bomSection(plan) {
   const bom = Array.isArray(plan.bom) ? plan.bom : [];
   if (!bom.length) return '';
+  const costed = bom.some((l) => l.unitPrice != null);
+  const price = (n) => (n == null ? '—' : Number(n).toLocaleString('en', { maximumFractionDigits: 2 }));
   const rows = bom
-    .map((l) => `<tr><td class="bearer">${esc(l.item)}</td><td>${esc(l.qty)}</td><td>${esc(l.unitSpec)}</td><td class="why">${esc(l.rationale)}</td></tr>`)
+    .map((l) =>
+      `<tr><td class="bearer">${esc(l.item)}</td><td>${esc(l.qty)}</td><td>${esc(l.unitSpec ?? '')}</td>` +
+      (costed ? `<td>${price(l.unitPrice)}</td><td>${price(l.total)}</td>` : '') +
+      `<td class="why">${esc(l.rationale ?? '')}</td></tr>`)
     .join('');
-  return `<h2>Power &amp; endurance</h2>` +
-    `<table><thead><tr><th>Item</th><th>Qty</th><th>Spec</th><th>Rationale</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const totalKnown = bom.reduce((s, l) => s + (l.total ?? 0), 0);
+  const unpriced = bom.filter((l) => l.unitPrice == null).length;
+  const totalRow = costed
+    ? `<tr><td><b>Total (priced items)</b></td><td></td><td></td><td></td><td><b>€ ${price(totalKnown)}</b></td>` +
+      `<td class="why">${unpriced ? `${unpriced} item(s) unpriced — lower bound` : 'all items priced'} · your figures, indicative</td></tr>`
+    : '';
+  return `<h2>Power &amp; endurance${costed ? ' · costed BOM' : ''}</h2>` +
+    `<table><thead><tr><th>Item</th><th>Qty</th><th>Spec</th>${costed ? '<th>Unit €</th><th>Total €</th>' : ''}<th>Rationale</th></tr></thead><tbody>${rows}${totalRow}</tbody></table>`;
 }
 
 // ── Data shaping ─────────────────────────────────────────────────────────────
