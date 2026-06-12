@@ -22,11 +22,18 @@ const build = {
 // worker pre-caches for the offline app shell (M17). Paths are relative
 // (no leading slash) so the SW resolves them against its own scope under the
 // GitHub Pages subpath; .map files are excluded.
+// Both PWA plugins must act only on the top-level app build. Nested worker
+// builds (each `new Worker(new URL(...))`, and geotiff's own decoder worker)
+// run the same plugin hooks but never contain index.html — and their
+// closeBundle fires while the app build is still transforming.
+const isAppBundle = (bundle) => Boolean(bundle['index.html']);
+
 function swAssetsPlugin() {
   return {
     name: 'gl-sw-assets',
     apply: 'build',
     generateBundle(_, bundle) {
+      if (!isAppBundle(bundle)) return; // worker sub-build — not the app shell
       const assets = Object.keys(bundle)
         .filter((k) => !k.endsWith('.map'))
         .map((k) => k.split('\\').join('/'));
@@ -44,10 +51,16 @@ function swAssetsPlugin() {
 // browser's update check is a byte-diff of the SW script, so without this the
 // new build never installs and clients keep the old cached shell (M23).
 function swStampPlugin() {
+  let sawAppBundle = false;
   return {
     name: 'gl-sw-stamp',
     apply: 'build',
+    generateBundle(_, bundle) {
+      if (isAppBundle(bundle)) sawAppBundle = true;
+    },
     closeBundle() {
+      if (!sawAppBundle) return; // a worker sub-build finishing early — skip
+      sawAppBundle = false;
       const swPath = fileURLToPath(new URL('./dist/sw.js', import.meta.url));
       try {
         const stamped = readFileSync(swPath, 'utf8').replace(
@@ -75,6 +88,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+  },
+  // App workers are created with { type: 'module' } already; ES output is
+  // required because geotiff (E1) carries a nested decoder worker, which
+  // makes the worker bundles multi-chunk — unsupported by the iife default.
+  worker: {
+    format: 'es',
   },
   build: {
     outDir: 'dist',
@@ -104,5 +123,16 @@ export default defineConfig({
     maxWorkers: 1,
     minWorkers: 1,
     fileParallelism: false,
+    // geotiff imports the `web-worker` shim, which crashes when loaded inside
+    // vitest's threads pool. Inline geotiff so vite resolves its imports, then
+    // alias the shim to a stub — tests never build a geotiff decoder pool.
+    server: {
+      deps: {
+        inline: ['geotiff'],
+      },
+    },
+    alias: {
+      'web-worker': fileURLToPath(new URL('./src/test/web-worker-stub.js', import.meta.url)),
+    },
   },
 });

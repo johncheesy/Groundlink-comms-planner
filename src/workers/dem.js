@@ -27,11 +27,20 @@ export function pickZoom(bounds) {
   return Math.max(7, Math.min(12, z));
 }
 
+/** Default tile getter — network fetch of the AWS Terrarium tile. */
+async function fetchTerrariumTile(z, x, y) {
+  const r = await fetch(TERRARIUM_URL(z, x, y));
+  return r.ok ? r.blob() : null;
+}
+
 /**
  * Build an elevation sampler for the bbox. Returns null if no DEM tile could be
  * fetched (caller falls back to flat earth).
+ *
+ * @param getTile  optional (z, x, y) → Promise<Blob|null> — E1 injects the
+ *                 OPFS offline package here; default is the network fetch.
  */
-export async function buildDem(bounds, z = pickZoom(bounds)) {
+export async function buildDem(bounds, z = pickZoom(bounds), getTile = fetchTerrariumTile) {
   const minX = Math.floor(lon2tileX(bounds.west, z));
   const maxX = Math.floor(lon2tileX(bounds.east, z));
   const minY = Math.floor(lat2tileY(bounds.north, z)); // north → smaller y
@@ -49,9 +58,8 @@ export async function buildDem(bounds, z = pickZoom(bounds)) {
     Array.from({ length: cols * rows }, (_, i) => {
       const tx = minX + (i % cols);
       const ty = minY + Math.floor(i / cols);
-      return fetch(TERRARIUM_URL(z, tx, ty))
-        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`tile ${r.status}`))))
-        .then((b) => createImageBitmap(b))
+      return getTile(z, tx, ty)
+        .then((b) => (b ? createImageBitmap(b) : Promise.reject(new Error('tile missing'))))
         .then((bmp) => {
           ctx.drawImage(bmp, (tx - minX) * TILE, (ty - minY) * TILE);
           bmp.close?.();

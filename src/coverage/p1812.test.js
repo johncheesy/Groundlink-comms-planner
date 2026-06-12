@@ -227,10 +227,10 @@ describe('helpers and contracts', () => {
 
 describe('buildProfileP1812 (worker profile contract)', () => {
   const dem = { sample: (lng, lat) => 100 + lng * 10 + lat }; // synthetic plane
-  const landcover = { sample: () => 10 }; // WorldCover "tree cover" → 20 m
+  const clutter = { heightM: () => 20 }; // E1 clutter-sampler interface
 
   it('includes both endpoints, raw heights and clutter heights', () => {
-    const prof = buildProfileP1812({ lng: 0, lat: 0 }, { lng: 1, lat: 0 }, 12000, dem, landcover);
+    const prof = buildProfileP1812({ lng: 0, lat: 0 }, { lng: 1, lat: 0 }, 12000, dem, clutter);
     expect(prof[0].distM).toBe(0);
     expect(prof[prof.length - 1].distM).toBe(12000);
     expect(prof[0].terrainM).toBe(100);

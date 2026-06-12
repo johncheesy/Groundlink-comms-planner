@@ -27,8 +27,7 @@
  */
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
 import { buildProfile } from './profile.js';
-import { buildDem } from './dem.js';
-import { buildLandcover, clutterDbForClass } from './worldcover.js';
+import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
 import { demandGrid, padBounds, diagonalM } from '../geo/aoi-mask.js';
 import { createYielder } from './yield.js';
 
@@ -61,9 +60,11 @@ self.onmessage = async (e) => {
     // ── 2. Data: DEM (+ clutter) over a padded bbox, fetched once ───────
     self.postMessage({ type: 'progress', id, done: 0, total: 1, phase: 'data' });
     const padded = padBounds(bounds, 0.1);
-    const [dem, landcover] = await Promise.all([
-      params.useTerrain ? buildDem(padded).catch(() => null) : Promise.resolve(null),
-      params.useClutter ? buildLandcover(padded).catch(() => null) : Promise.resolve(null),
+    // E1 source interfaces — site search keeps the network/OPFS defaults
+    // (no per-run COG files here; the final raster paint honours them).
+    const [dem, clutter] = await Promise.all([
+      params.useTerrain ? buildElevationSampler({ bounds: padded }).catch(() => null) : Promise.resolve(null),
+      params.useClutter ? buildClutterSampler({ bounds: padded }).catch(() => null) : Promise.resolve(null),
     ]);
     const terrain = !!dem;
     if (aborted()) return; // superseded/cancelled while fetching tiles
@@ -89,7 +90,7 @@ self.onmessage = async (e) => {
           const rxElev = dem.sample(pt.lng, pt.lat) + params.rxHeightM;
           diffraction = deygoutLossDb(buildProfile({ lng: txLng, lat: txLat }, pt, dist, dem), txElev, rxElev, params.freqMHz, dist);
         }
-        const clutterDb = landcover ? clutterDbForClass(landcover.sample(pt.lng, pt.lat)) : (params.clutterDb ?? 0);
+        const clutterDb = clutter ? clutter.dbAt(pt.lng, pt.lat) : (params.clutterDb ?? 0);
         const dbm = receivedDbm(params, dist, diffraction, clutterDb);
         row[di] = classifyDbm(dbm, params.thresholds, params.floorDbm) <= 2 ? 1 : 0; // marginal+ = covered
       }
@@ -170,7 +171,7 @@ self.onmessage = async (e) => {
     }
 
     self.postMessage({
-      type: 'done', id, sites: chosen, terrain, clutter: !!landcover,
+      type: 'done', id, sites: chosen, terrain, clutter: !!clutter,
       lockedCount: lockedSites.length, baseFrac, demandCount: demand.length,
     });
   } catch (err) {

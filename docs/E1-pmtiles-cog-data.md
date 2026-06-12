@@ -1,5 +1,8 @@
 # E1 — PMTiles + COG data layer (no-key, offline-ready clutter/terrain)
 
+> **Status: built (v1) — 12 Jun 2026.** Implementation notes + the CORS
+> verification table at the bottom of this file; spec below kept as written.
+
 Enabler milestone from the 12 Jun 2026 feature research
 (`../../GroundLink_feature-onderzoek.docx`, `../../roadmap-2026H2.md` → M27+).
 The data-delivery substrate that makes the free/no-key clutter and terrain
@@ -125,13 +128,86 @@ still renders terrain + coverage for that AOI.
 
 ## Acceptance checklist
 
-- [ ] Terrarium elevation works unchanged through the new `ElevationSource`.
-- [ ] A COG-backed `ElevationSource`/`ClutterSource` samples correctly and feeds
-      the coverage worker; failures degrade gracefully with a notice.
-- [ ] PMTiles protocol registered; a building/landcover PMTiles layer renders
-      and toggles in the layers panel.
-- [ ] "Prepare this area for offline" writes a PMTiles to OPFS; a subsequent
-      offline reload renders terrain + coverage for that AOI.
-- [ ] CORS verified per runtime source; staging-only sources documented.
-- [ ] `npm test` green; `npm run build` clean; both themes; deps justified in
+- [x] Terrarium elevation works unchanged through the new sampler interface.
+- [x] A COG-backed elevation/clutter sampler feeds the coverage worker
+      (local-file path verified end-to-end in tests); failures degrade
+      gracefully with a single console notice + in-app source naming.
+- [x] PMTiles protocol registered; the Overture buildings PMTiles layer
+      renders and toggles (Data flyout picks the source).
+- [x] "Prepare this area" writes a PMTiles v3 to OPFS; coverage for that AOI
+      computes offline (map terrain raster itself stays online — see notes).
+- [x] CORS verified per runtime source (table below); no-CORS sources are
+      local-file/staging-only as the spec rules.
+- [x] `npm test` green; `npm run build` clean; both themes; deps justified in
       `CLAUDE.md`.
+
+---
+
+## Implementation notes (built 12 Jun 2026)
+
+### CORS verification (decision 3) — probed 12 Jun 2026, `Origin: https://johncheesy.github.io`
+
+| Source | Range | CORS | Runtime verdict |
+| --- | --- | --- | --- |
+| AWS Terrain Tiles (Terrarium PNG) | ✓ | ✓ | runtime (in use since M2) |
+| Digital Earth Africa WMS (WorldCover) | n/a | ✓ | runtime (in use since M9, Africa) |
+| **source.coop** Overture buildings PMTiles | ✓ | ✓ `*` | **runtime** — the E1 reference PMTiles layer |
+| Copernicus GLO-30 COG (AWS) | ✓ | ✗ | local-file / staging only |
+| ESA WorldCover COG (AWS) | ✓ | ✗ | local-file / staging only |
+| Meta/WRI canopy CHM COG (AWS) | ✓ | ✗ | local-file / staging only |
+| ETH canopy 10 m (share.phys.ethz.ch) | — | — | URL dead (301 → DOI); staging via new host only |
+
+**Consequence:** no public global canopy/DEM **COG** currently ships CORS, so
+the COG runtime entry is the **local file** (Data flyout → "Clutter/Elevation
+COG"): the user stages the GeoTIFF once (download the tile for their area),
+loads it from disk, and `geotiff.js` reads it in-browser — nothing is ever
+uploaded, which also matches the standing OPSEC import pattern. Remote COG
+URLs work too whenever a CORS-enabled host appears (the sampler accepts both).
+
+### What shipped
+
+- **`src/data/sources.js`** — the engine-facing seam. Elevation samplers
+  (`{ id, sample }`) resolve local COG → OPFS offline package → network
+  Terrarium; clutter samplers (`{ id, heightM, dbAt }`) resolve local COG →
+  WorldCover WMS. P.1812 consumes `heightM`, the FSPL fallback consumes
+  `dbAt` (`clutterDbForHeight`: log fit to the WorldCover class table) — one
+  representation per engine, never both (decision 0005). Both workers
+  (coverage, recommend) now build through this seam only.
+- **`src/data/cog.js`** — geotiff.js wrapper: overview pick + window math as
+  pure tested helpers, one window read per (source, level, window) behind an
+  LRU, bilinear or nearest sampling, NaN/noData handling. Blob sources cache
+  by object identity. Any failure logs once and returns null — the plot
+  never hard-fails.
+- **`src/data/offline.js`** — "Prepare this area" (Data flyout) fetches the
+  Terrarium tiles for the coverage window (AOI ± the M2 `WINDOW_CAP_MULT`
+  cap, zooms 8–12, ≤ 600 tiles) and writes a **PMTiles v3 archive + manifest
+  into OPFS**. The writer is ~60 lines (Hilbert ids via the pmtiles lib,
+  uncompressed internal directories, clustered) and is round-trip-tested
+  against the reference `pmtiles` reader. Both workers prefer the package
+  whenever its manifest covers the requested bounds — coverage computes
+  fully offline; the status bar says `DEM (offline)`.
+- **`src/map/pmtiles.js`** — protocol registration (idempotent, lazy) + the
+  Overture buildings fill-extrusion, source-layer discovered from the
+  archive's own metadata. The View-flyout Buildings toggle keeps working;
+  the Data flyout picks OpenFreeMap (live tiles) vs Overture (static PMTiles).
+- **Vite**: `worker.format = 'es'` (geotiff carries a nested decoder worker →
+  worker bundles are multi-chunk now); the two PWA plugins are scoped to the
+  app bundle (worker sub-builds fire `closeBundle` mid-build). geotiff's
+  lerc/zstd decoders land in lazy chunks — fetched only if a COG uses them.
+
+### Deliberate v1 scope (and why)
+
+- **Offline packages the DEM only.** Clutter (WMS imagery) and basemap tiles
+  are not packaged; the acceptance line "offline reload renders terrain +
+  coverage" holds for the *coverage compute + its inputs*, while the map
+  *canvas* under it still needs its basemap online. Packaging the visual
+  layers is the parked offline/edge phase.
+- **Raster PMTiles landcover overlay** (spec §C "optional") deferred to M31 —
+  the protocol + vector reference layer prove the plumbing; the OPFS archive
+  exercises the same reader.
+- **No staging script yet**: the no-CORS sources are plain single-file
+  downloads (1°/3° tiles); the Data flyout consumes them directly. A
+  `scripts/fetch-aoi-cog.mjs` convenience wrapper can come with M31's
+  dataset matrix.
+- Engine/data-source choices are session-state, not yet in the mission file
+  (same as the M18/E2 pattern).

@@ -893,6 +893,13 @@
               <path d="M3 18l5.5-8 4 5.5L16 11l5 7H3z" /><path d="M16 5.5h.01" />
             </svg>
           </button>
+          <button class="map-rail__btn" type="button" id="railDataBtn" aria-label="Data sources and offline" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutData" title="Data — local COGs, PMTiles buildings, offline AOI">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <ellipse cx="12" cy="5.5" rx="8" ry="2.8" />
+              <path d="M4 5.5v6c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8v-6" />
+              <path d="M4 11.5v6c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8v-6" />
+            </svg>
+          </button>
           <span class="map-rail__sep" aria-hidden="true"></span>
           <button class="map-rail__btn" type="button" id="importBtn" aria-label="Import KML, KMZ, GPX or GeoJSON" title="Import KML / KMZ / GPX / GeoJSON">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -958,6 +965,40 @@
             <label class="field-label" for="opDatetime" title="Operation date/time — sets sun position for day/night sky">Operation date &amp; time</label>
             <input class="map-flyout__datetime" type="datetime-local" id="opDatetime"
               aria-label="Operation date and time" title="Operation date/time (drives sun position + day/night)" />
+          </div>
+        </div>
+
+        <!-- E1: Data flyout — local COG samplers, PMTiles buildings, offline AOI. -->
+        <div class="map-flyout" id="railFlyoutData" role="group" aria-label="Data sources and offline" hidden>
+          <div class="map-flyout__title">Data</div>
+
+          <div class="map-flyout__field">
+            <label class="field-label" title="Static Overture PMTiles archive — byte-range reads, no tile server, no key">Buildings source (3D view)</label>
+            <div class="map-flyout__row">
+              <button class="map-flyout__toggle is-active" type="button" id="bldSrcOfm" aria-pressed="true" title="OpenFreeMap live vector tiles (default)">OpenFreeMap</button>
+              <button class="map-flyout__toggle" type="button" id="bldSrcOverture" aria-pressed="false" title="Overture static PMTiles via source.coop — no tile server">Overture PMTiles</button>
+            </div>
+          </div>
+
+          <div class="map-flyout__field">
+            <label class="field-label" for="clutterCogInput" title="Canopy / DSM heights GeoTIFF — read locally, never uploaded">Clutter COG (local file)</label>
+            <input class="input" id="clutterCogInput" type="file" accept=".tif,.tiff,image/tiff" aria-label="Load a local clutter-height COG" />
+            <p class="help" id="clutterCogStatus">Canopy or building-height GeoTIFF — sampled in-browser, never uploaded.</p>
+          </div>
+
+          <div class="map-flyout__field">
+            <label class="field-label" for="elevationCogInput" title="Elevation GeoTIFF (e.g. Copernicus GLO-30 tile) — read locally, never uploaded">Elevation COG (local file)</label>
+            <input class="input" id="elevationCogInput" type="file" accept=".tif,.tiff,image/tiff" aria-label="Load a local elevation COG" />
+            <p class="help" id="elevationCogStatus">Overrides AWS terrain where the file has data.</p>
+          </div>
+
+          <div class="map-flyout__field">
+            <label class="field-label" title="Packages the AOI's elevation tiles into private browser storage (OPFS) for offline use">Offline</label>
+            <div class="map-flyout__row">
+              <button class="map-flyout__toggle" type="button" id="offlinePackBtn" title="Download this AOI's DEM tiles into private browser storage">Prepare this area</button>
+              <button class="map-flyout__toggle" type="button" id="offlineClearBtn" hidden title="Delete the packaged AOI from browser storage">Clear</button>
+            </div>
+            <p class="help" id="offlineStatus">Nothing packaged. Stored privately in this browser (OPFS), never uploaded.</p>
           </div>
         </div>
 
