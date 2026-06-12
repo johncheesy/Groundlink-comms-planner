@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   CELL_BANDS,
   CELL_DEFAULTS,
+  OSM_META,
   RADIO_TYPES,
   TYPE_WEIGHT,
   UNKNOWN_OPERATOR,
   bandPreset,
   bestNetwork,
   cellDefaults,
+  fetchTowers,
   parseOverpassTowers,
   selectTowers,
   towersToTxs,
@@ -196,5 +198,58 @@ describe('towersToTxs', () => {
   });
   it('defaults the height to the macro default', () => {
     expect(towersToTxs([{ lat: 1, lon: 2 }])[0].txHeightM).toBe(CELL_DEFAULTS.txHeightM);
+  });
+});
+
+describe('fetchTowers — snapshot first, Overpass fallback (injected sources)', () => {
+  const BBOX = { west: 0, south: 0, east: 1, north: 1 }; // synthetic test square
+  const SNAP_TOWER = { lat: 0.5, lon: 0.5, radio: 'LTE', operator: 'KPN', range: 2500 };
+  const OSM_TOWER = { lat: 0.4, lon: 0.4, radio: 'LTE', operator: null };
+
+  it('uses the snapshot (and its meta) when one covers the bbox', async () => {
+    const res = await fetchTowers(BBOX, {
+      loadSnapshot: async () => ({
+        towers: [SNAP_TOWER],
+        meta: { source: 'opencellid', region: 'T', attribution: 'CC BY-SA', generated: 'g' },
+      }),
+      fetchOsm: async () => { throw new Error('must not be called'); },
+    });
+    expect(res.towers).toEqual([SNAP_TOWER]);
+    expect(res.meta.source).toBe('opencellid');
+    expect(res.meta.region).toBe('T');
+  });
+
+  it('falls back to Overpass with the OSM meta when no snapshot covers it', async () => {
+    const res = await fetchTowers(BBOX, {
+      loadSnapshot: async () => null,
+      fetchOsm: async () => [OSM_TOWER],
+    });
+    expect(res.towers).toEqual([OSM_TOWER]);
+    expect(res.meta.source).toBe('osm');
+    expect(res.meta.attribution).toBe(OSM_META.attribution);
+    expect(typeof res.meta.generated).toBe('string');
+  });
+
+  it('propagates the Overpass error only when both sources are out', async () => {
+    await expect(fetchTowers(BBOX, {
+      loadSnapshot: async () => null,
+      fetchOsm: async () => { throw new Error('overpass down'); },
+    })).rejects.toThrow('overpass down');
+  });
+
+  it('snapshot towers carry operators that feed bestNetwork directly', async () => {
+    const { towers } = await fetchTowers(BBOX, {
+      loadSnapshot: async () => ({
+        towers: [
+          { lat: 0.50, lon: 0.50, radio: 'LTE', operator: 'KPN' },
+          { lat: 0.51, lon: 0.51, radio: 'LTE', operator: 'Odido' },
+        ],
+        meta: { source: 'opencellid', region: 'T', attribution: 'CC BY-SA', generated: 'g' },
+      }),
+      fetchOsm: async () => [],
+    });
+    const best = bestNetwork(towers, { lat: 0.5, lng: 0.5 });
+    expect(best.operator).toBe('KPN');
+    expect(best.ranking.map((r) => r.operator)).toEqual(['KPN', 'Odido']);
   });
 });

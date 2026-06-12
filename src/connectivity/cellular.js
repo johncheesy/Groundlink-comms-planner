@@ -3,21 +3,24 @@
  *
  * Models cellular (2G/3G/4G/5G) coverage from cell-tower locations through the
  * SAME terrain engine the RF coverage uses (FSPL + Deygout in the coverage
- * worker) — not a third-party coverage overlay. Towers are fetched live from
- * OpenStreetMap via the Overpass API (no key needed). A shipped OpenCelliD
- * snapshot pipeline exists (scripts/fetch-opencellid.mjs) but is not wired in
- * yet.
+ * worker) — not a third-party coverage overlay. Tower source, in order:
+ *   1. Pre-baked OpenCelliD snapshot (public/cells/, via cellsnap.js) when one
+ *      covers the area — measured cell positions, recorded radio generation,
+ *      and real operators from MCC/MNC (no key at runtime; the free key is
+ *      used only at data-prep time by scripts/fetch-opencellid.mjs).
+ *   2. Live OpenStreetMap via the Overpass API (no key) everywhere else.
  *
  * The pure parts (band presets, macro defaults, tower selection) are unit-
  * tested; the controller wraps a dedicated coverage instance painted on its own
  * map layer, independent of the mission radio coverage.
  *
- * Honesty: OSM tower data is crowdsourced; cells are really sectorised + downtilted
- * and this models them as omni transmitters — planning-grade, not an operator
- * map. See docs/M9-connectivity-layers.md.
+ * Honesty: tower data is crowdsourced either way; cells are really sectorised +
+ * downtilted and this models them as omni transmitters — planning-grade, not an
+ * operator map. The UI names the source used. See docs/M9-connectivity-layers.md.
  */
 
 import { haversineM } from '../coverage/model.js';
+import { loadSnapshotTowers } from './cellsnap.js';
 
 // Resolve a CSS design token to its value, falling back to a literal. Same
 // pattern as the rest of the codebase, but guarded with try/catch because the
@@ -204,6 +207,26 @@ export function parseOverpassTowers(data) {
   return towers;
 }
 
+/** Meta for the live-OSM tower source (the snapshot carries its own). */
+export const OSM_META = Object.freeze({
+  source: 'osm',
+  region: 'OpenStreetMap',
+  attribution: '© OpenStreetMap contributors (ODbL) · Overpass API',
+});
+
+/**
+ * Tower source resolution: the OpenCelliD snapshot when one covers the bbox,
+ * else live Overpass. Sources are injectable for tests; throws only when the
+ * snapshot misses AND Overpass fails (the controller surfaces that as the
+ * fetch error it always has).
+ * @returns {{ towers:Array, meta:{source, region, attribution, generated} }}
+ */
+export async function fetchTowers(bbox, { loadSnapshot = loadSnapshotTowers, fetchOsm = fetchTowersFromOSM } = {}) {
+  const snap = await loadSnapshot(bbox);
+  if (snap) return { towers: snap.towers, meta: { ...snap.meta } };
+  return { towers: await fetchOsm(bbox), meta: { ...OSM_META, generated: new Date().toISOString() } };
+}
+
 /**
  * Fetch cell-tower nodes from OSM via Overpass API for the given bounding box.
  * Returns an array of { lat, lon, radio, operator } objects compatible with
@@ -240,11 +263,7 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
   let cachedTowers = [];
   let cachedBbox = null;
   let lastCount = 0;
-  const meta = {
-    region: 'OpenStreetMap',
-    attribution: '© OpenStreetMap contributors (ODbL) · Overpass API',
-    generated: null,
-  };
+  let meta = { ...OSM_META, generated: null };
 
   // ── Tower marker layer (MapLibre GeoJSON source + circle layer) ───────────
   // Circles are colour-coded by network type using the CELL_TYPE_DEFAULTS colours.
@@ -382,9 +401,12 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
     if (needFetch) {
       onStatus?.('loading', { count: 0, totals: {} });
       try {
-        cachedTowers = await fetchTowersFromOSM(fetchBbox);
+        // OpenCelliD snapshot first (static file, no key, real operators);
+        // live Overpass covers everywhere a snapshot doesn't.
+        const result = await fetchTowers(fetchBbox);
+        cachedTowers = result.towers;
         cachedBbox = fetchBbox;
-        meta.generated = new Date().toISOString();
+        meta = result.meta;
       } catch (err) {
         onStatus?.('error', { message: err.message });
         return { count: 0, totals: {} };

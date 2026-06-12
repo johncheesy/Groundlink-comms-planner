@@ -1,0 +1,11 @@
+{
+  "regions": [
+    {
+      "region": "NL (sample)",
+      "file": "nl.json",
+      "bbox": { "west": 3.2, "south": 50.7, "east": 7.3, "north": 53.6 },
+      "generated": "2026-06-09T00:00:00.000Z",
+      "count": 146
+    }
+  ]
+}

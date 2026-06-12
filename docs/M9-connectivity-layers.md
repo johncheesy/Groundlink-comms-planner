@@ -81,3 +81,30 @@ Treat each tower as an omni transmitter and reuse the coverage worker:
 4. Mission radio coverage and cellular coverage can be shown independently.
 5. `cellular.js` band/preset mapping is pure + unit-tested; the data-prep script
    documents regeneration and never commits a key.
+
+---
+
+## Addendum — snapshot pipeline wired (12 Jun 2026)
+
+M9 shipped with live Overpass/OSM towers only; the snapshot pipeline above is
+now wired in as the **primary** source, with Overpass as the global fallback:
+
+- `src/connectivity/cellsnap.js` reads `public/cells/index.json` (maintained
+  automatically by `scripts/fetch-opencellid.mjs` on every bake) and serves the
+  smallest snapshot whose bbox **contains** the requested area; anything
+  uncovered — or any load failure — falls through to the existing Overpass
+  fetch unchanged.
+- Operators come from **MCC/MNC** via a small numbering-plan table
+  (NL/BE/DE/FR brands, legacy codes folded into current owners; unknown codes
+  get the honest `MCC xxx · MNC yy` label, never an invented brand). This is
+  what makes the M22 best-network indicator meaningful — OSM nodes rarely
+  carry operator tags.
+- Sector cells collapse to sites (same ~11 m coordinate + radio + operator →
+  one tower) so the coverage compute and markers see masts, not sectors.
+- The readout + attribution name the source actually used
+  ("N OpenCelliD NL towers…" / "N OSM towers…").
+- The committed `public/cells/nl.json` is still the honestly-labelled
+  **sample** from M9. Baking the real NL file is one local command (free key,
+  never committed):
+  `OPENCELLID_KEY=… node scripts/fetch-opencellid.mjs --region nl --mcc 204 --bbox 3.2,50.7,7.3,53.6 --max 4000`
+  — the script updates `index.json`, the app picks it up with no code change.
