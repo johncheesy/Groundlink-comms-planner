@@ -645,20 +645,32 @@
 
               <div id="cellPanel" hidden>
                 <div class="cell-types" role="group" aria-label="Network types">
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="GSM" checked /><span><span class="cell-type__dot" style="background:#94a3b8"></span>2G · GSM</span></label>
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="UMTS" checked /><span><span class="cell-type__dot" style="background:#fbbf24"></span>3G · UMTS</span></label>
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="LTE" checked /><span><span class="cell-type__dot" style="background:#46a6ff"></span>4G · LTE</span></label>
-                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="NR" checked /><span><span class="cell-type__dot" style="background:#34e6c2"></span>5G · NR</span></label>
+                  <!-- Dot colours = the same tokens CELL_TYPE_DEFAULTS resolves
+                       in src/connectivity/cellular.js, so dots match the tower markers. -->
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="GSM" checked /><span><span class="cell-type__dot" style="background: var(--dim)"></span>2G · GSM</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="UMTS" checked /><span><span class="cell-type__dot" style="background: var(--feat-event)"></span>3G · UMTS</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="LTE" checked /><span><span class="cell-type__dot" style="background: var(--feat-track)"></span>4G · LTE</span></label>
+                  <label class="check check--inline"><input type="checkbox" class="cell-type" value="NR" checked /><span><span class="cell-type__dot" style="background: var(--s1)"></span>5G · NR</span></label>
                 </div>
 
                 <div class="input-row">
-                  <button class="btn btn--primary" type="button" id="showCellBtn">Show coverage</button>
+                  <button class="btn btn--primary" type="button" id="showCellBtn" aria-pressed="false">Show coverage</button>
                   <button class="btn" type="button" id="clearCellBtn">Clear</button>
                 </div>
                 <div class="bestnet" id="cellBestNet" hidden>
                   <span class="bestnet__label">Best signal</span>
                   <span class="bestnet__value" id="cellBestNetValue" data-numeric>—</span>
                   <button class="btn btn--ghost btn--sm" type="button" id="cellBestNetPin" title="Drop a probe pin — best network is computed at the pin instead of the map centre" aria-pressed="false">Pin</button>
+                </div>
+
+                <!-- Signal scale (M23 §2) — same spectrum as the RF coverage raster;
+                     dBm boundaries from the LTE reference sensitivity (−100 dBm). -->
+                <div class="legend" aria-label="Cellular signal scale">
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s1)"></span>Excellent <span class="legend__val" data-numeric>≥ -75 dBm</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s2)"></span>Good <span class="legend__val" data-numeric>≥ -85 dBm</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s3)"></span>Marginal <span class="legend__val" data-numeric>≥ -95 dBm</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s4)"></span>Poor <span class="legend__val">transition</span></div>
+                  <div class="legend__row"><span class="legend__swatch" style="background: var(--s5)"></span>None <span class="legend__val" data-numeric>&lt; -100 dBm</span></div>
                 </div>
 
                 <p class="help" id="cellReadout" data-numeric></p>
@@ -898,6 +910,14 @@
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 17l5-7 4 4 5-8 4 6" />
               <path d="M3 21h18" />
+            </svg>
+          </button>
+          <span class="map-rail__sep" aria-hidden="true"></span>
+          <button class="map-rail__btn" type="button" id="locateBtn" aria-label="Show my location" aria-pressed="false" title="Show my location">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+              <circle cx="12" cy="12" r="8" />
             </svg>
           </button>
         </div>
