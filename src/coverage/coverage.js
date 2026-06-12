@@ -71,6 +71,7 @@ export function createCoverageController(
   let interferenceDb = DEFAULT_INTERFERENCE_DB;
   let lastServer = null; // { counts, covered, contested } from the last server render
   let currentTxNames = null; // site names captured at compute time (legend)
+  let renderRetryArmed = false; // deferred renderRaster() while the style loads
 
   function ensureWorker() {
     if (worker) return worker;
@@ -200,20 +201,38 @@ export function createCoverageController(
     if (hasLayer && map.getSource(src)) {
       map.getSource(src).updateImage({ url, coordinates });
     } else {
-      map.addSource(src, { type: 'image', url, coordinates });
-      // Sit before the configured layer; fall back to the AOI outline so the
-      // raster always stays beneath it (and above the basemap).
-      const beforeId = map.getLayer(before) ? before : (map.getLayer(BEFORE) ? BEFORE : undefined);
-      map.addLayer(
-        {
-          id: layer,
-          type: 'raster',
-          source: src,
-          paint: { 'raster-opacity': opacity, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
-        },
-        beforeId,
-      );
-      hasLayer = true;
+      // addSource/addLayer throw only before the style's first `load` event —
+      // guard + retry, else a compute finishing during style load silently
+      // never paints (the M22 tower-marker race, raster edition). The guards
+      // also keep a half-applied first attempt (source added, layer not)
+      // from tripping the retry.
+      try {
+        if (!map.getSource(src)) map.addSource(src, { type: 'image', url, coordinates });
+        // Sit before the configured layer; fall back to the AOI outline so the
+        // raster always stays beneath it (and above the basemap).
+        const beforeId = map.getLayer(before) ? before : (map.getLayer(BEFORE) ? BEFORE : undefined);
+        if (!map.getLayer(layer)) {
+          map.addLayer(
+            {
+              id: layer,
+              type: 'raster',
+              source: src,
+              paint: { 'raster-opacity': opacity, 'raster-resampling': 'linear', 'raster-fade-duration': 0 },
+            },
+            beforeId,
+          );
+        }
+        hasLayer = true;
+      } catch {
+        if (!renderRetryArmed) {
+          renderRetryArmed = true;
+          map.once('load', () => {
+            renderRetryArmed = false;
+            if (lastRaw) renderRaster();
+          });
+        }
+        return;
+      }
     }
   }
 
