@@ -644,8 +644,8 @@ whenStyleReady(() => {
     const host = $('#backendSettingsInner');
     if (!host) return;
     backendSettings = createBackendSettings(host, {
-      onBackendChange(b) {
-        coverageEngine.textContent = b === 'cloudrf' ? 'CloudRF ITM' : 'FSPL+Deygout';
+      onBackendChange() {
+        coverageEngine.textContent = engineLabel();
       },
     });
   })();
@@ -684,8 +684,10 @@ whenStyleReady(() => {
         refreshExportPanel();
         const terrain = info?.terrain;
         const clutter = info?.clutter;
+        const ranP1812 = info?.engine === 'p1812';
         coverageEngine.textContent =
-          (terrain ? 'FSPL+Deygout' : 'FSPL · flat') + (clutter ? ' · clutter' : '');
+          (ranP1812 ? engineLabel('p1812') : (terrain ? 'FSPL+Deygout' : 'FSPL · flat')) +
+          (clutter ? ' · clutter' : '');
         // update status bar terrain indicator
         if (statusTerrain) {
           statusTerrain.textContent = terrain
@@ -697,9 +699,14 @@ whenStyleReady(() => {
         if (stats && stats.coveredFracAoi != null) {
           bits.push(`${Math.round(stats.coveredFracAoi * 100)}% of the AOI is covered (marginal or better).`);
         }
-        bits.push(terrain
-          ? 'Terrain-aware (FSPL + Deygout knife-edge over DEM, k=4/3).'
-          : (useTerrainInput.checked ? 'Terrain unavailable — flat FSPL fallback.' : 'Flat free-space (FSPL).'));
+        bits.push(ranP1812
+          ? 'Terrain-aware (ITU-R P.1812 Delta-Bullington over DEM).'
+          : terrain
+            ? 'Terrain-aware (FSPL + Deygout knife-edge over DEM, k=4/3).'
+            : (useTerrainInput.checked ? 'Terrain unavailable — flat FSPL fallback.' : 'Flat free-space (FSPL).'));
+        if (resolveEngine() === 'p1812' && !ranP1812 && useTerrainInput.checked) {
+          bits.push('P.1812 needs terrain — ran the FSPL fallback.');
+        }
         if (useClutterInput.checked) {
           bits.push(clutter
             ? 'ESA WorldCover clutter applied.'
@@ -1046,7 +1053,7 @@ whenStyleReady(() => {
         targetFrac: clampNum($('#targetCoverage').value, 10, 100, 95) / 100,
       },
     );
-    coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+    coverageEngine.textContent = engineLabel(params.engine);
     if (mq.matches) closePanel();
   });
   clearSitesBtn.addEventListener('click', () => recommender.clear());
@@ -1674,7 +1681,7 @@ function gatherPaceContext() {
       txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
       rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
       useTerrain: useTerrainInput.checked,
-      engine: useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat',
+      engine: engineLabel(),
       digitalMode: getDigitalMode(),
     },
     mission: {
@@ -2147,15 +2154,43 @@ function updateSignalLegend() {
   set('legendValNone', `< ${v(thNone, -110)} dBm`);
 }
 
+/**
+ * Resolve the model selector (E2) to the engine the worker runs:
+ * 'p1812' | 'fallback'. CloudRF is handled before the worker is involved;
+ * 'auto' means P.1812 whenever terrain is on (P.1812 is a terrain model).
+ */
+function resolveEngine() {
+  const b = backendSettings?.getBackend?.() ?? 'builtin';
+  if (b === 'p1812') return 'p1812';
+  if (b === 'auto' && useTerrainInput.checked) return 'p1812';
+  return 'fallback';
+}
+
+/** Human label for the engine about to run / just run (result hint + report). */
+function engineLabel(engineOverride) {
+  const b = backendSettings?.getBackend?.() ?? 'builtin';
+  if (!engineOverride && b === 'cloudrf' && backendSettings?.getApiKey?.()) return 'CloudRF ITM';
+  const engine = engineOverride ?? resolveEngine();
+  if (engine === 'p1812') {
+    const { p, pL } = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
+    return `P.1812 · ${p}% time / ${pL}% loc`;
+  }
+  return useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+}
+
 /** Shared link/engine params (everything except bounds/tx/txHeightM). */
 function coverageParams() {
   const freqMHz = clampNum(freqInput.value, 30, 6000, 150);
   const powerW = clampNum(powerInput.value, 0.01, 100, 5);
+  const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
   return {
     eirpDbm: wattsToDbm(powerW) + TX_GAIN_DBI,
     freqMHz,
     rxGainDbi: 0,
     clutterDb: 0,
+    engine: resolveEngine(),
+    p: pct.p,
+    pL: pct.pL,
     useTerrain: useTerrainInput.checked,
     useClutter: useClutterInput.checked,
     rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
@@ -2249,7 +2284,7 @@ function runCoverage() {
       txs,
       marker: !txs, // multi-site markers stand in for the single tx marker
     });
-    coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+    coverageEngine.textContent = engineLabel(params.engine);
   };
 
   // M18: when the CloudRF backend is selected (and a key is set), run the hosted
@@ -2385,7 +2420,7 @@ async function runTeamCoverage(team) {
 
   const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
   statusMode.textContent = `Coverage for ${team.name}…`;
-  coverageEngine.textContent = useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
+  coverageEngine.textContent = engineLabel(params.engine);
   const stats = await coverage.computeAsync(coverageBoundsFor(bbox, center, params), center, params, {
     aoi: aoiMask,
     txs,

@@ -2,7 +2,9 @@
  * Coverage compute Web Worker.
  *
  * Computes received signal over a grid covering the AOI bbox, off the main
- * thread. Two paths:
+ * thread. Three paths:
+ *   - P.1812 (E2): ITU-R P.1812 over a bare-DEM profile + representative
+ *     clutter heights, when params.engine === 'p1812' and the DEM loaded.
  *   - terrain-aware: FSPL + Deygout single knife-edge over a real elevation
  *     profile (AWS Terrarium DEM), k = 4/3 effective-earth bulge baked in.
  *   - flat fallback: FSPL only (when terrain is off or the DEM is unavailable).
@@ -29,9 +31,10 @@
  * are null and callers fall back to the bbox fraction (drone relay).
  */
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
+import { receivedDbmP1812 } from '../coverage/p1812.js';
 import { buildDem } from './dem.js';
 import { buildLandcover, clutterDbForClass } from './worldcover.js';
-import { buildProfile } from './profile.js';
+import { buildProfile, buildProfileP1812 } from './profile.js';
 import { createYielder } from './yield.js';
 
 // Cancellation: `activeId` is the only job allowed to finish. A newer 'compute'
@@ -76,6 +79,14 @@ self.onmessage = async (e) => {
 
   const rxHeight = params.rxHeightM ?? 1.5;
 
+  // E2 engine branch: 'p1812' runs the ITU-R P.1812 model when a DEM is
+  // available (it is a terrain model — without one we fall back, matching the
+  // spec's "Auto" semantics). Anything else keeps the FSPL+Deygout path.
+  const useP1812 = params.engine === 'p1812' && !!dem;
+  // Below the P.1812 validity floor (0.25 km) the cell is essentially at the
+  // mast — plain free space is the honest answer there for either engine.
+  const P1812_MIN_DIST_M = 250;
+
   // Transmitter list. Single `tx` is always accepted (backward compatible);
   // when `txs` is supplied (M3 multi-site) each cell takes the strongest of all
   // transmitters. A 1-element list reproduces the single-tx result exactly.
@@ -106,11 +117,25 @@ self.onmessage = async (e) => {
       for (let ti = 0; ti < txList.length; ti++) {
         const t = txList[ti];
         const dist = haversineM(t.lat, t.lng, lat, lng);
-        let diffraction = 0;
-        if (dem && dist > 50) {
-          diffraction = deygoutLossDb(buildProfile(t, { lng, lat }, dist, dem), txElevs[ti], rxElev, params.freqMHz, dist);
+        let dbm;
+        if (useP1812 && dist > P1812_MIN_DIST_M) {
+          // Clutter rides in the profile (heights) + terminal correction —
+          // never also as the WorldCover dB term, so nothing counts twice.
+          const prof = buildProfileP1812(t, { lng, lat }, dist, dem, params.useClutter ? landcover : null);
+          dbm = receivedDbmP1812(params, prof, {
+            p: params.p ?? 50,
+            pL: params.pL ?? 50,
+            txHeightM: t.txHeightM ?? params.txHeightM ?? 10,
+            rxHeightM: rxHeight,
+            latDeg: (t.lat + lat) / 2,
+          });
+        } else {
+          let diffraction = 0;
+          if (dem && dist > 50) {
+            diffraction = deygoutLossDb(buildProfile(t, { lng, lat }, dist, dem), txElevs[ti], rxElev, params.freqMHz, dist);
+          }
+          dbm = receivedDbm(params, dist, diffraction, useP1812 ? 0 : clutterDb);
         }
-        const dbm = receivedDbm(params, dist, diffraction, clutterDb);
         if (dbm > maxDbm) maxDbm = dbm;
       }
       const cls = classifyDbm(maxDbm, thresholds, floorDbm);
@@ -133,6 +158,7 @@ self.onmessage = async (e) => {
     {
       type: 'done', id, cols, rows, classes,
       terrain: !!dem, clutter: !!landcover,
+      engine: useP1812 ? 'p1812' : 'fallback',
       totalCells: cols * rows,
       inAoi: aoi ? inAoiCount : null,
       coveredInAoi: aoi ? coveredInAoiCount : null,
