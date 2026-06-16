@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   CELL_BANDS,
   CELL_DEFAULTS,
   OSM_META,
+  OVERPASS_ENDPOINTS,
   RADIO_TYPES,
   TYPE_WEIGHT,
   UNKNOWN_OPERATOR,
@@ -10,6 +11,7 @@ import {
   bestNetwork,
   cellDefaults,
   fetchTowers,
+  getLastOverpassEndpoint,
   parseOverpassTowers,
   selectTowers,
   towersToTxs,
@@ -251,5 +253,64 @@ describe('fetchTowers — snapshot first, Overpass fallback (injected sources)',
     const best = bestNetwork(towers, { lat: 0.5, lng: 0.5 });
     expect(best.operator).toBe('KPN');
     expect(best.ranking.map((r) => r.operator)).toEqual(['KPN', 'Odido']);
+  });
+});
+
+describe('Overpass endpoint fallback', () => {
+  const BBOX = { west: 0, south: 0, east: 1, north: 1 };
+  const okJson = () => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: async () => ({ elements: [{ lat: 0.5, lon: 0.5, tags: { 'communication:lte': 'yes', operator: 'KPN' } }] }),
+  });
+  const fail = (status, statusText) => ({ ok: false, status, statusText, json: async () => ({}) });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('exposes the three documented endpoints, main instance first', () => {
+    expect(OVERPASS_ENDPOINTS).toEqual([
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    ]);
+  });
+
+  it('moves to the next endpoint when the first is rate-limited (429)', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(fail(429, 'Too Many Requests')) // overpass-api.de
+      .mockResolvedValueOnce(okJson());                       // kumi.systems
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await fetchTowers(BBOX, { loadSnapshot: async () => null });
+    expect(res.towers).toHaveLength(1);
+    expect(res.towers[0].operator).toBe('KPN');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe(OVERPASS_ENDPOINTS[0]);
+    expect(fetchMock.mock.calls[1][0]).toBe(OVERPASS_ENDPOINTS[1]);
+    expect(getLastOverpassEndpoint()).toBe(OVERPASS_ENDPOINTS[1]);
+  });
+
+  it('falls through a network error to a working mirror', async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error('Failed to fetch')) // overpass-api.de network error
+      .mockResolvedValueOnce(okJson());                     // kumi.systems
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await fetchTowers(BBOX, { loadSnapshot: async () => null });
+    expect(res.towers).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws a combined error only when every endpoint is out', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fail(504, 'Gateway Timeout'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchTowers(BBOX, { loadSnapshot: async () => null }))
+      .rejects.toThrow(/All Overpass endpoints failed/);
+    expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_ENDPOINTS.length);
+    expect(getLastOverpassEndpoint()).toBeNull();
   });
 });

@@ -904,8 +904,13 @@ whenStyleReady(() => {
       layer: `cellular-${type}-layer`,
       before: 'coverage-layer',
       opacity: 0.55,
-      onStatus(state) {
-        if (state === 'error') cellHelp.textContent = 'Cellular worker failed — see console.';
+      onStatus(state, info) {
+        if (state === 'error') {
+          const why = info?.message ? ` (${info.message})` : '';
+          cellHelp.textContent = `Cellular worker failed${why} — see console.`;
+          // Also surface in the primary readout: cellHelp is easy to miss.
+          if (cellReadout) cellReadout.textContent = `Coverage compute failed${why}. See the browser console for details.`;
+        }
       },
     });
   }
@@ -2495,16 +2500,23 @@ function initCellularControls() {
       });
       const meta = cellular.getMeta();
       if (cellAttribution) cellAttribution.textContent = meta.attribution;
+      // Name the source actually used — OpenCelliD snapshot or live OSM/Overpass.
+      // The shipped snapshot is a 146-cell synthetic NL *sample*; flag that so a
+      // sparse result there isn't mistaken for "the layer is broken".
+      const isSample = meta.source === 'opencellid' && /sample/i.test(meta.region || '');
+      const srcLabel = meta.source === 'opencellid'
+        ? `OpenCelliD ${meta.region}`
+        : 'live OpenStreetMap (Overpass)';
       if (result.count === 0) {
-        cellReadout.textContent = 'No cell towers found in view — pan/zoom to a populated area and try again.';
+        cellReadout.textContent = isSample
+          ? `No sample towers here — the bundled OpenCelliD ${meta.region} set only covers a few NL cities. Pan to one, or move outside NL to use live OpenStreetMap data.`
+          : `No cell towers found in view (source: ${srcLabel}) — pan/zoom to a populated area and try again.`;
       } else {
         const per = Object.entries(result.totals || {})
           .filter(([, n]) => n > 0)
           .map(([t, n]) => `${CELL_TYPE_DEFAULTS[t].label.split(' · ')[0]} ${n}`)
           .join(' · ');
-        // Name the source actually used — OpenCelliD snapshot or live OSM.
-        const src = meta.source === 'opencellid' ? `OpenCelliD ${meta.region}` : 'OSM';
-        cellReadout.textContent = `${result.count} ${src} tower${result.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
+        cellReadout.textContent = `${result.count} ${srcLabel} tower${result.count === 1 ? '' : 's'} in view${per ? ` (${per})` : ''}.`;
         cellShown = true;
         reflectCellBtn();
       }

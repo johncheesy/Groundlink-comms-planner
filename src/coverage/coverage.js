@@ -97,8 +97,12 @@ export function createCoverageController(
         }
       }
     };
-    worker.onerror = () => {
-      onStatus?.('error');
+    worker.onerror = (e) => {
+      // Surface the failure — silently swallowing it is why a dead coverage
+      // worker reads as "the layer just stopped working" with no clue why.
+      // eslint-disable-next-line no-console
+      console.error('[coverage] worker error:', e?.message || e, e?.filename ? `(${e.filename}:${e.lineno})` : '');
+      onStatus?.('error', { message: e?.message || 'coverage worker error' });
       if (pendingResolve) {
         const r = pendingResolve;
         pendingResolve = null;

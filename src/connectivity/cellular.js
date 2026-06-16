@@ -172,8 +172,24 @@ function dist2(c, ctr) {
 
 const CELL_ORDER = ['GSM', 'UMTS', 'LTE', 'NR'];
 
-// Overpass API endpoint — free, no key, global OSM tower data.
-const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
+// Overpass API endpoints — free, no key, global OSM tower data. The main
+// instance (overpass-api.de) is frequently rate-limited (HTTP 429) or down,
+// which is the recurring "cellular layer stopped working" failure: outside the
+// tiny baked snapshot, every fetch falls through to Overpass, so one flaky
+// endpoint kills coverage everywhere. fetchTowersFromOSM() tries each in order
+// until one returns, so a single instance being out is no longer fatal.
+export const OVERPASS_ENDPOINTS = Object.freeze([
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+]);
+
+// Surface which endpoint last served (or that all failed) so the controller can
+// tell the user the live source state. null until the first OSM fetch.
+let lastOverpassEndpoint = null;
+export function getLastOverpassEndpoint() {
+  return lastOverpassEndpoint;
+}
 
 /**
  * Infer the network type (GSM/UMTS/LTE/NR) from an OSM node's tags.
@@ -243,7 +259,7 @@ export async function fetchTowers(bbox, { loadSnapshot = loadSnapshotTowers, fet
  * Returns an array of { lat, lon, radio, operator } objects compatible with
  * selectTowers() and bestNetwork().
  */
-async function fetchTowersFromOSM(bbox) {
+async function fetchTowersFromOSM(bbox, { endpoints = OVERPASS_ENDPOINTS } = {}) {
   const { south, west, north, east } = bbox;
   // Three node selectors that cover most macro-cell towers in OSM tagging practice:
   //   1. communication:mobile_phone=yes  (common general tag)
@@ -255,13 +271,41 @@ async function fetchTowersFromOSM(bbox) {
     `node["tower:type"="communication"](${south},${west},${north},${east});` +
     `node["man_made"="mast"]["communication:mobile_phone"](${south},${west},${north},${east});` +
     `);out body;`;
-  const res = await fetch(OVERPASS_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'data=' + encodeURIComponent(query),
-  });
-  if (!res.ok) throw new Error(`Overpass API ${res.status} ${res.statusText}`);
-  return parseOverpassTowers(await res.json());
+  const body = 'data=' + encodeURIComponent(query);
+
+  // Try each mirror in turn; only give up (and throw) when every one is out.
+  // A 429/5xx or a network error on one endpoint moves on to the next rather
+  // than failing the whole request.
+  const errors = [];
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      if (!res.ok) {
+        errors.push(`${shortHost(endpoint)}: ${res.status} ${res.statusText}`);
+        continue;
+      }
+      lastOverpassEndpoint = endpoint;
+      return parseOverpassTowers(await res.json());
+    } catch (err) {
+      // Network/CORS/abort — record and fall through to the next mirror.
+      errors.push(`${shortHost(endpoint)}: ${err.message}`);
+    }
+  }
+  lastOverpassEndpoint = null;
+  throw new Error(`All Overpass endpoints failed (${errors.join('; ')})`);
+}
+
+/** Host part of a URL for compact error messages; tolerant of bad input. */
+function shortHost(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 /**
