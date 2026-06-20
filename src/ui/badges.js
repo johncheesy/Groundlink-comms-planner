@@ -14,6 +14,26 @@
  */
 import { NAV_GROUPS } from './groups.js';
 
+// ---- E3b: model accuracy badge -------------------------------------------
+
+const MODEL_ACCURACY = {
+  p1812:   { label: 'P.1812',       margin: '±8 dB',  tooltip: 'ITU-R P.1812 Delta-Bullington — validated on median propagation' },
+  deygout: { label: 'FSPL+Deygout', margin: '±12 dB', tooltip: 'Free-space path loss + Deygout diffraction — tends to overestimate loss at multiple edges' },
+  cloudrf: { label: 'ITM/CloudRF',  margin: '±6 dB',  tooltip: 'Longley-Rice ITM via CloudRF API — more accurate but requires API key' },
+  flat:    { label: 'FSPL flat',    margin: '±15 dB',  tooltip: 'Free-space path loss only — no terrain, no diffraction' },
+};
+
+/**
+ * E3b — Render an inline model-accuracy span for the result card.
+ * @param {string} modelKey  — 'p1812' | 'deygout' | 'cloudrf' | 'flat'
+ * @param {string|null} percentileLabel — e.g. '50% time' or null
+ */
+export function modelBadge(modelKey, percentileLabel) {
+  const info = MODEL_ACCURACY[modelKey] ?? { label: modelKey, margin: '±? dB', tooltip: 'Unknown model' };
+  const pct = percentileLabel ? ` · ${percentileLabel}` : '';
+  return `<span class="badge badge--ref result-card__model-badge" title="${info.tooltip}">${info.label} · ${info.margin}${pct}</span>`;
+}
+
 /**
  * Render one badge model into a span (group header, section header or strip
  * icon). `badge` of null/undefined hides the element. Pure-DOM helper — the

@@ -35,6 +35,7 @@ export function initMap(container) {
     attributionControl: false, // we add a compact one below
     dragRotate: true,
     cooperativeGestures: false,
+    preserveDrawingBuffer: true, // M37: required for map.getCanvas().toDataURL() in mission brief
   });
 
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
@@ -68,16 +69,21 @@ export function initMap(container) {
     return { category: activeCategory, variantId: newVariant };
   }
 
-  // ---- 3D terrain --------------------------------------------------------
+  // ---- 3D terrain + globe projection -------------------------------------
+  // When 3D is on, switch to globe projection so the world is spherical
+  // rather than an infinite Mercator plane. Reverts to mercator on exit.
   let terrainOn = false;
   function setTerrain(on, { exaggeration = 1.5, pitch = 45 } = {}) {
     terrainOn = on;
     if (on) {
       map.setTerrain({ source: TERRARIUM_DEM.id, exaggeration });
       map.easeTo({ pitch, duration: 600 });
+      // Globe projection: world is spherical, not infinite flat plane
+      try { map.setProjection('globe'); } catch (_) {}
     } else {
       map.setTerrain(null);
       map.easeTo({ pitch: 0, bearing: 0, duration: 600 });
+      try { map.setProjection('mercator'); } catch (_) {}
     }
     return terrainOn;
   }

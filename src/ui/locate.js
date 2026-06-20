@@ -43,9 +43,15 @@ export function createLocateControl(map, { button, onError, onStatus } = {}) {
     reflect();
   }
 
-  function fail() {
+  function fail(err) {
     stop();
-    onError?.('Location not available');
+    // PositionError.code: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
+    const msg =
+      err?.code === 1 ? 'Location blocked — allow in browser / site settings' :
+      err?.code === 2 ? 'Location unavailable — no GPS fix' :
+      err?.code === 3 ? 'Location timed out — try again' :
+      'Location not available';
+    onError?.(msg);
   }
 
   function start() {

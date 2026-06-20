@@ -3125,6 +3125,85 @@ select.input--sm { text-align: left; padding-right: 6px; }
   }
 }
 
+/* ---- E3c: Run All button ------------------------------------------------- */
+
+.toolbar__run-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  margin-left: var(--sp-3);
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  transition: opacity 0.12s;
+}
+.toolbar__run-all:hover {
+  opacity: 0.88;
+}
+.toolbar__run-all:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.toolbar__run-all:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.toolbar__run-all .ico {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+  stroke: none;
+  color: currentColor;
+}
+.toolbar__run-all-label {
+  line-height: 1;
+}
+@media (max-width: 700px) {
+  .toolbar__run-all-label { display: none; }
+}
+
+/* ---- M37: Mission Brief button -------------------------------------------- */
+
+.toolbar__brief-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: var(--sp-2);
+  border-radius: 5px;
+  border: 1px solid var(--hair);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.toolbar__brief-btn:hover {
+  background: var(--raise);
+  color: var(--ink);
+}
+.toolbar__brief-btn .ico {
+  width: 15px;
+  height: 15px;
+}
+
+/* ---- E3b: model accuracy badge on result card ----------------------------- */
+
+.result-card__model {
+  margin: var(--sp-2) 0 0;
+}
+.result-card__model-badge {
+  font-size: 11px;
+}
+
 /* ---- Left-menu group headers (M20 §2) ------------------------------------ */
 
 .panel-group__head {
@@ -4033,6 +4112,95 @@ select.input--sm { text-align: left; padding-right: 6px; }
   /* zone colours resolve from the --srv-* tokens at runtime */
 }
 
+/* ── M36: Mission Ops Dashboard ─────────────────────────────────────────── */
+
+.dash-ops-flyout {
+  width: 280px;
+  padding: var(--sp-2) 0 var(--sp-3);
+  gap: 0;
+}
+.dash-ops {
+  display: flex;
+  flex-direction: column;
+}
+.dash-ops__section {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--hair);
+}
+.dash-ops__section:last-child {
+  border-bottom: none;
+}
+.dash-ops__section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: 4px;
+}
+.dash-ops__section-title {
+  font-family: var(--disp);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  flex: 1;
+}
+.dash-ops__pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.dash-ops__pill--teal {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+}
+.dash-ops__pill--azure {
+  color: var(--accent2, #46a6ff);
+  background: color-mix(in srgb, var(--accent2, #46a6ff) 15%, var(--surface));
+}
+.dash-ops__pill--amber {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 15%, var(--surface));
+}
+.dash-ops__pill--dim {
+  color: var(--dim);
+  background: var(--raise);
+}
+.dash-ops__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-height: 20px;
+}
+.dash-ops__row-label {
+  font-size: 11px;
+  color: var(--dim);
+  flex: 1;
+  white-space: nowrap;
+}
+.dash-ops__row-value {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.dash-ops__placeholder {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+.dash-ops__gaps {
+  margin-top: 4px;
+}
+.dash-ops__gap {
+  font-size: 10.5px;
+  color: var(--warn);
+  margin-top: 2px;
+}
+
 /* ── Costed BOM (M26) ─────────────────────────────────────────────────────── */
 .power-bom__price { width: 72px; }
 .power-bom__total td {
@@ -4047,3 +4215,706 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-top: var(--sp-2);
 }
 .power-bom__actions .help { margin: 0; }
+
+/* ── M39: Freq deconfliction panel ─────────────────────────────────────── */
+
+.deconflict-wrap {
+  margin-bottom: var(--sp-3);
+}
+.deco-summary {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-2);
+}
+.deco-badge {
+  font-size: 10.5px;
+}
+.deco-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.deco-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+}
+.deco-item--error {
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  border-left-color: var(--bad);
+}
+.deco-item--warn {
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  border-left-color: var(--warn);
+}
+.deco-item__ico {
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.deco-item--error .deco-item__ico { color: var(--bad); }
+.deco-item--warn  .deco-item__ico { color: var(--warn); }
+.deco-item__msg {
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+/* ── M38: Satcom panel ──────────────────────────────────────────────────── */
+
+.satcom-placeholder {
+  padding: var(--sp-2) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.satcom-placeholder__text {
+  font-size: 11.5px;
+  color: var(--dim);
+  margin: 0;
+}
+
+/* Summary row — best GEO recommendation */
+.satcom-summary {
+  padding: var(--sp-2) 0 var(--sp-3);
+  border-bottom: 1px solid var(--hair);
+  margin-bottom: var(--sp-3);
+}
+.satcom-summary__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  margin-bottom: 4px;
+}
+.satcom-summary__best {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+.satcom-summary__name {
+  font-weight: 600;
+  color: var(--sat-color, var(--accent));
+}
+.satcom-summary__el {
+  font-variant-numeric: tabular-nums;
+  color: var(--sat-color, var(--accent));
+}
+.satcom-summary__az {
+  font-size: 11px;
+  color: var(--dim);
+}
+.satcom-summary__best--none {
+  color: var(--bad);
+  font-size: 11.5px;
+  font-style: italic;
+}
+
+/* Section headers */
+.satcom-section-hd {
+  font-family: var(--disp);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  margin: 0 0 var(--sp-2);
+}
+
+/* GEO satellite rows */
+.satcom-geo {
+  margin-bottom: var(--sp-3);
+}
+.satcom-row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--hair);
+}
+.satcom-row:last-child { border-bottom: none; }
+.satcom-arc {
+  display: block;
+  flex-shrink: 0;
+}
+.satcom-row__info {
+  min-width: 0;
+}
+.satcom-row__name {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.satcom-row__net {
+  display: block;
+  font-size: 10px;
+  color: var(--faint);
+}
+.satcom-row__nums {
+  text-align: right;
+}
+.satcom-row__el {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.satcom-el--ok    { color: var(--ok); }
+.satcom-el--warn  { color: var(--warn); }
+.satcom-el--bad   { color: var(--bad); }
+.satcom-el--faint { color: var(--faint); }
+.satcom-row__az {
+  font-size: 10px;
+  color: var(--faint);
+}
+
+/* LEO system rows */
+.satcom-leo {
+  margin-bottom: var(--sp-3);
+}
+.satcom-leo-row {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--hair);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.satcom-leo-row:last-child { border-bottom: none; }
+.satcom-leo-badge {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.satcom-leo-net {
+  font-size: 10.5px;
+  color: var(--dim);
+  flex: 1;
+}
+.satcom-leo-note {
+  width: 100%;
+  font-size: 10px;
+  color: var(--faint);
+  padding-left: 0;
+  padding-top: 2px;
+  margin: 0;
+}
+
+.satcom-empty {
+  font-size: 11px;
+  color: var(--dim);
+  font-style: italic;
+  padding: var(--sp-2) 0;
+}
+.satcom-footer {
+  font-size: 9.5px;
+  color: var(--faint);
+  margin: var(--sp-2) 0 0;
+  line-height: 1.4;
+}
+
+/* ── Maven-style: section status borders ───────────────────────────────── */
+/* Left accent border on active/warned panel sections — operational HUD feel */
+
+.lpanel__section--active > .lpanel__section-hd,
+.group-item--has-data > .lpanel__item-hd {
+  border-left: 2px solid var(--accent);
+  padding-left: calc(var(--sp-3) - 2px);
+}
+.lpanel__section--warn > .lpanel__section-hd,
+.group-item--warn > .lpanel__item-hd {
+  border-left: 2px solid var(--warn);
+  padding-left: calc(var(--sp-3) - 2px);
+}
+
+/* ── Maven-style: model + coverage status chip in toolbar ───────────────── */
+
+.toolbar__intel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--raise);
+  border: 1px solid var(--hair);
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+  margin: 0 var(--sp-2);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  transition: opacity 0.2s;
+}
+.toolbar__intel__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--faint);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.toolbar__intel__dot--ok   { background: var(--ok); }
+.toolbar__intel__dot--warn { background: var(--warn); }
+.toolbar__intel__dot--run  {
+  background: var(--accent);
+  animation: intel-blink 0.9s ease-in-out infinite alternate;
+}
+@keyframes intel-blink {
+  from { opacity: 1; }
+  to   { opacity: 0.3; }
+}
+.toolbar__intel__cov {
+  font-weight: 600;
+  color: var(--ink);
+}
+.toolbar__intel__model {
+  color: var(--dim);
+  font-size: 10px;
+}
+
+@media (max-width: 600px) {
+  .toolbar__intel { display: none; }
+}
+
+/* ── Section details (collapsible sub-section) ──────────────────────────── */
+
+.section__details {
+  margin-top: var(--sp-2);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.section__details-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dim);
+  padding: var(--sp-2) var(--sp-3);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--bg2);
+  user-select: none;
+}
+.section__details-summary::before {
+  content: '▶';
+  font-size: 8px;
+  color: var(--faint);
+  transition: transform 0.15s;
+}
+.section__details[open] > .section__details-summary::before {
+  transform: rotate(90deg);
+}
+.section__details > :not(summary) {
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+}
+
+/* ── M41: Network topology diagram ─────────────────────────────────────── */
+
+.topo-wrap {
+  margin-top: var(--sp-3);
+}
+.topo-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.topo-svg-wrap {
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--bg2);
+  border: 1px solid var(--hair);
+}
+.topo-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Edges */
+.topo-edge {
+  stroke: var(--hair2);
+  stroke-width: 1.5;
+  transition: stroke 0.15s, opacity 0.15s;
+}
+.topo-edge--hi {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.topo-edge--dim {
+  opacity: 0.2;
+}
+.topo-arrow-fill {
+  fill: var(--hair2);
+}
+
+/* Nodes */
+.topo-node {
+  cursor: default;
+  transition: opacity 0.15s;
+}
+.topo-node--dim {
+  opacity: 0.25;
+}
+.topo-node__ring {
+  fill: none;
+  stroke: var(--hair2);
+  stroke-width: 1.2;
+}
+.topo-node__dot {
+  fill: var(--accent);          /* default: teal (base/HQ) */
+}
+.topo-node--relay .topo-node__dot  { fill: var(--feat-event); }   /* amber = relay */
+.topo-node--mobile .topo-node__dot { fill: var(--accent2); }      /* azure = mobile */
+.topo-node--handheld .topo-node__dot { fill: var(--accent2); }    /* azure = handheld */
+.topo-node:hover .topo-node__ring,
+.topo-node:focus .topo-node__ring {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* Labels */
+.topo-label {
+  font-family: var(--ui);
+  font-size: 9px;
+  fill: var(--ink);
+  font-weight: 600;
+}
+.topo-sublabel {
+  font-family: var(--ui);
+  font-size: 7.5px;
+  fill: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── M42: Drone height optimizer bar chart ──────────────────────────────── */
+
+.drone-opt-wrap {
+  margin-top: var(--sp-3);
+}
+.drone-opt-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  height: 80px;
+  margin: var(--sp-2) 0 var(--sp-1);
+}
+.drone-opt-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.drone-opt-bar__fill {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent2);
+  transition: background 0.2s;
+  min-height: 3px;
+}
+.drone-opt-bar--best .drone-opt-bar__fill {
+  background: var(--accent);
+}
+.drone-opt-bar__pct {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+.drone-opt-bar__alt {
+  font-size: 8px;
+  color: var(--faint);
+}
+.drone-opt-result {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-top: var(--sp-1);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.drone-opt-progress {
+  font-size: 11px;
+  color: var(--dim);
+  text-align: center;
+  padding: var(--sp-2) 0;
+}
+
+/* ── M44: Satcom fade margin badges ────────────────────────────────────── */
+.satcom-fade {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--surface2);
+  margin-top: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.satcom-fade--ok   { border-left: 3px solid var(--ok); }
+.satcom-fade--warn { border-left: 3px solid var(--warn); }
+.satcom-fade--bad  { border-left: 3px solid var(--bad); }
+.satcom-fade__label {
+  font-size: 10px;
+  color: var(--dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.satcom-fade__vals {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.satcom-fade__vals span { color: var(--text); }
+.satcom-fade__vals b    { font-variant-numeric: tabular-nums; }
+.satcom-fade-note {
+  font-size: 10px;
+  color: var(--faint);
+  margin-top: var(--sp-1);
+  line-height: 1.4;
+  padding: 0 var(--sp-2);
+}
+/* Make each GEO row a grid so the fade badge can span full width */
+.satcom-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0 var(--sp-2);
+  align-items: center;
+  padding: var(--sp-2);
+  border-bottom: 1px solid var(--hair);
+  font-size: 12px;
+}
+.satcom-row .satcom-fade { grid-column: 1 / -1; }
+
+/* ── M45: Topology link-quality edges ──────────────────────────────────── */
+.topo-edge--quality-good    { stroke: var(--accent);  stroke-width: 2; }
+.topo-edge--quality-warn    { stroke: var(--warn);    stroke-width: 2; }
+.topo-edge--quality-poor    { stroke: var(--bad);     stroke-width: 2; stroke-dasharray: 5 4; }
+.topo-edge--quality-unknown { stroke: var(--faint);   stroke-width: 1.5; stroke-dasharray: 3 4; }
+/* Keep dim/hi overrides working on top of quality classes */
+.topo-edge--hi { opacity: 1; stroke-width: 3 !important; }
+.topo-edge--dim { opacity: 0.2; }
+
+.topo-quality-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: 10px;
+  color: var(--dim);
+  padding: var(--sp-1) var(--sp-2);
+  margin-top: var(--sp-1);
+}
+.topo-key-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 3px;
+}
+.topo-key--good    { background: var(--accent); }
+.topo-key--warn    { background: var(--warn); }
+.topo-key--poor    { background: var(--bad); }
+.topo-key--unknown { background: var(--faint); }
+
+.topo-edge-tip {
+  position: absolute;
+  background: var(--surface3);
+  border: 1px solid var(--hair);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+  font-variant-numeric: tabular-nums;
+}
+.topo-svg-wrap { position: relative; }
+.topo-unplaced-note {
+  font-size: 11px;
+  color: var(--dim);
+  text-align: center;
+  padding: var(--sp-2);
+  margin: 0;
+}
+
+/* ── M46: Radio suggest panel ──────────────────────────────────────────── */
+.radio-suggest__node {
+  margin-bottom: var(--sp-3);
+}
+.radio-suggest__node-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--sp-1) 0 var(--sp-1);
+  border-bottom: 1px solid var(--hair);
+  margin-bottom: var(--sp-2);
+}
+.radio-suggest__item {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--hair2, var(--hair));
+}
+.radio-suggest__item:last-child { border-bottom: none; }
+.radio-suggest__score-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.radio-suggest__score-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.radio-suggest__score-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.radio-suggest__score-num {
+  font-size: 10px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 22px;
+  text-align: right;
+}
+.radio-suggest__info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+.radio-suggest__radio-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.radio-suggest__radio-meta {
+  font-size: 10px;
+  color: var(--dim);
+}
+.radio-suggest__apply {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* ── M47: Mission readiness score ──────────────────────────────────────── */
+.readiness-section {
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  border-radius: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--hair);
+}
+.intel-score--high { border-color: var(--accent); }
+.intel-score--mid  { border-color: var(--warn); }
+.intel-score--low  { border-color: var(--bad); }
+
+.readiness-body {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  margin-top: var(--sp-2);
+}
+.readiness-gauge {
+  flex-shrink: 0;
+}
+.readiness-num {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  fill: var(--text);
+  font-family: 'Sora', sans-serif;
+}
+.readiness-sub {
+  font-size: 8px;
+  fill: var(--dim);
+}
+.readiness-dims {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.readiness-dim {
+  display: grid;
+  grid-template-columns: 90px 1fr 32px;
+  gap: 4px;
+  align-items: center;
+}
+.readiness-dim__label {
+  font-size: 10px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.readiness-dim__bar {
+  height: 4px;
+  background: var(--surface3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.readiness-dim__fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s;
+}
+.readiness-dim__val {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.readiness-dim__val--ok   { color: var(--accent); }
+.readiness-dim__val--warn { color: var(--warn); }
+.readiness-dim__val--bad  { color: var(--bad); }
+.readiness-dim__val--na   { color: var(--faint); }
+
+/* Toolbar intel score badge (M47) */
+.intel-score-badge {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--hair);
+  cursor: default;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.intel-score-badge.is-visible { display: flex; }
+.intel-score-badge--high { color: var(--accent); border-color: var(--accent); }
+.intel-score-badge--mid  { color: var(--warn);   border-color: var(--warn); }
+.intel-score-badge--low  { color: var(--bad);    border-color: var(--bad); }

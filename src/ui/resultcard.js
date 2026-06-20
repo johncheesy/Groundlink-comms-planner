@@ -1,3 +1,5 @@
+import { modelBadge } from './badges.js';
+
 /**
  * M20 §3 — result summary card + stale-plan pill (DOM controllers).
  *
@@ -14,7 +16,7 @@
 
 const fmtKm2 = (v) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
 
-export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport } = {}) {
+export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, onBrief, onGapReport } = {}) {
   const el = document.createElement('div');
   el.className = 'result-card';
   el.setAttribute('role', 'status');
@@ -35,10 +37,16 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport } 
     if (e.target.closest('[data-act="close"]')) el.hidden = true;
     else if (e.target.closest('[data-act="relay"]')) onRelayAdvice?.();
     else if (e.target.closest('[data-act="report"]')) onReport?.();
+    else if (e.target.closest('[data-act="brief"]')) onBrief?.();
+    else if (e.target.closest('[data-act="gapreport"]')) onGapReport?.();
   });
 
-  /** Render + show for a fresh summarizeCoverage() result. */
-  function show(summary) {
+  /**
+   * Render + show for a fresh summarizeCoverage() result.
+   * @param {object} summary  — from summarizeCoverage()
+   * @param {object} [modelInfo] — E3b: { modelKey, percentileLabel }
+   */
+  function show(summary, modelInfo) {
     zones = summary.deadZones;
     const weakest = `${summary.weakestBelow ? '< ' : '≥ '}${Math.round(summary.weakestDbm)} dBm`;
     const zoneRows = zones
@@ -48,6 +56,9 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport } 
           `<span>Zone ${i + 1}</span><span data-numeric>${fmtKm2(z.areaKm2)} km²</span></button></li>`,
       )
       .join('');
+    const badgeHtml = modelInfo?.modelKey
+      ? modelBadge(modelInfo.modelKey, modelInfo.percentileLabel ?? null)
+      : '';
     el.innerHTML =
       `<button type="button" class="result-card__close" data-act="close" aria-label="Dismiss summary">×</button>` +
       `<div class="result-card__figures">` +
@@ -55,10 +66,13 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport } 
       `<div class="result-card__fig"><span class="result-card__num" data-numeric>${zones.length}</span><span class="result-card__cap">dead zone${zones.length === 1 ? '' : 's'}</span></div>` +
       `<div class="result-card__fig"><span class="result-card__num" data-numeric>${weakest}</span><span class="result-card__cap">weakest link</span></div>` +
       `</div>` +
+      (badgeHtml ? `<div class="result-card__model">${badgeHtml}</div>` : '') +
       (zoneRows ? `<ol class="result-card__zones">${zoneRows}</ol>` : '') +
       `<div class="result-card__actions">` +
       `<button type="button" class="btn btn--sm" data-act="relay">Relay advice</button>` +
       `<button type="button" class="btn btn--sm" data-act="report">Report</button>` +
+      `<button type="button" class="btn btn--sm" data-act="brief">Brief</button>` +
+      (zones.length ? `<button type="button" class="btn btn--sm" data-act="gapreport" title="Export dead zone table as printable HTML">Gap report</button>` : '') +
       `</div>`;
     el.hidden = false;
   }

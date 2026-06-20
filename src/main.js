@@ -36,6 +36,8 @@ import { buildPace } from './pace/pace.js';
 import { createPalette } from './ui/search.js';
 import { createImportController } from './io/import.js';
 import { createExportPanel } from './export/export-panel.js';
+// M37: brief.js loads lazily on first use (generateBrief + openBrief)
+// to keep the startup bundle small. See openMissionBrief() below.
 import { initThemeToggle, applyInitialTheme } from './ui/theme.js';
 import { initPwa } from './ui/pwa.js';
 import { createLocateControl } from './ui/locate.js';
@@ -57,9 +59,23 @@ import { serializeMission, parseMission, missionFilename, looksLikeMissionFile, 
 import { createFocusMode } from './ui/focus.js';
 import { createObjectsDash } from './ui/dash-objects.js';
 import { createPowerDash } from './ui/dash-power.js';
+import { createOpsDashboard } from './ui/dash-ops.js'; // M36
+import { createSatcomPanel } from './ui/satcom-panel.js'; // M38
+import { satcomAssessment } from './connectivity/satcom.js'; // M47: best satcom status
+import { createDeconflictPanel } from './ui/deconflict-panel.js'; // M39
+import { generateFreqPlan, openFreqPlan } from './export/freq-plan.js'; // M40
+import { createTopologyPanel } from './ui/topology.js'; // M41
+import { optimizeDroneHeight, DEFAULT_ALTITUDES } from './analysis/drone-optimizer.js'; // M42
+import { generateGapReport, openGapReport } from './export/gap-report.js'; // M43
+import { suggestRadios } from './analysis/radio-suggest.js'; // M46
+import { createRadioSuggestPanel } from './ui/radio-suggest-panel.js'; // M46
+import {
+  computeReadiness, dimCoverage, dimPace, dimDeconfliction,
+  dimLinkQuality, dimSatcom,
+} from './analysis/readiness.js'; // M47
 import { createEmptyState } from './ui/emptystate.js';
 import { createUndoStack } from './ui/undo.js';
-import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS } from './coverage/model.js';
+import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, fsplDb, receivedDbm } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
@@ -443,6 +459,7 @@ basemapSwitch.addEventListener('click', (e) => {
 // One flyout open at a time; Esc and outside clicks close (rail.js machine).
 
 const railFlyouts = {
+  ops: { btn: $('#railOpsBtn'), panel: $('#railFlyoutOps') }, // M36
   basemap: { btn: $('#railBasemapBtn'), panel: $('#railFlyoutBasemap') },
   view: { btn: $('#railViewBtn'), panel: $('#railFlyoutView') },
   data: { btn: $('#railDataBtn'), panel: $('#railFlyoutData') }, // E1
@@ -451,15 +468,19 @@ const railFlyouts = {
 const railState = createRailState({
   onChange(current) {
     for (const [key, f] of Object.entries(railFlyouts)) {
+      if (!f.btn || !f.panel) continue;
       const open = current === key;
       f.panel.hidden = !open;
       f.btn.setAttribute('aria-expanded', String(open));
       f.btn.classList.toggle('is-active', open);
     }
     if (current === 'basemap') renderVariantMenu();
+    if (current === 'ops') opsDash?.show(); // M36: render on open
+    else opsDash?.hide();
   },
 });
 
+railFlyouts.ops?.btn?.addEventListener('click', () => railState.toggle('ops')); // M36
 railFlyouts.basemap.btn.addEventListener('click', () => railState.toggle('basemap'));
 railFlyouts.view.btn.addEventListener('click', () => railState.toggle('view'));
 railFlyouts.data.btn.addEventListener('click', () => railState.toggle('data'));
@@ -671,6 +692,7 @@ let cellular = null; // M9 cellular controller (own coverage layer)
 const CAL_STORE_KEY = 'gl.calibration.v1';
 const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applied: false };
 let hfPanel = null; // M12 HF ionosphere panel
+let satPanel = null; // M38 satcom look-angle panel
 let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
 let palette = null; // M20 ⌘K command palette (created once the style is ready)
 let teams = null; // M13 per-team/operator model
@@ -681,6 +703,55 @@ let planStale = false; // M20 §3: an RF move/settings change armed a recompute
 let lastPaint = null; // M20 §3: last painted class grid {classes, cols, rows, bounds}
 let focusCtl = null; // M21 §B: fullscreen section focus (created with the workspace UI)
 let emptyState = null; // M21 §C: starter card over the map
+let lastSatcomStatus = null; // M47: best GEO satellite status ('ok'|'warn'|'marginal'|null)
+
+// M45: Compute FSPL-based link-budget margin per topology edge.
+// Uses assigned radios' RF parameters and the AOI reach distance as the
+// worst-case link span. Returns { 'hq:rebro-static': { marginDb, model }, … }.
+function computeLinkMargins() {
+  const arsenal = radios?.getArsenal?.() ?? [];
+  const ctx = gatherRoleContext();
+  const reachM = Math.max((ctx.reachKm ?? 5) * 1000, 500);
+  if (!arsenal.length) return {};
+
+  const roles = assignRoles(arsenal, ctx);
+  const roleMap = Object.fromEntries(roles.map((r) => [r.key, r]));
+
+  const EDGES = [
+    ['hq', 'rebro-static'],
+    ['hq', 'rebro-mobile'],
+    ['rebro-static', 'mobile-cp'],
+    ['rebro-mobile', 'mobile-cp'],
+    ['mobile-cp', 'operator'],
+  ];
+
+  const margins = {};
+  for (const [fromKey, toKey] of EDGES) {
+    const fromRole = roleMap[fromKey];
+    const toRole   = roleMap[toKey];
+    if (!fromRole?.radio || !toRole?.radio) continue;
+
+    // Use the weaker radio's TX for worst-case budget
+    const txW    = Math.min(fromRole.radio.txMaxW ?? 5, toRole.radio.txMaxW ?? 5);
+    const freqMHz = fromRole.radio.defaultFreqMHz
+      ?? fromRole.radio.freqRangeMHz?.[0]
+      ?? 150;
+    const rxSens = Math.max(
+      fromRole.radio.rxSensDbm ?? -110,
+      toRole.radio.rxSensDbm  ?? -110,
+    );
+
+    const eirpDbm  = 10 * Math.log10(Math.max(txW, 0.001) * 1000);
+    const rxDbm    = receivedDbm({ eirpDbm, freqMHz }, reachM);
+    const marginDb = rxDbm - rxSens;
+
+    margins[`${fromKey}:${toKey}`] = {
+      marginDb: Math.round(marginDb * 10) / 10,
+      model: 'FSPL',
+    };
+  }
+  return margins;
+}
 
 // M21 §A: unsaved-work marker — title-bar dot + confirm before a load replaces
 // state. applyingMission suppresses dirty-marking (and undo capture) while a
@@ -717,6 +788,20 @@ whenStyleReady(() => {
       mission.setAoi(has ? aoi.getAoi() : null);
       refreshExportPanel();
       hfPanel?.refresh(); // HF planning follows the AOI centre
+      // M38: update satcom look angles whenever AOI centre changes
+      const _aoiC = aoi?.getAoi?.()?.center;
+      if (_aoiC?.lat != null) {
+        satPanel?.update({ lat: _aoiC.lat, lng: _aoiC.lng });
+        // M47: capture best GEO status for readiness score
+        try {
+          const sa = satcomAssessment(_aoiC.lat, _aoiC.lng);
+          lastSatcomStatus = sa.bestGeo?.status ?? null;
+        } catch (_) { lastSatcomStatus = null; }
+        setTimeout(() => updateReadinessBadge?.(), 0);
+      } else {
+        satPanel?.clear();
+        lastSatcomStatus = null;
+      }
       if (!has) {
         // AOI removed → any recommended sites are stale.
         recommender?.clear();
@@ -764,6 +849,27 @@ whenStyleReady(() => {
     refresh();
   })();
 
+  // M38: Satcom panel — GEO look angles + LEO system availability.
+  // Pure-math, no API calls. Updates whenever AOI changes (via aoi.onChange above).
+  (() => {
+    const host = $('#satcomPanelInner');
+    if (!host) return;
+    satPanel = createSatcomPanel(host, {
+      onCentroidNeeded: () => {
+        // Scroll the mission section into view so user can draw an AOI
+        document.querySelector('#areaTitle')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      },
+    });
+    // Seed with current AOI if one already exists (mission file load)
+    const c = aoi?.getAoi?.()?.center;
+    if (c?.lat != null) {
+      satPanel.update({ lat: c.lat, lng: c.lng });
+      try { lastSatcomStatus = satcomAssessment(c.lat, c.lng).bestGeo?.status ?? null; } catch (_) {}
+    } else {
+      satPanel.clear();
+    }
+  })();
+
   // Coverage backend selector (M18) — built-in engine or hosted CloudRF ITM.
   (() => {
     const host = $('#backendSettingsInner');
@@ -781,6 +887,7 @@ whenStyleReady(() => {
       progressBar.style.width = `${Math.round(frac * 100)}%`;
       if (phase === 'terrain' && frac === 0) statusMode.textContent = 'Loading terrain…';
       else statusMode.textContent = frac >= 1 ? 'Coverage ready' : `Computing… ${Math.round(frac * 100)}%`;
+      updateIntelChip('running'); // Maven intel chip
       if (frac >= 1) {
         opacityRow.hidden = false;
         setTimeout(() => {
@@ -796,11 +903,20 @@ whenStyleReady(() => {
         planStale = false; // nothing painted → nothing to be stale
         stalePill.disarm();
         resultCard.hide();
+        updateOpsDash(); // M36
+        updateIntelChip('idle'); // Maven intel chip
       }
       if (state === 'done') {
         planStale = false; // a fresh run supersedes any pending stale state
         stalePill.disarm();
         showResultCard();
+        if (runAllPending) finishRunAll(); // E3c: chain relay + PACE after coverage
+        // M45: compute link margins now that we know the AOI reach
+        lastLinkMargins = computeLinkMargins();
+        if ($('#topologyDetails')?.open) topoPanel?.update();
+        updateOpsDash(); // M36
+        updateReadinessBadge(); // M47
+        updateIntelChip('ok'); // Maven intel chip
       }
       if (state === 'cleared' || state === 'done') refreshServerViewUi(); // M24
       if (state === 'cleared' || state === 'done') refreshWorkflowUi();
@@ -1012,6 +1128,8 @@ whenStyleReady(() => {
 
   // Coverage compute
   computeBtn.addEventListener('click', runCoverage);
+  runAllBtn?.addEventListener('click', runAll); // E3c
+  briefBtn?.addEventListener('click', () => openMissionBrief()); // M37
 
   // M15: digital mode picks a threshold preset (sharp cliff for DMR/P25/dPMR).
   // Writing the preset into the threshold fields keeps coverageParams() as the
@@ -1220,7 +1338,204 @@ whenStyleReady(() => {
       if (rolesList && !rolesList.hidden) renderRoles();
       teamsPanel?.render(); // keep the per-team radio picker in sync with the arsenal
       refreshWorkflowUi();
+      decoPanel?.update(radios.getArsenal()); // M39: re-run freq deconfliction
+      updateSuggestPanel?.(); // M46: re-score on arsenal change (fn defined later)
+      // M47: recompute readiness on arsenal/deconflict change
+      // Use setTimeout to ensure decoPanel has updated first
+      setTimeout(() => updateReadinessBadge?.(), 0);
     },
+  });
+
+  // ---- M39: Freq deconfliction panel -------------------------------------
+  let decoPanel = null;
+  (() => {
+    const host = $('#deconflictPanel');
+    if (!host) return;
+    decoPanel = createDeconflictPanel(host);
+    // Seed with current arsenal (might be empty on first load)
+    decoPanel.update(radios?.getArsenal?.() ?? []);
+  })();
+
+  // ---- M40: Freq plan export button -------------------------------------
+  const freqPlanBtn = $('#freqPlanBtn');
+  freqPlanBtn?.addEventListener('click', async () => {
+    const { generateFreqPlan: gen, openFreqPlan: open } = await import('./export/freq-plan.js');
+    const html = gen({
+      arsenal: radios?.getArsenal?.() ?? [],
+      paceLegs: lastPlan?.legs ?? [],
+      missionName: 'GroundLink Mission',
+      buildVersion: `${BUILD.version}+${BUILD.sha}`,
+    });
+    open(html);
+    statusMode.textContent = 'Freq plan opened — Ctrl+P to print';
+  });
+
+  // ---- M41+M45: Network topology panel with link-quality edges ----------
+  let topoPanel = null;
+  // M45: last computed link margins, updated after each coverage run.
+  // Shape: { 'hq:rebro-static': { marginDb: 14.2, model: 'FSPL' }, … }
+  let lastLinkMargins = {};
+
+  (() => {
+    const host = $('#topologyPanel');
+    if (!host) return;
+    topoPanel = createTopologyPanel(host, {
+      getArsenal: () => radios?.getArsenal?.() ?? [],
+      getLastPlan: () => lastPlan,
+      getRoleContext: () => gatherRoleContext(),
+      getLinkMargins: () => lastLinkMargins, // M45
+    });
+    // Render on first open of the details element
+    const details = $('#topologyDetails');
+    details?.addEventListener('toggle', () => {
+      if (details.open) topoPanel.update();
+    }, { once: true });
+  })();
+
+  // ---- M46: Smart radio-to-node suggestion panel -----------------------
+  let suggestPanel = null;
+  (() => {
+    const host = $('#radioSuggestPanel');
+    if (!host) return;
+    suggestPanel = createRadioSuggestPanel(host, {
+      onApply({ roleKey, radio }) {
+        // Advisory assignment: mark dirty so plan can be rebuilt
+        statusMode.textContent = `${radio.label} suggested for ${roleKey} — assign via Roles panel`;
+        markDirty();
+      },
+    });
+    updateSuggestPanel();
+  })();
+
+  function updateSuggestPanel() {
+    if (!suggestPanel) return;
+    const arsenal = radios?.getArsenal?.() ?? [];
+    const ctx = gatherRoleContext();
+    const roles = assignRoles(arsenal, ctx);
+    const suggestions = suggestRadios(arsenal, roles, ctx);
+    suggestPanel.update(suggestions);
+  }
+
+  // ---- M47: Readiness score toolbar badge init -------------------------
+  const intelScoreBadge = $('#intelScoreBadge');
+  const intelScoreNum   = $('#intelScoreNum');
+
+  function updateReadinessBadge() {
+    const covData = lastPaint
+      ? summarizeCoverage({
+          ...lastPaint,
+          aoi: (() => { const a = aoi?.getAoi?.(); return a ? { type: a.type, center: a.center, radiusM: a.radiusM, ring: a.ring } : null; })(),
+          thresholds: coverageParams().thresholds,
+        })
+      : null;
+
+    const decoSummary = decoPanel?.check(radios?.getArsenal?.() ?? []);
+    const decoConflicts = decoSummary
+      ? Array.from({ length: decoSummary.errors }, () => ({ severity: 'error' }))
+          .concat(Array.from({ length: decoSummary.warnings }, () => ({ severity: 'warn' })))
+      : null;
+
+    const dims = {
+      coverage:      dimCoverage(covData),
+      pace:          dimPace(lastPlan),
+      deconfliction: dimDeconfliction(decoConflicts),
+      linkQuality:   dimLinkQuality(Object.keys(lastLinkMargins).length ? lastLinkMargins : null),
+      power:         null, // wired when power dash exposes minEnduranceH
+      satcom:        dimSatcom(lastSatcomStatus ? { bestStatus: lastSatcomStatus } : null),
+    };
+    const result = computeReadiness(dims);
+
+    if (result.score == null) {
+      if (intelScoreBadge) {
+        intelScoreBadge.className = 'intel-score-badge';
+        intelScoreBadge.removeAttribute('title');
+      }
+      if (intelScoreNum) intelScoreNum.textContent = '—';
+      updateOpsDashReadiness(null);
+      return;
+    }
+
+    const tier = result.tier;
+    if (intelScoreBadge) {
+      intelScoreBadge.className = `intel-score-badge is-visible intel-score-badge--${tier}`;
+      intelScoreBadge.title = `Mission readiness: ${result.score}/100 (${tier}). Open Ops Dashboard for breakdown.`;
+    }
+    if (intelScoreNum) intelScoreNum.textContent = result.score;
+    updateOpsDashReadiness(result);
+  }
+
+  function updateOpsDashReadiness(readiness) {
+    opsDash?.update({ readiness });
+  }
+
+  // ---- M42: Drone height optimizer -------------------------------------
+  const optimizeDroneBtn = $('#optimizeDroneHeight');
+  const droneOptPanel = $('#droneOptPanel');
+
+  optimizeDroneBtn?.addEventListener('click', async () => {
+    if (!drone?.hasDrone?.()) {
+      statusMode.textContent = 'Place a drone relay first';
+      return;
+    }
+    const pos = { lng: drone.hasDrone() ? coverage.getStats?.()?.lng : null, lat: null };
+    // Get drone position from registry
+    const droneEntry = registry.byKind('drone')[0];
+    if (!droneEntry) { statusMode.textContent = 'No drone placed'; return; }
+
+    if (droneOptPanel) {
+      droneOptPanel.hidden = false;
+      droneOptPanel.innerHTML = '<div class="drone-opt-progress">Sampling altitudes…</div>';
+    }
+    statusMode.textContent = 'Optimizing drone altitude…';
+
+    try {
+      const bounds = (() => {
+        const a = aoi?.getAoi?.();
+        if (a) return a.bounds ?? a;
+        const { lng, lat } = droneEntry.lngLat ? { lng: droneEntry.lngLat[0], lat: droneEntry.lngLat[1] } : { lng: 0, lat: 0 };
+        const r = 30 / 111;
+        return { west: lng - r, south: lat - r, east: lng + r, north: lat + r };
+      })();
+      const dronePos = { lng: droneEntry.lngLat[0], lat: droneEntry.lngLat[1] };
+
+      const { best, results } = await optimizeDroneHeight({
+        dronePos,
+        altitudes: DEFAULT_ALTITUDES,
+        bounds,
+        baseParams: coverageParams(),
+        computeAsync: (b, tx, p, opts) => coverage.computeAsync(b, tx, p, opts),
+        onProgress(done, total) {
+          statusMode.textContent = `Optimizing… ${done}/${total} altitudes`;
+          if (droneOptPanel) droneOptPanel.innerHTML = `<div class="drone-opt-progress">Testing ${done}/${total} altitudes…</div>`;
+        },
+      });
+
+      // Render bar chart
+      if (droneOptPanel) {
+        const maxFrac = Math.max(...results.map((r) => r.coveredFrac), 0.01);
+        const bars = results.map((r) => {
+          const isBest = r.altM === best.altM;
+          const h = Math.max(4, Math.round((r.coveredFrac / maxFrac) * 64));
+          return `<div class="drone-opt-bar${isBest ? ' drone-opt-bar--best' : ''}">
+            <div class="drone-opt-bar__fill" style="height:${h}px"></div>
+            <div class="drone-opt-bar__pct">${Math.round(r.coveredFrac * 100)}%</div>
+            <div class="drone-opt-bar__alt">${r.altM}m</div>
+          </div>`;
+        }).join('');
+        droneOptPanel.innerHTML =
+          `<div class="drone-opt-chart">${bars}</div>` +
+          `<div class="drone-opt-result">Optimal: ${best.altM} m AGL — ${Math.round(best.coveredFrac * 100)}% coverage</div>`;
+      }
+
+      // Apply best altitude
+      drone.setAltitude(best.altM);
+      if (droneAlt) { droneAlt.value = String(best.altM); droneAltVal.textContent = `${best.altM} m`; }
+      statusMode.textContent = `Optimal altitude: ${best.altM} m AGL (${Math.round(best.coveredFrac * 100)}% coverage)`;
+    } catch (err) {
+      console.error('[M42] drone optimize error', err);
+      if (droneOptPanel) droneOptPanel.innerHTML = '<div class="drone-opt-progress">Error — check console</div>';
+      statusMode.textContent = 'Altitude optimisation failed';
+    }
   });
 
   // ---- Teams & operators (M13) -----------------------------------------
@@ -1243,6 +1558,8 @@ whenStyleReady(() => {
   assignRolesBtn.addEventListener('click', () => {
     renderRoles();
     statusMode.textContent = 'Node roles assigned';
+    topoPanel?.update(); // M41: topology reflects new role assignments
+    updateSuggestPanel(); // M46: re-score suggestions after role assignment
   });
 
   // ---- Comms plan + report (M6) ----------------------------------------
@@ -1251,6 +1568,9 @@ whenStyleReady(() => {
     renderPace(lastPlan);
     statusMode.textContent = 'Comms plan ready';
     refreshWorkflowUi();
+    updateOpsDash(); // M36
+    topoPanel?.update(); // M41: refresh topology when PACE changes
+    updateReadinessBadge?.(); // M47
   });
 
   exportReportBtn.addEventListener('click', async () => {
@@ -1305,6 +1625,7 @@ whenStyleReady(() => {
           } },
           { label: 'Build comms plan', keywords: 'pace report', run: () => { jumpToAnchor('paceTitle'); buildPaceBtn.click(); } },
           { label: 'Export report', keywords: 'pdf word excel download', run: () => { jumpToAnchor('paceTitle'); exportReportBtn.click(); } },
+          { label: 'Export mission brief', keywords: 'brief html print pdf summary mission map', run: () => openMissionBrief() }, // M37
           { label: 'Toggle 3D terrain', keywords: 'view tilt relief', run: () => toggle3dBtn?.click() },
           { label: 'Toggle buildings', keywords: 'view extrusion', run: () => buildingsBtn?.click() },
           { label: 'Toggle light / dark theme', keywords: 'appearance mode', run: () => $('#themeToggle')?.click() },
@@ -1783,6 +2104,45 @@ function renderRoles() {
 
 const buildPaceBtn = $('#buildPaceBtn');
 const exportReportBtn = $('#exportReportBtn');
+const runAllBtn = $('#runAllBtn'); // E3c
+const briefBtn = $('#briefBtn'); // M37
+
+// M38 / Maven: toolbar intel chip — live coverage % + model name
+const intelDot   = $('#intelDot');
+const intelCov   = $('#intelCov');
+const intelModel = $('#intelModel');
+
+function updateIntelChip(state = 'idle') {
+  // state: 'idle' | 'running' | 'ok' | 'stale'
+  if (!intelDot) return;
+  intelDot.className = 'toolbar__intel__dot' +
+    (state === 'running' ? ' toolbar__intel__dot--run' :
+     state === 'ok'      ? ' toolbar__intel__dot--ok' :
+     state === 'stale'   ? ' toolbar__intel__dot--warn' : '');
+
+  const b = backendSettings?.getBackend?.() ?? 'builtin';
+  let modelShort;
+  if (b === 'cloudrf' && backendSettings?.getApiKey?.()) modelShort = 'ITM/CloudRF';
+  else if (resolveEngine?.() === 'p1812') modelShort = 'P.1812';
+  else modelShort = useTerrainInput?.checked ? 'FSPL+Dey' : 'FSPL';
+
+  if (state === 'idle') {
+    if (intelCov) intelCov.textContent = '—';
+    if (intelModel) intelModel.textContent = 'no run';
+    return;
+  }
+  if (state === 'running') {
+    if (intelModel) intelModel.textContent = `${modelShort} running…`;
+    return;
+  }
+
+  const stats = coverage?.getStats?.();
+  const pct = stats?.coveredFracAoi != null
+    ? `${Math.round(stats.coveredFracAoi * 100)}%`
+    : '—';
+  if (intelCov) intelCov.textContent = pct;
+  if (intelModel) intelModel.textContent = `${modelShort}${state === 'stale' ? ' · stale' : ''}`;
+}
 const paceResults = $('#paceResults');
 const pacePlan = $('#pacePlan');
 const paceStructure = $('#paceStructure');
@@ -2780,6 +3140,46 @@ function runCoverage() {
   runBuiltin();
 }
 
+// ---- E3c: one-click Run All chain ----------------------------------------
+// Flag consumed by the coverage onStatus('done') handler to chain step 2 + 3.
+let runAllPending = false;
+
+/**
+ * Chain: coverage → (on done) site-recommend (if applicable) → PACE update.
+ * Sets runAllPending so the existing onStatus callback completes the sequence.
+ */
+function runAll() {
+  const bbox = mission?.bbox?.();
+  if (!bbox) {
+    showToast('Define a mission first — draw an AOI or place a site');
+    return;
+  }
+  runAllPending = true;
+  runCoverage();
+}
+
+/**
+ * Called from the coverage onStatus('done') handler when runAllPending is set.
+ * Chains site recommendation (if useful) then PACE rebuild.
+ */
+function finishRunAll() {
+  runAllPending = false;
+  // Step 2: relay/site advice
+  const rfObjs = registry.all().filter((e) => RF_KINDS.includes(e.kind));
+  if (rfObjs.length && !recommendBtn.disabled) {
+    recommendBtn.click();
+  }
+  // Step 3: rebuild PACE plan
+  if (!buildPaceBtn.disabled) {
+    lastPlan = buildPace(gatherPaceContext());
+    renderPace(lastPlan);
+    refreshWorkflowUi();
+  }
+  const stats = coverage?.getStats?.();
+  const covPct = stats?.coveredFracAoi != null ? `${Math.round(stats.coveredFracAoi * 100)}% covered` : 'done';
+  showToast(`Analysis complete — ${covPct}`);
+}
+
 const CLOUDRF_SRC = 'cloudrf';
 const CLOUDRF_LAYER = 'cloudrf-layer';
 
@@ -3447,6 +3847,8 @@ const resultCard = createResultCard(document.querySelector('.map-wrap'), {
     jumpToAnchor('paceTitle');
     buildPaceBtn.click();
   },
+  onBrief() { openMissionBrief(); }, // M37 — wired below
+  onGapReport() { openCoverageGapReport(); }, // M43
 });
 
 let pendingRecompute = null; // what the armed pill will run (drone vs coverage)
@@ -3459,6 +3861,28 @@ const stalePill = createStalePill(document.querySelector('.map-wrap'), {
     statusMode.textContent = 'Auto-recompute cancelled — plan is outdated';
   },
 });
+
+// ---- M36: Mission Ops Dashboard -------------------------------------------
+// Initialized after the rail is wired. Updated on every relevant state change:
+// coverage done/clear, cellular update, drone state, PACE build, teams change.
+const opsDash = createOpsDashboard($('#dashOpsInner'), {
+  onRunCoverage: () => runCoverage(),
+  onOpenPace: () => jumpToAnchor('paceTitle'),
+  onOpenTeams: () => jumpToAnchor('teamsTitle'),
+});
+
+function updateOpsDash() {
+  opsDash.update({
+    coverage: lastPaint ? summarizeCoverage({ ...lastPaint, aoi: (() => { const a = aoi?.getAoi?.(); return a ? { type: a.type, center: a.center, radiusM: a.radiusM, ring: a.ring } : null; })(), thresholds: coverageParams().thresholds }) : null,
+    coverageStale: planStale,
+    cellular: cellular?.getState?.() ?? null,
+    drone: drone?.getState?.() ?? null,
+    pace: lastPlan ?? null,
+    teams: teams?.summary?.() ?? null,
+    erlang: null, // wired once erlang module exposes a .summary()
+    // readiness is injected separately via updateReadinessBadge() → updateOpsDashReadiness()
+  });
+}
 
 // ---- M24: best-server / interference view ----------------------------------
 // Multi-site runs carry per-cell winner + margin data; the toggle re-renders
@@ -3530,13 +3954,105 @@ interferenceChk?.addEventListener('change', () => {
   renderServerLegend();
 });
 
+// ---- M37: Mission Brief Export -------------------------------------------
+/**
+ * Generate and open a print-ready mission brief in a new tab.
+ * Loads brief.js lazily (not on the startup path).
+ */
+async function openMissionBrief() {
+  const { generateBrief, openBrief } = await import('./export/brief.js');
+  // Map screenshot — requires preserveDrawingBuffer: true (set in map.js)
+  let mapImageDataUrl = null;
+  try {
+    mapImageDataUrl = map.getCanvas().toDataURL('image/png');
+  } catch (e) {
+    console.warn('M37: canvas screenshot failed —', e?.message);
+  }
+  // Coverage summary (summarizeCoverage is already statically imported)
+  let covSummary = null;
+  if (lastPaint) {
+    const area = aoi?.getAoi?.();
+    const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
+    covSummary = summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds });
+  }
+  // Model info (same logic as showResultCard)
+  const b = backendSettings?.getBackend?.() ?? 'builtin';
+  let modelKey;
+  if (b === 'cloudrf' && backendSettings?.getApiKey?.()) modelKey = 'cloudrf';
+  else if (resolveEngine() === 'p1812') modelKey = 'p1812';
+  else modelKey = useTerrainInput.checked ? 'deygout' : 'flat';
+  const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
+  const modelLabels = {
+    p1812: { label: 'P.1812', margin: '±8 dB', percentileLabel: `${pct.p}% time` },
+    deygout: { label: 'FSPL+Deygout', margin: '±12 dB', percentileLabel: null },
+    cloudrf: { label: 'ITM/CloudRF', margin: '±6 dB', percentileLabel: null },
+    flat: { label: 'FSPL flat', margin: '±15 dB', percentileLabel: null },
+  };
+  const modelInfo = modelLabels[modelKey] ?? { label: modelKey, margin: '±? dB', percentileLabel: null };
+  const html = generateBrief({
+    missionName: 'GroundLink Mission',
+    mapImageDataUrl,
+    coverageSummary: covSummary,
+    paceResult: lastPlan,
+    radios: radios?.getArsenal?.() ?? [],
+    linkBudgets: [],   // M14 link budgets not yet threaded through; placeholder
+    modelInfo,
+    buildVersion: `${BUILD.version}+${BUILD.sha}`,
+    maskCoords: false,
+  });
+  openBrief(html);
+  statusMode.textContent = 'Mission brief opened in new tab — Ctrl+P to print or save as PDF';
+}
+
+/** M43 — Open the coverage gap report in a new tab. */
+function openCoverageGapReport() {
+  if (!lastPaint) {
+    statusMode.textContent = 'Run coverage first to generate a gap report';
+    return;
+  }
+  const area = aoi?.getAoi?.();
+  const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
+  const covSummary = summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds });
+
+  const b = backendSettings?.getBackend?.() ?? 'builtin';
+  let modelKey;
+  if (b === 'cloudrf' && backendSettings?.getApiKey?.()) modelKey = 'cloudrf';
+  else if (resolveEngine() === 'p1812') modelKey = 'p1812';
+  else modelKey = useTerrainInput.checked ? 'deygout' : 'flat';
+  const modelLabels = { p1812: 'P.1812', deygout: 'FSPL+Deygout', cloudrf: 'ITM/CloudRF', flat: 'FSPL flat' };
+  const modelLabel = modelLabels[modelKey] ?? modelKey;
+
+  const html = generateGapReport({
+    deadZones: covSummary.deadZones ?? [],
+    coverageSummary: covSummary,
+    missionName: 'GroundLink Mission',
+    modelLabel,
+    buildVersion: `${BUILD.version}+${BUILD.sha}`,
+  });
+  openGapReport(html);
+  statusMode.textContent = 'Gap report opened in new tab — Ctrl+P to print or save as PDF';
+}
+
 /** Summarise the last painted raster against the AOI and show the card. */
 function showResultCard() {
   if (!lastPaint) return;
   const area = aoi?.getAoi?.();
   const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
+  // E3b: resolve the current engine key for the model-accuracy badge
+  const b = backendSettings?.getBackend?.() ?? 'builtin';
+  let modelKey;
+  if (b === 'cloudrf' && backendSettings?.getApiKey?.()) {
+    modelKey = 'cloudrf';
+  } else if (resolveEngine() === 'p1812') {
+    modelKey = 'p1812';
+  } else {
+    modelKey = useTerrainInput.checked ? 'deygout' : 'flat';
+  }
+  const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
+  const percentileLabel = modelKey === 'p1812' ? `${pct.p}% time` : null;
   resultCard.show(
     summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds }),
+    { modelKey, percentileLabel },
   );
 }
 
@@ -3642,6 +4158,7 @@ document.addEventListener('objects:changed', (ev) => {
   refreshWorkflowUi();
   pendingRecompute = e.kind === 'drone' ? () => drone?.computeRelay() : () => runCoverage();
   stalePill.arm(`${e.name} ${type === 'move' ? 'moved' : 'updated'}`);
+  updateIntelChip('stale'); // Maven intel chip
 });
 
 // Any registry change can move the stepper/badges (add/remove/move/rename).

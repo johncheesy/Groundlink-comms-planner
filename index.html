@@ -64,6 +64,49 @@
         <!-- M20: plan progress stepper (populated by src/ui/toolbar.js) -->
         <div class="plan-stepper" id="planStepper"></div>
 
+        <!-- Maven intel chip: live coverage % + model indicator -->
+        <div class="toolbar__intel" id="toolbarIntel" aria-live="polite" title="Coverage status">
+          <span class="toolbar__intel__dot" id="intelDot"></span>
+          <span class="toolbar__intel__cov" id="intelCov">—</span>
+          <span class="toolbar__intel__model" id="intelModel">no model run</span>
+        </div>
+
+        <!-- M47: Mission readiness score badge -->
+        <div class="intel-score-badge" id="intelScoreBadge" aria-live="polite" title="Mission readiness score (0–100). Open the Ops Dashboard for breakdown.">
+          <span id="intelScoreNum">—</span>
+        </div>
+
+        <!-- E3c: Run All chain button -->
+        <button
+          class="toolbar__btn toolbar__run-all"
+          type="button"
+          id="runAllBtn"
+          title="Run full analysis — coverage → relay advice → PACE plan"
+          aria-label="Run full analysis"
+        >
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none"/>
+          </svg>
+          <span class="toolbar__run-all-label">Run</span>
+        </button>
+
+        <!-- M37: Mission brief export button -->
+        <button
+          class="toolbar__btn toolbar__brief-btn"
+          type="button"
+          id="briefBtn"
+          title="Export mission brief — map + PACE + link budgets (Ctrl+P to print)"
+          aria-label="Export mission brief"
+        >
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+        </button>
+
         <div class="toolbar__right" id="toolbarRight">
           <button
             class="btn btn--icon btn--ghost theme-toggle"
@@ -394,6 +437,12 @@
               <button class="btn btn--primary btn--block" type="button" id="assignRolesBtn">Assign roles from equipment</button>
               <div class="roles-list" id="rolesList" hidden></div>
               <p class="help" id="rolesHelp">Picks the best radio from your available equipment for each node role — Operator (manpack), Mobile CP (vehicle), HQ (static), Rebro mobile/static. Add radios to the available equipment first.</p>
+
+              <!-- M46: Radio-to-node smart suggestions -->
+              <details class="section__details" id="radioSuggestDetails">
+                <summary class="section__details-summary">Smart radio suggestions</summary>
+                <div id="radioSuggestPanel"></div>
+              </details>
             </div>
           </section>
             </div>
@@ -523,6 +572,12 @@
                 <div id="hfPanelInner"></div>
               </details>
 
+              <!-- M38: Satcom satellite overview -->
+              <details class="disclosure" id="satcomPanel">
+                <summary>Satcom / Satellite</summary>
+                <div id="satcomPanelInner"></div>
+              </details>
+
               <!-- M27: field calibration — measured RSSI vs the model -->
               <details class="disclosure adv-block" id="calibrationPanel">
                 <summary>Field calibration (RSSI)</summary>
@@ -639,6 +694,8 @@
                 </div>
 
                 <button class="btn btn--primary btn--block" type="button" id="computeRelay">Compute relay coverage</button>
+                <button class="btn btn--block" type="button" id="optimizeDroneHeight" title="Test 50–500 m AGL and find the altitude that maximises coverage">Optimize altitude</button>
+                <div id="droneOptPanel" class="drone-opt-wrap" hidden></div>
 
                 <p class="help" id="droneGain">Place set. Compute to compare the airborne relay against a ground mast at the same spot.</p>
 
@@ -760,10 +817,24 @@
               </div>
               <button class="btn btn--primary btn--block" type="button" id="buildPaceBtn">Build comms plan</button>
 
+              <!-- M39: Freq deconfliction — runs whenever arsenal changes -->
+              <div id="deconflictPanel" class="deconflict-wrap"></div>
+
               <div id="paceResults" hidden>
                 <div class="pace-plan" id="pacePlan" aria-label="PACE plan"></div>
                 <p class="pace-structure" id="paceStructure"></p>
                 <p class="help" id="paceSummary"></p>
+
+                <!-- M40: Freq plan export button -->
+                <button class="btn btn--sm btn--block" type="button" id="freqPlanBtn" title="Export printable frequency plan table (A4 landscape)">
+                  Export freq plan
+                </button>
+
+                <!-- M41: Network topology diagram -->
+                <details class="section__details" id="topologyDetails">
+                  <summary class="section__details-summary">Network topology</summary>
+                  <div id="topologyPanel"></div>
+                </details>
 
                 <div class="export">
                   <span class="field-label">Export report</span>
@@ -773,7 +844,7 @@
                     <label class="check check--inline"><input type="checkbox" id="fmtExcel" /><span>Excel</span></label>
                   </div>
                   <button class="btn btn--block" type="button" id="exportReportBtn">Export report</button>
-                  <p class="help" id="exportHelp">PDF opens a print view (use “Save as PDF”). Word and Excel download to your computer. Generated locally — nothing is uploaded.</p>
+                  <p class="help" id="exportHelp">PDF opens a print view (use "Save as PDF"). Word and Excel download to your computer. Generated locally — nothing is uploaded.</p>
                 </div>
 
               </div>
@@ -925,6 +996,13 @@
           <button class="map-rail__btn" type="button" id="zoomOut" aria-label="Zoom out">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
           </button>
+          <!-- M36: Mission Ops Dashboard -->
+          <button class="map-rail__btn" type="button" id="railOpsBtn" aria-label="Mission ops dashboard" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutOps" title="Mission ops — RF, cellular, drone, PACE, teams">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </button>
           <span class="map-rail__sep" aria-hidden="true"></span>
           <button class="map-rail__btn" type="button" id="railBasemapBtn" aria-label="Basemap and variants" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutBasemap" title="Basemap &amp; variants">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -972,6 +1050,12 @@
           </button>
         </div>
         <input type="file" id="importInput" accept=".kml,.kmz,.gpx,.geojson,.json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml,application/geo+json,application/json" hidden />
+
+        <!-- M36: Mission Ops Dashboard flyout -->
+        <div class="map-flyout dash-ops-flyout" id="railFlyoutOps" role="region" aria-label="Mission ops dashboard" hidden>
+          <div class="map-flyout__title">Mission Ops</div>
+          <div class="dash-ops" id="dashOpsInner"></div>
+        </div>
 
         <!-- Basemap flyout: imagery/topo chips + the variant list (replaces
              the old long-press/right-click variant dropdown). -->
