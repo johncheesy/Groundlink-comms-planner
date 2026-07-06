@@ -105,7 +105,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Sourcemaps help debugging but add ~5 MB to the deployed artifact and are
+    // not served by GitHub Pages in a way browsers auto-load them anyway.
+    // Keep sourcemap: true locally when needed; the public deploy ships without.
+    sourcemap: false,
     rollupOptions: {
       output: {
         // Split MapLibre GL (the bulk of the bundle) into its own chunk: it

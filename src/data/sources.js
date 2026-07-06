@@ -21,8 +21,12 @@
 
 import { buildDem, pickZoom } from '../workers/dem.js';
 import { buildLandcover, clutterDbForClass, clutterHeightForClass } from '../workers/worldcover.js';
-import { buildCogSampler } from './cog.js';
 import { offlineTileGetter } from './offline.js';
+
+// cog.js is only needed when the user provides a local COG file; importing it
+// statically would pull geotiff + all its decoder chunks (~315 KB) into every
+// worker build even when COG is never used. Dynamic import breaks the static
+// trace so geotiff stays out of the initial parse in both main thread and workers.
 
 /**
  * Representative clutter loss (dB) for a bare height (m) when no land-cover
@@ -61,6 +65,7 @@ export async function buildElevationSampler({ bounds, cog = null }) {
   }
 
   if (cog) {
+    const { buildCogSampler } = await import('./cog.js');
     const cogSampler = await buildCogSampler(cog, bounds, { neutral: NaN, interpolate: true });
     if (cogSampler) {
       const fallback = base;
@@ -83,6 +88,7 @@ export async function buildElevationSampler({ bounds, cog = null }) {
  */
 export async function buildClutterSampler({ bounds, cog = null }) {
   if (cog) {
+    const { buildCogSampler } = await import('./cog.js');
     const cogSampler = await buildCogSampler(cog, bounds, { neutral: 0, interpolate: false });
     if (cogSampler) {
       return {

@@ -923,6 +923,7 @@ whenStyleReady(() => {
       if (state === 'cleared' || state === 'done') refreshWorkflowUi();
       if (state === 'error') {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
+        showToast('Coverage compute failed — see browser console for details');
       } else if (state === 'done') {
         refreshExportPanel();
         const terrain = info?.terrain;
@@ -1027,6 +1028,7 @@ whenStyleReady(() => {
           cellHelp.textContent = `Cellular worker failed${why} — see console.`;
           // Also surface in the primary readout: cellHelp is easy to miss.
           if (cellReadout) cellReadout.textContent = `Coverage compute failed${why}. See the browser console for details.`;
+          showToast(`Cellular coverage failed${why}`);
         }
       },
     });
@@ -1037,6 +1039,7 @@ whenStyleReady(() => {
         if (cellReadout) cellReadout.textContent = 'Loading towers (snapshot, else OpenStreetMap)…';
       } else if (state === 'error') {
         if (cellReadout) cellReadout.textContent = `Error: ${info?.message || 'Tower fetch failed.'}`;
+        showToast(`Cellular data unavailable — ${info?.message || 'tower fetch failed'}`);
       }
       // 'computing' and 'empty' states are handled in the showCellBtn click handler
     },
@@ -2880,6 +2883,7 @@ function initCellularControls() {
     } catch (err) {
       cellReadout.textContent = `Tower fetch failed: ${err.message}. Check your connection and try again.`;
       statusMode.textContent = 'Cellular fetch error';
+      showToast(`Cellular tower fetch failed — check your connection`);
     } finally {
       showCellBtn.disabled = false;
     }
