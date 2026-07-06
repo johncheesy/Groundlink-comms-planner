@@ -2066,7 +2066,7 @@ const rolesList = $('#rolesList');
 const rolesHelp = $('#rolesHelp');
 
 const htmlEsc = (s) =>
-  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /** Mission/terrain context for the role rules (reach drives band tie-breakers). */
 function gatherRoleContext() {

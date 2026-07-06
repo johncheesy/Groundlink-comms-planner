@@ -3,11 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <!-- CSP: no inline/remote scripts (Vite module scripts are external);
-         'unsafe-inline' styles are required by MapLibre's injected styles. -->
+         'unsafe-inline' styles are required by MapLibre's injected styles.
+         connect-src is an explicit allowlist — no wildcard https:. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data: blob:; connect-src https: data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
+      content="default-src 'self'; script-src 'self' 'sha256-W2WFH2+T7LHw/LY8j3NwAfximvYUToqraYOvJKGTymg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://fonts.openmaptiles.org; img-src https: data: blob:; connect-src 'self' https://overpass-api.de https://overpass.kumi.systems https://api.cloudrf.com https://ows.digitalearth.africa https://s3.amazonaws.com https://data.source.coop https://apps.fcc.gov https://www.fcc.gov https://fccid.io https://photon.komoot.io https://server.arcgisonline.com https://service.pdok.nl https://tiles.maps.eox.at https://a.tile.opentopomap.org https://b.tile.opentopomap.org https://c.tile.opentopomap.org https://tile.openstreetmap.org https://a.basemaps.cartocdn.com https://b.basemaps.cartocdn.com https://tiles.openfreemap.org https://fonts.openmaptiles.org data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
     />
+    <!-- No-referrer: suppress Referer header on cross-origin requests. -->
+    <meta name="referrer" content="no-referrer" />
+    <!-- Frame-buster: redirect top frame if this page is embedded (GitHub Pages cannot set X-Frame-Options headers). -->
+    <script>if (window.top !== window.self) { window.top.location.replace(window.self.location.href); }</script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <title>GroundLink — Comms Coverage Planner</title>

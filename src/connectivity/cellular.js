@@ -181,7 +181,6 @@ const CELL_ORDER = ['GSM', 'UMTS', 'LTE', 'NR'];
 export const OVERPASS_ENDPOINTS = Object.freeze([
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ]);
 
 // Surface which endpoint last served (or that all failed) so the controller can

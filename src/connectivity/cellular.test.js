@@ -270,11 +270,10 @@ describe('Overpass endpoint fallback', () => {
     vi.unstubAllGlobals();
   });
 
-  it('exposes the three documented endpoints, main instance first', () => {
+  it('exposes the two documented endpoints, main instance first', () => {
     expect(OVERPASS_ENDPOINTS).toEqual([
       'https://overpass-api.de/api/interpreter',
       'https://overpass.kumi.systems/api/interpreter',
-      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
     ]);
   });
 
