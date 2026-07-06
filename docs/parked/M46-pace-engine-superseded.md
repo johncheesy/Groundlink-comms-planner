@@ -1,3 +1,9 @@
+# M46 — Domain profiles & standard comms-plan cards [SUPERSEDED]
+
+> **Superseded.** M46 was re-used for the built **Smart radio-to-node suggestions** (`src/analysis/radio-suggest.js`). This spec describes the original PACE-engine concept — still a valid backlog item, number TBD. See `docs/INDEX.md`.
+
+---
+
 # M46 — Domain profiles & standard comms-plan cards (PACE / ICS-205 / MOSS)
 
 Feature from the 12 Jun 2026 research (`../../GroundLink_feature-onderzoek.docx`,
