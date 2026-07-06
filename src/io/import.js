@@ -29,9 +29,7 @@ function cssVar(name, fallback) {
 
 // Escape user-supplied text before it goes into popup innerHTML (imported KML
 // names/descriptions are untrusted).
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+import { esc } from '../util/esc.js';
 
 // ---- Parsers ------------------------------------------------------------
 

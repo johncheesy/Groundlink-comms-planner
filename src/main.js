@@ -1,6 +1,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import '../styles/index.css';
+import { esc as htmlEsc } from './util/esc.js';
 
 import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
@@ -2065,8 +2066,7 @@ const assignRolesBtn = $('#assignRolesBtn');
 const rolesList = $('#rolesList');
 const rolesHelp = $('#rolesHelp');
 
-const htmlEsc = (s) =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// htmlEsc imported from './util/esc.js' at the top of this file.
 
 /** Mission/terrain context for the role rules (reach drives band tie-breakers). */
 function gatherRoleContext() {
@@ -2206,13 +2206,13 @@ function renderPace(plan) {
   paceHelp.hidden = true;
   pacePlan.innerHTML = plan.legs
     .map((l) => {
-      const bearer = l.status === 'gap' ? '— not filled —' : l.band || l.asset;
+      const bearer = l.status === 'gap' ? '— not filled —' : htmlEsc(l.band || l.asset || '');
       const tag = l.status === 'separate' ? ' · separate module' : l.status === 'asset' ? ' · asset' : '';
       return (
         `<div class="pace-row${l.status === 'gap' ? ' pace-row--gap' : ''}">` +
-        `<span class="pace-tier badge ${PACE_BADGE[l.tier] || 'badge--ref'}">${l.tier}</span>` +
-        `<span class="pace-bearer">${bearer}<span class="pace-tag">${tag}</span></span>` +
-        `<span class="pace-why">${l.role} — ${l.why}</span>` +
+        `<span class="pace-tier badge ${PACE_BADGE[l.tier] || 'badge--ref'}">${htmlEsc(l.tier)}</span>` +
+        `<span class="pace-bearer">${bearer}<span class="pace-tag">${htmlEsc(tag)}</span></span>` +
+        `<span class="pace-why">${htmlEsc(l.role)} — ${htmlEsc(l.why)}</span>` +
         `</div>`
       );
     })
@@ -2643,12 +2643,7 @@ function updateCalLayer(samples) {
 
 const fmtSignedDb = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`;
 
-/** Minimal HTML escape for user-supplied radio ids in the fit table. */
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
-  );
-}
+const escapeHtml = htmlEsc; // alias — use htmlEsc (from util/esc.js) everywhere
 
 /** Import + predict + fit from CSV text (exposed on __gl for tests). */
 async function importCalText(text) {
@@ -2939,7 +2934,7 @@ function renderSiteList(sites) {
     li.className = 'site-list__row';
     li.innerHTML =
       `<span class="site-list__n">#${i + 1}</span>` +
-      `<span class="site-list__name">${s.label ?? 'Site'}</span>` +
+      `<span class="site-list__name">${htmlEsc(s.label ?? 'Site')}</span>` +
       `<span class="site-list__elev" data-numeric>${Math.round(s.elevM)} m</span>` +
       `<span class="site-list__new" data-numeric>+${Math.round(s.newlyCovered * 100)}% new</span>` +
       `<span class="site-list__cum" data-numeric>cum ${Math.round(s.cumulativeFrac * 100)}%</span>`;
@@ -3895,8 +3890,7 @@ const viewServerBtn = $('#viewServerBtn');
 const interferenceChk = $('#interferenceChk');
 const bestServerLegend = $('#bestServerLegend');
 
-const escHtml = (s) =>
-  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const escHtml = htmlEsc; // alias — use htmlEsc (from util/esc.js) everywhere
 
 function renderServerLegend() {
   if (!bestServerLegend) return;

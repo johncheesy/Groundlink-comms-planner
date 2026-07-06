@@ -5,8 +5,7 @@
  * capacity bars (coverage-spectrum tokens), and timings + ATAK side cards.
  */
 
-const esc = (s) =>
-  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+import { esc } from '../util/esc.js';
 
 const fmtH = (h) => (Number.isFinite(h) ? (h >= 100 ? String(Math.round(h)) : h.toFixed(1)) : '∞');
 const pct = (f) => Math.round((Number.isFinite(f) ? f : 0) * 100);

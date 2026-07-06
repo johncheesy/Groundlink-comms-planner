@@ -24,9 +24,7 @@ const e = (tag, cls, ...ch) => {
   return el;
 };
 
-const htmlEsc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-}[c]));
+import { esc as htmlEsc } from '../util/esc.js';
 
 export function createRadioSuggestPanel(host, { onApply } = {}) {
   function render(suggestions) {

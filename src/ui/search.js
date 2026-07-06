@@ -50,11 +50,7 @@ export function photonToPlaces(geojson) {
   return places;
 }
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
-  );
-}
+import { esc as escapeHtml } from '../util/esc.js';
 
 /**
  * providers: [{ key, title, getItems() → [{ label, keywords?, hint?, run() }] }]

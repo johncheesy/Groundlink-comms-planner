@@ -7,8 +7,7 @@
 import { sortEntries } from './focus.js';
 import { KIND_LABEL, RF_KINDS } from './objects.js';
 
-const esc = (s) =>
-  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+import { esc } from '../util/esc.js';
 
 const COLS = [
   { key: 'name', label: 'Name' },

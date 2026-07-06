@@ -12,8 +12,7 @@
 import { TEAM_COLORS } from '../mission/teams.js';
 import { dmrCapacity } from '../mission/erlang.js';
 
-const esc = (s) =>
-  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+import { esc } from '../util/esc.js';
 
 /** Coarse band label from a radio's default / range frequency. */
 function bandWord(radio) {
