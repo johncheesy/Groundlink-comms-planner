@@ -341,7 +341,7 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
         `<li class="structure-item" data-sid="${esc(s.id)}">` +
         `<span class="structure-item__name">${esc(s.name)}</span>` +
         `<span class="structure-item__radios">${esc(infraName)} / ${esc(fieldName)}</span>` +
-        `<button class="structure-item__remove" type="button" title="Remove structure">×</button>` +
+        `<button class="structure-item__remove" type="button" title="Remove structure" aria-label="Remove structure ${esc(s.name)}">×</button>` +
         `</li>`
       );
     }).join('');
