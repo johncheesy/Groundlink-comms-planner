@@ -12,7 +12,7 @@ try {
   /* not a git checkout — keep 'dev' */
 }
 const build = {
-  channel: 'alpha',
+  channel: 'beta',
   version: pkg.version,
   sha,
   date: new Date().toISOString().slice(0, 10),
