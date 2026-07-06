@@ -86,7 +86,7 @@ export async function buildLandcover(bounds, size = 512) {
   const W = size;
   const H = size;
   try {
-    const resp = await fetch(getMapUrl(bounds, W, H));
+    const resp = await fetch(getMapUrl(bounds, W, H), { signal: AbortSignal.timeout(4000) });
     if (!resp.ok) return null;
     const ct = resp.headers.get('content-type') || '';
     if (!/image/.test(ct)) return null; // service exception XML, etc.
