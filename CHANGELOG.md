@@ -6,6 +6,19 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+**M48 — Live LEO/MEO pass window** (`docs/M48-leo-passes.md`)
+- Satcom panel: per-constellation live line for Iridium, Globalstar and O3b — satellites above a 10° mask now, best elevation/azimuth, gaps and worst moment in the next 120 min, next pass when nothing is visible. SGP4 via `satellite.js` on CelesTrak element sets (CORS, no key, 6 h cache, stale-on-offline). Lazy-loaded chunk; eager bundle unchanged.
+- Decision record `docs/decisions/0006-gods-eye-view-port.md`: what was and was not taken from God's Eye View 0.1.1.
+
+### Changed
+- CSP `connect-src` now allows `https://celestrak.org`.
+
+---
+
 ## [0.9.0-beta] — 2026-07-06
 
 First public beta release. M1–M47 + E1–E4 feature-complete; BR1 security and

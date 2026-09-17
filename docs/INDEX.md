@@ -38,6 +38,7 @@ Mapping of every milestone → spec file → dispatch → primary source files �
 | E2 | ITU-R P.1812 in-browser engine | `E2-p1812-engine.md` | `dispatch-E2.md` | `src/coverage/p1812.js` | ✅ built |
 | E3b | Model accuracy badge | — | — | `src/ui/badges.js` | ✅ built |
 | E4 | ITU-R P.618-14 rain-fade engine | `E4-rain-fade.md` | — | `src/analysis/rain-fade.js` | ✅ built |
+| M48 | Live LEO/MEO pass window (SGP4 on CelesTrak) | `M48-leo-passes.md` | — | `src/connectivity/leo-pass.js`, `src/connectivity/leo-tle.js`, `src/ui/satcom-panel.js` | ✅ built |
 | M27 | Field calibration (RSSI CSV, bias offsets) | `M27-field-calibration.md` | — | `src/analysis/calibration.js` | ✅ built |
 | M35 | Mast-height wizard | `M35-mast-height-wizard.md` | `dispatch-M35.md` | `src/analysis/mast-height.js`, `src/ui/mast-wizard.js` | ✅ built |
 | M36 | Mission ops dashboard | `M36-ops-dashboard.md` | — | `src/ui/dash-ops.js` | ✅ built |

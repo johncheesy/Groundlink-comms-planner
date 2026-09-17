@@ -4,6 +4,8 @@
  * Renders inside the left-panel "Satcom" section:
  *   • GEO satellite look-angle table (elevation, azimuth, status ring)
  *   • LEO system availability badges
+ *   • Live LEO/MEO pass window per constellation (M48) — SGP4 on CelesTrak
+ *     element sets, lazy-loaded so satellite.js stays out of the eager bundle
  *   • Best-satellite recommendation
  *
  * Usage:
@@ -14,6 +16,48 @@
 
 import { satcomAssessment, LEO_SYSTEMS } from '../connectivity/satcom.js';
 import { rainAttenuation } from '../analysis/rain-fade.js';
+import { esc } from '../util/esc.js';
+
+// ── M48: live LEO/MEO pass window ──────────────────────────────────────────
+
+const LEO_MASK_DEG = 10;     // handheld L-band planning mask
+const LEO_HORIZON_MIN = 120; // look-ahead window
+
+const fmtTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const fmtMin = (m) => `${Math.round(m)} min`;
+
+function setLive(el, tier, html) {
+  el.className = `satcom-leo-live satcom-leo-live--${tier}`;
+  el.innerHTML = html;
+}
+
+/** Render one constellationWindow() result into its live line. */
+function renderLive(el, w, { fetchedAt, stale }) {
+  const mask = `${w.maskDeg}°`;
+  const parts = [];
+  let tier = 'ok';
+  if (w.nowVisible > 0) {
+    parts.push(
+      `Now <b>${w.nowVisible}</b> ≥ ${mask} · best <b>${w.bestNow.elevDeg.toFixed(0)}°</b> ` +
+      `(${esc(w.bestNow.name.trim())}, Az ${Math.round(w.bestNow.azDeg)}°)`);
+  } else {
+    tier = 'gap';
+    parts.push(w.nextPass
+      ? `None ≥ ${mask} now · next pass <b>${fmtTime(w.nextPass.riseMs)}</b>, peak ${w.nextPass.peakElevDeg.toFixed(0)}°`
+      : `None ≥ ${mask} in the next ${w.horizonMin} min`);
+  }
+  if (w.gaps.length) {
+    tier = 'gap';
+    parts.push(`next ${w.horizonMin} min: <b>${w.gaps.length}</b> gap${w.gaps.length === 1 ? '' : 's'}, longest ${fmtMin(w.longestGapMin)}`);
+  } else if (w.worst) {
+    parts.push(`next ${w.horizonMin} min: no gaps, lowest best-sat ${w.worst.elevDeg.toFixed(0)}° at ${fmtTime(w.worst.tMs)}`);
+  }
+  const ageH = (Date.now() - fetchedAt) / 3600e3;
+  const meta =
+    `${w.satCount} element sets · CelesTrak${stale ? ' (cached, offline)' : ''} · ` +
+    `elements ${ageH < 1 ? '<1 h' : `${ageH.toFixed(0)} h`} old · terrain mask not applied`;
+  setLive(el, tier, parts.join(' · ') + `<span class="satcom-leo-live__meta">${meta}</span>`);
+}
 
 // ── M44: Rain-fade helpers ─────────────────────────────────────────────────
 
@@ -151,6 +195,55 @@ function elevationArc(elevation) {
 export function createSatcomPanel(host, { onCentroidNeeded } = {}) {
   host.innerHTML = '';
 
+  // M48: monotonically increasing token — a render or clear invalidates any
+  // in-flight live computation from an earlier AOI position.
+  let liveSeq = 0;
+
+  async function runLeoLive(root, lat, lng, seq) {
+    const targets = [...root.querySelectorAll('.satcom-leo-live[data-sys]')];
+    if (!targets.length) return;
+    const alive = (el) => seq === liveSeq && root.contains(el);
+
+    let engine, loader;
+    try {
+      [engine, loader] = await Promise.all([
+        import('../connectivity/leo-pass.js'),
+        import('../connectivity/leo-tle.js'),
+      ]);
+    } catch (_) {
+      for (const el of targets) if (alive(el)) setLive(el, 'err', 'Live orbit data unavailable (module failed to load).');
+      return;
+    }
+
+    for (const el of targets) {
+      if (!alive(el)) return;
+      const sys = LEO_SYSTEMS.find((s) => s.id === el.dataset.sys);
+      if (!sys?.tle) continue;
+      try {
+        const { text, fetchedAt, stale } = await loader.loadGroupTle(sys.tle.group);
+        if (!alive(el)) return;
+        let tles = engine.parseTle(text);
+        if (sys.tle.match) {
+          const re = new RegExp(sys.tle.match, 'i');
+          tles = tles.filter((t) => re.test(t.name));
+        }
+        const sats = engine.toSatrecs(tles);
+        if (!sats.length) { setLive(el, 'err', 'No usable element sets for this constellation.'); continue; }
+        // Let the panel paint before the SGP4 loop (≈ sats × 121 propagations).
+        await new Promise((r) => setTimeout(r, 0));
+        if (!alive(el)) return;
+        const w = engine.constellationWindow({
+          sats, latDeg: lat, lngDeg: lng, maskDeg: LEO_MASK_DEG, horizonMin: LEO_HORIZON_MIN,
+        });
+        renderLive(el, w, { fetchedAt, stale });
+      } catch (err) {
+        if (!alive(el)) return;
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        setLive(el, 'err', `Live orbit data unavailable${offline ? ' (offline)' : ''} — planning badge only.`);
+      }
+    }
+  }
+
   // Placeholder state
   function showPlaceholder() {
     host.innerHTML = '';
@@ -261,10 +354,17 @@ export function createSatcomPanel(host, { onCentroidNeeded } = {}) {
         `<span class="satcom-leo-net">${sys.constellation} · ${sys.bands}</span>`;
       const note = e('div', 'satcom-leo-note', sys.note);
       row.append(note);
+      if (sys.tle) {
+        // M48: filled asynchronously by runLeoLive()
+        const live = e('div', 'satcom-leo-live satcom-leo-live--pending', 'Live pass window: loading orbit data…');
+        live.dataset.sys = sys.id;
+        row.append(live);
+      }
       leoWrap.append(row);
     }
 
     host.append(leoWrap);
+    runLeoLive(host, lat, lng, ++liveSeq); // M48
 
     // ── Footer note ──────────────────────────────────────────────────────
     const footer = e('p', 'satcom-footer',
@@ -291,6 +391,6 @@ export function createSatcomPanel(host, { onCentroidNeeded } = {}) {
         showPlaceholder();
       }
     },
-    clear: showPlaceholder,
+    clear() { liveSeq++; showPlaceholder(); },
   };
 }

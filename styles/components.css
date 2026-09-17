@@ -4918,3 +4918,23 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .intel-score-badge--high { color: var(--accent); border-color: var(--accent); }
 .intel-score-badge--mid  { color: var(--warn);   border-color: var(--warn); }
 .intel-score-badge--low  { color: var(--bad);    border-color: var(--bad); }
+
+/* ── M48: live LEO/MEO pass window (satcom panel) ─────────────────────── */
+.satcom-leo-live {
+  width: 100%;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+  margin: 0;
+}
+.satcom-leo-live b { font-weight: 600; }
+.satcom-leo-live--pending { color: var(--faint); }
+.satcom-leo-live--err     { color: var(--faint); font-style: italic; }
+.satcom-leo-live--gap     { color: var(--warn); }
+.satcom-leo-live__meta {
+  display: block;
+  font-size: 9.5px;
+  color: var(--faint);
+}

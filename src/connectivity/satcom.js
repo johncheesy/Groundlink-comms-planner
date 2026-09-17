@@ -53,6 +53,7 @@ export const GEO_SATS = [
 export const LEO_SYSTEMS = [
   {
     id: 'iridium',
+    tle: { group: 'iridium-NEXT' },   // M48: CelesTrak group for live pass window
     label: 'Iridium',
     constellation: 'LEO',
     altKm: 780,
@@ -63,6 +64,7 @@ export const LEO_SYSTEMS = [
   },
   {
     id: 'starlink',
+    tle: null, // M48: ~7,000 element sets and always many in view — a count is not a planning signal
     label: 'Starlink',
     constellation: 'LEO',
     altKm: 550,
@@ -73,6 +75,7 @@ export const LEO_SYSTEMS = [
   },
   {
     id: 'globalstar',
+    tle: { group: 'globalstar' },
     label: 'Globalstar',
     constellation: 'LEO',
     altKm: 1414,
@@ -83,6 +86,7 @@ export const LEO_SYSTEMS = [
   },
   {
     id: 'o3b',
+    tle: { group: 'ses', match: '^O3B' },   // O3b sets live inside CelesTrak's SES group
     label: 'O3b / SES mPOWER',
     constellation: 'MEO',
     altKm: 8062,
