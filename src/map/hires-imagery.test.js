@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   HIRES_SOURCES, hiresSource, tileBbox3857, tileUrl, parseHiresUrl, isBlankPixels,
   sourcesAt, drawOrder, hiresStyleParts, registerHiresProtocol, transparentPng, BLANK_CHECK_MAX_BYTES,
-  tileCenterLngLat, createCoverageMemory,
+  tileCenterLngLat, tileBoundsLngLat, createCoverageMemory,
 } from './hires-imagery.js';
 
 describe('source registry', () => {
@@ -20,6 +20,13 @@ describe('source registry', () => {
       expect(s.attribution.length).toBeGreaterThan(5);
       expect(s.resolution).toBeTruthy();
     }
+  });
+  it('every source has a short name for the UI', () => {
+    for (const s of HIRES_SOURCES) expect(s.short).toBeTruthy();
+  });
+  it('covers the continents we verified', () => {
+    const ids = HIRES_SOURCES.map((s) => s.id);
+    for (const id of ['jp-gsi', 'au-nsw', 'tw-nlsc', 'cz-cuzk', 'de-sn', 'ee-maaamet']) expect(ids).toContain(id);
   });
   it('hiresSource looks up by id', () => {
     expect(hiresSource('nl-pdok').label).toMatch(/Netherlands/);
@@ -47,6 +54,10 @@ describe('tile maths', () => {
     const at = tileUrl(hiresSource('at-basemap'), 16, 1, 2);
     expect(at).toMatch(/\/16\/2\/1\.jpeg$/); // this service wants {z}/{y}/{x}
   });
+  it('counts rows from the bottom for TMS-style services (Estonia)', () => {
+    expect(tileUrl(hiresSource('ee-maaamet'), 3, 5, 2)).toMatch(/\/3\/5\/5\.png$/); // 2^3 - 1 - 2 = 5
+    expect(tileUrl(hiresSource('ee-maaamet'), 17, 70000, 36000)).toMatch(new RegExp(`/17/70000/${2 ** 17 - 1 - 36000}\\.png$`));
+  });
   it('parses the internal URL', () => {
     expect(parseHiresUrl('hires://nl-pdok/18/134000/85000')).toEqual({ id: 'nl-pdok', z: 18, x: 134000, y: 85000 });
     expect(parseHiresUrl('https://x/1/2/3')).toBeNull();
@@ -72,6 +83,10 @@ describe('isBlankPixels', () => {
 });
 
 describe('sourcesAt', () => {
+  it('Tokyo and Sydney are covered', () => {
+    expect(sourcesAt(139.77, 35.68, 16)[0].id).toBe('jp-gsi');
+    expect(sourcesAt(151.21, -33.87, 16)[0].id).toBe('au-nsw');
+  });
   it('Amsterdam at street zoom gets PDOK first', () => {
     const r = sourcesAt(4.9, 52.37, 16);
     expect(r[0].id).toBe('nl-pdok');
@@ -188,5 +203,21 @@ describe('tileCenterLngLat / coverage memory', () => {
     for (let i = 0; i < 10; i++) m.record('a', 16, 30000 + i, 20000);
     m.record('a', NaN, 1, 1);
     expect(m.inView({ west: -180, east: 180, south: -85, north: 85 })).toEqual(['a']);
+  });
+});
+
+describe('coverage memory uses whole tiles', () => {
+  it('a coarse tile still counts when only a small part of it is in view', () => {
+    const m = createCoverageMemory();
+    m.record('ee-maaamet', 16, 37274, 19170); // a ~600 m tile
+    const b = tileBoundsLngLat(16, 37274, 19170);
+    const nearEdge = { west: b.east - 0.0005, east: b.east + 0.01, south: b.south, north: b.north }; // centre is far outside this view
+    expect(m.inView(nearEdge)).toEqual(['ee-maaamet']);
+    expect(m.inView({ west: b.east + 0.01, east: b.east + 0.02, south: b.south, north: b.north })).toEqual([]);
+  });
+  it('tileBoundsLngLat tiles the world', () => {
+    const w = tileBoundsLngLat(0, 0, 0);
+    expect(w.west).toBeCloseTo(-180, 6); expect(w.east).toBeCloseTo(180, 6);
+    expect(w.north).toBeCloseTo(85.0511, 3); expect(w.south).toBeCloseTo(-85.0511, 3);
   });
 });

@@ -515,7 +515,7 @@ function renderVariantMenu() {
     variantMenu.appendChild(now);
     const cov = document.createElement('div');
     cov.className = 'basemap-hires__cov';
-    cov.textContent = 'National programmes: Netherlands 8 cm, Switzerland 10 cm, France 20 cm, Luxembourg, Flanders, Austria, Poland, Spain, NRW and Bavaria, USA. Elsewhere the global layer (10 m) is the sharpest open imagery.';
+    cov.textContent = `National aerial programmes: ${HIRES_SOURCES.map((s) => s.short).join(', ')}. Elsewhere the global layer (10 m) is the sharpest open imagery.`;
     variantMenu.appendChild(cov);
     updateHiresStatus();
   }

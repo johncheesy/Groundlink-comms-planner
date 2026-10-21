@@ -33,75 +33,114 @@ export const BLANK_CHECK_MAX_BYTES = 6000;
 
 /**
  * Sources, best-resolution country data first within each region. `bounds` is
- * [west, south, east, north]. `template` uses {z} {x} {y} or {bbox} (EPSG:3857
- * metres, for WMS). `maxzoom` is the highest level the service really serves;
+ * [west, south, east, north]. `template` uses {z} {x} {y} {yTms} (rows counted from the
+ * bottom) or {bbox} (EPSG:3857 metres, for WMS). `maxzoom` is the highest level the service really serves;
  * beyond it MapLibre enlarges the last tile.
  */
 export const HIRES_SOURCES = Object.freeze([
   {
-    id: 'fr-ign', label: 'IGN Orthophotos (France)', resolution: '20 cm', minzoom: 10, maxzoom: 19,
+    id: 'fr-ign', short: 'France', label: 'IGN Orthophotos (France)', resolution: '20 cm', minzoom: 10, maxzoom: 19,
     bounds: [-5.2, 41.3, 9.7, 51.2],
     template: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
     attribution: '© <a href="https://geoservices.ign.fr/">IGN</a> (Licence Ouverte)',
   },
   {
-    id: 'es-pnoa', label: 'PNOA (Spain)', resolution: '25–50 cm', minzoom: 10, maxzoom: 19,
+    id: 'es-pnoa', short: 'Spain', label: 'PNOA (Spain)', resolution: '25–50 cm', minzoom: 10, maxzoom: 19,
     bounds: [-9.4, 35.9, 4.4, 43.9],
     template: 'https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&format=image/jpeg&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}',
     attribution: '© <a href="https://pnoa.ign.es/">PNOA</a> © IGN España (CC BY 4.0)',
   },
   {
-    id: 'pl-gugik', label: 'Geoportal orthophoto (Poland)', resolution: '25 cm', minzoom: 10, maxzoom: 19,
+    id: 'pl-gugik', short: 'Poland', label: 'Geoportal orthophoto (Poland)', resolution: '25 cm', minzoom: 10, maxzoom: 19,
     bounds: [14.1, 49.0, 24.2, 54.9],
     template: 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?service=WMTS&request=GetTile&version=1.0.0&layer=ORTOFOTOMAPA&style=default&format=image/jpeg&tilematrixset=EPSG:3857&tilematrix=EPSG:3857:{z}&tilerow={y}&tilecol={x}',
     attribution: '© <a href="https://www.geoportal.gov.pl/">GUGiK</a>',
   },
   {
-    id: 'de-by', label: 'Bayern DOP (Germany)', resolution: '40 cm', minzoom: 10, maxzoom: 20,
+    id: 'de-by', short: 'Bavaria', label: 'Bayern DOP (Germany)', resolution: '40 cm', minzoom: 10, maxzoom: 20,
     bounds: [8.95, 47.25, 13.85, 50.58],
     template: 'https://geoservices.bayern.de/od/wms/dop/v1/dop40?service=WMS&request=GetMap&version=1.1.1&layers=by_dop40c&styles=&format=image/jpeg&width=256&height=256&srs=EPSG:3857&bbox={bbox}',
     attribution: '© <a href="https://www.ldbv.bayern.de/">Bayerische Vermessungsverwaltung</a> (CC BY 4.0)',
   },
   {
-    id: 'de-nrw', label: 'NRW DOP (Germany)', resolution: '10–20 cm', minzoom: 10, maxzoom: 20,
+    id: 'de-nrw', short: 'NRW', label: 'NRW DOP (Germany)', resolution: '10–20 cm', minzoom: 10, maxzoom: 20,
     bounds: [5.85, 50.30, 9.50, 52.55],
     template: 'https://www.wms.nrw.de/geobasis/wms_nw_dop?service=WMS&request=GetMap&version=1.1.1&layers=nw_dop_rgb&styles=&format=image/jpeg&width=256&height=256&srs=EPSG:3857&bbox={bbox}',
     attribution: '© <a href="https://www.bezreg-koeln.nrw.de/geobasis-nrw">Geobasis NRW</a> (dl-de/zero-2-0)',
   },
   {
-    id: 'at-basemap', label: 'basemap.at Orthofoto (Austria)', resolution: '30 cm', minzoom: 10, maxzoom: 20,
+    id: 'at-basemap', short: 'Austria', label: 'basemap.at Orthofoto (Austria)', resolution: '30 cm', minzoom: 10, maxzoom: 20,
     bounds: [9.5, 46.35, 17.2, 49.05],
     template: 'https://mapsneu.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg',
     attribution: '© <a href="https://basemap.at/">basemap.at</a> (CC BY 4.0)',
   },
   {
-    id: 'ch-swissimage', label: 'SWISSIMAGE (Switzerland)', resolution: '10 cm', minzoom: 10, maxzoom: 20,
+    id: 'ch-swissimage', short: 'Switzerland', label: 'SWISSIMAGE (Switzerland)', resolution: '10 cm', minzoom: 10, maxzoom: 20,
     bounds: [5.95, 45.8, 10.55, 47.85],
     template: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg',
     attribution: '© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>',
   },
   {
-    id: 'nl-pdok', label: 'PDOK Luchtfoto HR (Netherlands)', resolution: '8 cm', minzoom: 10, maxzoom: 20,
+    id: 'nl-pdok', short: 'Netherlands', label: 'PDOK Luchtfoto HR (Netherlands)', resolution: '8 cm', minzoom: 10, maxzoom: 20,
     bounds: [3.3, 50.74, 7.25, 53.56],
     template: 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg',
     attribution: '© <a href="https://www.pdok.nl/">PDOK</a> / Beeldmateriaal Nederland (CC BY 4.0)',
   },
   {
-    id: 'be-vlaanderen', label: 'Orthofoto Vlaanderen (Belgium)', resolution: '25 cm', minzoom: 10, maxzoom: 20,
+    id: 'be-vlaanderen', short: 'Flanders', label: 'Orthofoto Vlaanderen (Belgium)', resolution: '25 cm', minzoom: 10, maxzoom: 20,
     bounds: [2.5, 50.67, 5.93, 51.52],
     template: 'https://geo.api.vlaanderen.be/OMW/wms?service=WMS&request=GetMap&version=1.1.1&layers=OMWRGB25VL&styles=&format=image/jpeg&width=256&height=256&srs=EPSG:3857&bbox={bbox}',
     attribution: '© <a href="https://www.vlaanderen.be/digitaal-vlaanderen">Digitaal Vlaanderen</a>',
   },
   {
-    id: 'lu-geoportail', label: 'Orthophoto (Luxembourg)', resolution: '20 cm', minzoom: 10, maxzoom: 20,
+    id: 'lu-geoportail', short: 'Luxembourg', label: 'Orthophoto (Luxembourg)', resolution: '20 cm', minzoom: 10, maxzoom: 20,
     bounds: [5.73, 49.44, 6.54, 50.19],
     template: 'https://wmts3.geoportail.lu/opendata/wmts/ortho_latest/GLOBAL_WEBMERCATOR_4_V3/{z}/{x}/{y}.jpeg',
     attribution: '© <a href="https://geoportail.lu/">Administration du cadastre et de la topographie</a>',
   },
   {
+    id: 'jp-gsi', short: 'Japan', label: 'GSI Japan seamless photo', resolution: '≈ 0.2–1 m', minzoom: 10, maxzoom: 18,
+    bounds: [122.9, 24.0, 146.0, 45.6],
+    template: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">GSI Japan</a> (地理院タイル)',
+  },
+  {
+    id: 'au-nsw', short: 'NSW Australia', label: 'NSW Imagery (Australia)', resolution: '12–50 cm', minzoom: 10, maxzoom: 19,
+    bounds: [140.9, -37.6, 153.7, -28.1],
+    template: 'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© <a href="https://www.spatial.nsw.gov.au/">Spatial Services, NSW Government</a> (CC BY 4.0)',
+  },
+  {
+    id: 'tw-nlsc', short: 'Taiwan', label: 'NLSC aerial photo (Taiwan)', resolution: '≈ 0.25 m', minzoom: 10, maxzoom: 19,
+    bounds: [119.3, 21.8, 122.1, 25.4],
+    template: 'https://wmts.nlsc.gov.tw/wmts/PHOTO2/default/GoogleMapsCompatible/{z}/{y}/{x}',
+    attribution: '© <a href="https://maps.nlsc.gov.tw/">NLSC</a> Taiwan',
+  },
+  {
+    id: 'cz-cuzk', short: 'Czechia', label: 'ČÚZK orthophoto (Czechia)', resolution: '12–25 cm', minzoom: 10, maxzoom: 19,
+    bounds: [12.0, 48.5, 18.9, 51.1],
+    template: 'https://ags.cuzk.cz/arcgis1/services/ORTOFOTO/MapServer/WMSServer?service=WMS&request=GetMap&version=1.1.1&layers=0&styles=&format=image/jpeg&width=256&height=256&srs=EPSG:3857&bbox={bbox}',
+    attribution: '© <a href="https://www.cuzk.cz/">ČÚZK</a> (CC BY 4.0)',
+  },
+  {
+    id: 'de-sn', short: 'Saxony', label: 'Sachsen DOP (Germany)', resolution: '20 cm', minzoom: 10, maxzoom: 19,
+    bounds: [11.8, 50.15, 15.1, 51.7],
+    template: 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest?service=WMS&request=GetMap&version=1.1.1&layers=sn_dop_020&styles=&format=image/jpeg&width=256&height=256&srs=EPSG:3857&bbox={bbox}',
+    attribution: '© <a href="https://www.geodaten.sachsen.de/">GeoSN</a> (dl-de/by-2-0)',
+  },
+  {
+    // Estonia's tile server counts rows from the bottom (TMS), hence {yTms}. Zoom 17
+    // has holes (Tallinn's old town answers blank there), so the source stops at 16
+    // and MapLibre enlarges that tile instead of leaving a gap.
+    id: 'ee-maaamet', short: 'Estonia', label: 'Maa-amet orthophoto (Estonia)', resolution: '≈ 0.3–0.4 m', minzoom: 10, maxzoom: 16,
+    bounds: [21.7, 57.5, 28.3, 59.8],
+    template: 'https://tiles.maaamet.ee/tm/tms/1.0.0/foto@GMC/{z}/{x}/{yTms}.png',
+    attribution: '© <a href="https://maaamet.ee/">Maa- ja Ruumiamet</a> (Estonian Land Board)',
+  },
+  {
     // Mixed: NAIP (about 1 m or better) across the lower 48, coarser elsewhere. Only
     // shown when zoomed in, where NAIP is what you get.
-    id: 'us-usgs', label: 'USGS Imagery (United States)', resolution: '≈ 0.3–1 m', minzoom: 13, maxzoom: 16,
+    id: 'us-usgs', short: 'USA', label: 'USGS Imagery (United States)', resolution: '≈ 0.3–1 m', minzoom: 13, maxzoom: 16,
     bounds: [-125.0, 24.4, -66.9, 49.6],
     template: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Imagery: <a href="https://www.usgs.gov/">USGS</a> The National Map',
@@ -128,6 +167,7 @@ export function tileUrl(source, z, x, y) {
     .replace('{z}', String(z))
     .replace('{x}', String(x))
     .replace('{y}', String(y))
+    .replace('{yTms}', String(2 ** z - 1 - y))
     .replace('{bbox}', tileBbox3857(z, x, y));
 }
 
@@ -181,25 +221,36 @@ export function tileCenterLngLat(z, x, y) {
   return [lng, lat];
 }
 
+/** Extent of an XYZ tile as { west, south, east, north } in degrees. */
+export function tileBoundsLngLat(z, x, y) {
+  const n = 2 ** z;
+  const lng = (t) => (t / n) * 360 - 180;
+  const lat = (t) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * t) / n))) * 180) / Math.PI;
+  return { west: lng(x), east: lng(x + 1), north: lat(y), south: lat(y + 1) };
+}
+
 /**
  * Remembers where each source really delivered imagery, so "what is on screen"
  * stays right when MapLibre redraws from its own tile cache (no handler call).
+ * Whole tile extents are kept, not centres: above a source's top zoom MapLibre
+ * enlarges one coarse tile, whose centre can lie outside a close-up view that
+ * the tile still fills.
  */
 export function createCoverageMemory({ perSource = 300 } = {}) {
-  const pts = new Map(); // id -> [[lng, lat], ...] most recent last
+  const boxes = new Map(); // id -> [{west,south,east,north}, ...] most recent last
   return {
     record(id, z, x, y) {
       if (![z, x, y].every(Number.isFinite)) return;
-      const arr = pts.get(id) ?? [];
-      arr.push(tileCenterLngLat(z, x, y));
+      const arr = boxes.get(id) ?? [];
+      arr.push(tileBoundsLngLat(z, x, y));
       if (arr.length > perSource) arr.shift();
-      pts.set(id, arr);
+      boxes.set(id, arr);
     },
-    /** ids with imagery recorded inside {west,south,east,north} */
+    /** ids with imagery recorded that overlaps {west,south,east,north} */
     inView(b) {
       const out = [];
-      for (const [id, arr] of pts) {
-        if (arr.some(([lng, lat]) => lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north)) out.push(id);
+      for (const [id, arr] of boxes) {
+        if (arr.some((t) => t.east >= b.west && t.west <= b.east && t.north >= b.south && t.south <= b.north)) out.push(id);
       }
       return out;
     },

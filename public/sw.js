@@ -69,6 +69,12 @@ const TILE_HOST_PATTERNS = [
   /^www\.wms\.nrw\.de$/,
   /^geoservices\.bayern\.de$/,
   /^basemap\.nationalmap\.gov$/,
+  /^cyberjapandata\.gsi\.go\.jp$/,
+  /^wmts\.nlsc\.gov\.tw$/,
+  /^maps\.six\.nsw\.gov\.au$/,
+  /^tiles\.maaamet\.ee$/,
+  /^ags\.cuzk\.cz$/,
+  /^geodienste\.sachsen\.de$/,
 ];
 // DEM tiles live on a shared S3 host, so match by path as well as host.
 const TILE_PATH_PATTERNS = [/elevation-tiles-prod/];

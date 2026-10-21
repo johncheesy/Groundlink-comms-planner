@@ -15,7 +15,7 @@ There is **no global open satellite layer sharper than about 10 m** (Sentinel-2)
 
 ### National aerial imagery (`src/map/hires-imagery.js`)
 
-All are keyless and serve CORS headers. Each was probed live on 21 Oct 2026 (status 200 at zoom 18/19 inside its country).
+All are keyless and serve CORS headers. Each was probed live on 21 Oct 2026 (status 200 inside its country at the zoom levels it serves, and behaviour outside checked).
 
 | Source | Area | Resolution | Terms stated |
 |---|---|---|---|
@@ -30,8 +30,23 @@ All are keyless and serve CORS headers. Each was probed live on 21 Oct 2026 (sta
 | Bayern DOP | Bavaria, Germany | 40 cm | CC BY 4.0 |
 | PNOA (IGN España) | Spain | 25 to 50 cm | CC BY 4.0 |
 | USGS Imagery | USA (lower 48) | about 0.3 to 1 m (NAIP) | US government work, public domain |
+| GSI Japan seamless photo | Japan | about 0.2 to 1 m | Government of Japan Standard Terms of Use v2.0 (CC BY compatible) |
+| NSW Imagery | New South Wales, Australia | 12 to 50 cm | CC BY 4.0, NSW Spatial Services |
+| NLSC aerial photo | Taiwan | about 0.25 m | Taiwan open government data licence |
+| ČÚZK orthophoto | Czechia | 12 to 25 cm | CC BY 4.0 |
+| Sachsen DOP | Saxony, Germany | 20 cm | dl-de/by-2-0 |
+| Maa-amet orthophoto | Estonia | about 0.3 to 0.4 m | Estonian Land Board open data |
 
-Not included, with the reason: United Kingdom (no open aerial imagery service), Denmark, Finland, Sweden (access needs a key or token), Wallonia and Czechia (service did not answer), Schleswig-Holstein (no CORS headers), Norway (timed out). Add them to `HIRES_SOURCES` when a keyless, CORS-enabled endpoint is confirmed.
+Per-source zoom limits are the highest level each service really serves. Estonia stops at zoom 16 because zoom 17 has holes (Tallinn's old town answers blank there); MapLibre enlarges the zoom 16 tile instead of leaving a gap. Japan stops at 18.
+
+Not included, with the reason:
+- **No open aerial imagery service found:** United Kingdom, Ireland, Canada, all of Africa, Latin America, the Middle East, most of Asia.
+- **Needs a key or token:** Denmark, Finland, Sweden, New Zealand, South Korea.
+- **Endpoint did not answer or failed the checks:** Wallonia, Slovakia, Portugal, Italy, Norway, Lithuania, Baden-Württemberg, Hamburg, Berlin, Brandenburg, Hessen, Lower Saxony (wrong or changed address; worth retrying with the provider's current documentation).
+- **No CORS headers (cannot be used from a browser):** Schleswig-Holstein, USDA NAIP.
+- **Tile service not suitable:** Hong Kong (very large PNG tiles, tiny area), Singapore (404).
+
+Add a source to `HIRES_SOURCES` once a keyless, CORS-enabled endpoint is confirmed, and add its host to the Content-Security-Policy in `index.html` and the tile hosts in `public/sw.js`.
 
 ### How blank areas are handled
 
