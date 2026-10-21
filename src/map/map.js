@@ -8,6 +8,7 @@ import {
   BUILDINGS_LAYER,
   variantLayerId,
 } from './basemaps.js';
+import { registerHiresProtocol, HIRES_SOURCES, hiresLayerId } from './hires-imagery.js';
 import {
   createTileHealth, pickFallback, pickStartVariant, readBlocked, markBlocked, clearBlocked, hostOf, providerOf,
 } from './tile-health.js';
@@ -27,7 +28,12 @@ import {
  *   Called when the active basemap provider is unreachable and the map moved
  *   (or could not move) to another source. The UI explains it to the user.
  */
-export function initMap(container, { onBasemapFailover } = {}) {
+export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
+  // `hires://` tiles (national aerial imagery). Re-registering after a hot reload
+  // just replaces the handler.
+  registerHiresProtocol(maplibregl, { onResult: onHiresResult });
+  let hiresOn = readHiresPref();
+
   // Initial active state
   let activeCategory = DEFAULT_BASEMAP;
   const activeVariantIds = Object.fromEntries(
@@ -59,7 +65,7 @@ export function initMap(container, { onBasemapFailover } = {}) {
 
   const map = new maplibregl.Map({
     container,
-    style: buildStyle(activeCategory, activeVariantIds),
+    style: buildStyle(activeCategory, activeVariantIds, { hires: hiresOn }),
     center: [4.9041, 52.3676], // [lng, lat] — Amsterdam (public default; OPSEC-safe)
     zoom: 10,
     pitch: 0,
@@ -71,7 +77,19 @@ export function initMap(container, { onBasemapFailover } = {}) {
     preserveDrawingBuffer: true, // M37: required for map.getCanvas().toDataURL() in mission brief
   });
 
-  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+  // The attribution control is rebuilt when the set of aerial providers on screen
+  // changes (cheap, rare, and uses only public API).
+  let attribCtrl = null;
+  let creditKey = '';
+  function setHiresCredits(credits = []) {
+    const key = credits.join('|');
+    if (attribCtrl && key === creditKey) return;
+    creditKey = key;
+    if (attribCtrl) map.removeControl(attribCtrl);
+    attribCtrl = new maplibregl.AttributionControl({ compact: true, customAttribution: credits });
+    map.addControl(attribCtrl, 'bottom-right');
+  }
+  setHiresCredits([]);
 
   // ---- Basemap provider health + automatic failover ----------------------
   // Watches the ACTIVE base layer only (hidden layers load nothing). When its
@@ -171,7 +189,25 @@ export function initMap(container, { onBasemapFailover } = {}) {
 
     activeCategory = category;
     activeVariantIds[category] = newVariant;
+    syncHires();
     return { category: activeCategory, variantId: newVariant };
+  }
+
+  // ---- High-resolution aerial overlay -------------------------------------
+  // Visible only with the imagery category (a topo map has no use for it) and
+  // while the user has it on. Preference persists per browser.
+  function syncHires() {
+    const show = hiresOn && activeCategory === 'imagery';
+    for (const s of HIRES_SOURCES) {
+      const id = hiresLayerId(s);
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none');
+    }
+  }
+  function setHires(on) {
+    hiresOn = Boolean(on);
+    writeHiresPref(hiresOn);
+    syncHires();
+    return hiresOn;
   }
 
   // ---- 3D terrain + globe projection -------------------------------------
@@ -260,6 +296,9 @@ export function initMap(container, { onBasemapFailover } = {}) {
   return {
     map,
     setBasemap,
+    setHires,
+    setHiresCredits,
+    isHiresOn: () => hiresOn,
     getBasemap: () => activeCategory,
     getVariant: (cat) => activeVariantIds[cat ?? activeCategory],
     setTerrain,
@@ -272,6 +311,14 @@ export function initMap(container, { onBasemapFailover } = {}) {
     setSkyForSun,
     setHillshadeDirection,
   };
+}
+
+const HIRES_PREF_KEY = 'gl.hires.v1';
+function readHiresPref() {
+  try { return localStorage.getItem(HIRES_PREF_KEY) !== '0'; } catch (_) { return true; } // default on
+}
+function writeHiresPref(on) {
+  try { localStorage.setItem(HIRES_PREF_KEY, on ? '1' : '0'); } catch (_) { /* private mode */ }
 }
 
 // ---- Day/night sky colour ramp (pure, unit-tested) -------------------------

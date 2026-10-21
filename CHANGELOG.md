@@ -17,6 +17,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 - CSP `connect-src` now allows `https://celestrak.org`.
 
+### Added
+- **Sharpest open aerial imagery, country by country.** No global open layer beats about 10 m (Sentinel-2), so national orthophoto programmes are drawn above the global layer inside their own bounds: Netherlands 8 cm, Switzerland 10 cm, NRW 10 to 20 cm, France 20 cm, Luxembourg 20 cm, Flanders 25 cm, Poland 25 cm, Austria 30 cm, Bavaria 40 cm, Spain 25 to 50 cm, USA about 1 m. On by default, one switch in the basemap panel. Blank (white) and failed tiles become transparent so the base map shows through at borders and during outages, which also makes the seam between countries invisible. The credit lists only the providers in view. Sources and licences: `docs/DATA-SOURCES.md`. Code: `src/map/hires-imagery.js` (26 tests). The CSP and the service worker tile cache allow the new hosts.
+
 ### Fixed
 - **Black map when the satellite provider is unreachable.** If Esri (or any active basemap provider) is blocked, rate-limited or silent, the map now detects it from tile errors or tiles that never answer, switches to the next usable source (Sentinel-2, then a street map), and says so in a persistent notice with a "Try again" button. The failed provider is remembered for 30 minutes so a reload starts on the working source. Choosing a basemap yourself counts as a retry. Logic in `src/map/tile-health.js` (23 tests), wiring in `src/map/map.js`, notice in `src/ui/map-notice.js`.
 - App start-up (AOI, mission tools, toolbar wiring) no longer waits for the first basemap tiles, only for the style, so a slow provider cannot leave the controls dead.

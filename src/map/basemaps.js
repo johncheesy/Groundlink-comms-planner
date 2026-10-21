@@ -14,6 +14,8 @@
  * zoom-based auto-switching. All sources are token-free.
  */
 
+import { hiresStyleParts } from './hires-imagery.js';
+
 export const BASEMAPS = ['imagery', 'topo'];
 export const DEFAULT_BASEMAP = 'imagery';
 
@@ -63,7 +65,7 @@ export const BASEMAP_VARIANTS = {
       // HTTP 400 for every tile. `_3857` supports EPSG:3857 / EPSG:900913.
       id: 's2cloudless-2024',
       label: 'Sentinel-2 (10 m · cloudless)',
-      note: 'Sentinel-2 is 10 m resolution, so detail is limited when zoomed in.',
+      note: 'Sentinel-2 is 10 m, so detail is limited when zoomed in. Where a national aerial source exists (for example the Netherlands, Switzerland, France) the sharper imagery is shown automatically.',
       wms: true, // flag: tile URL uses {bbox-epsg-3857} instead of {x}/{y}/{z}
       tiles: [
         'https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&version=1.1.1' +
@@ -183,6 +185,7 @@ const BUILDING_COLOR = '#3b4250'; // muted neutral surface on the dark map (not 
 export function buildStyle(
   activeCategory = DEFAULT_BASEMAP,
   activeVariantIds = {},
+  { hires = true } = {},
 ) {
   const sources = {};
   const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': MAP_BG } }];
@@ -211,6 +214,13 @@ export function buildStyle(
       });
     }
   }
+
+  // High-resolution national aerial imagery (hires-imagery.js): drawn above the
+  // base layers, inside each country's bounds only, and only while the imagery
+  // category is showing. The `hires://` protocol is registered in map.js.
+  const hiresParts = hiresStyleParts({ visible: hires && activeCategory === 'imagery' });
+  Object.assign(sources, hiresParts.sources);
+  layers.push(...hiresParts.layers);
 
   // DEM source is declared up-front so setTerrain can reference it on demand.
   sources[TERRARIUM_DEM.id] = TERRARIUM_DEM.spec;

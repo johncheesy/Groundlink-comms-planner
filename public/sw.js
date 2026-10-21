@@ -57,6 +57,18 @@ const TILE_HOST_PATTERNS = [
   /(^|\.)openfreemap\.org$/,
   /(^|\.)openmaptiles\.org$/,
   /tiles\.maps\.eox\.at$/,
+  // National aerial imagery (hires-imagery.js)
+  /^service\.pdok\.nl$/,
+  /^data\.geopf\.fr$/,
+  /^www\.ign\.es$/,
+  /^wmts\.geo\.admin\.ch$/,
+  /^mapsneu\.wien\.gv\.at$/,
+  /^mapy\.geoportal\.gov\.pl$/,
+  /^wmts3\.geoportail\.lu$/,
+  /^geo\.api\.vlaanderen\.be$/,
+  /^www\.wms\.nrw\.de$/,
+  /^geoservices\.bayern\.de$/,
+  /^basemap\.nationalmap\.gov$/,
 ];
 // DEM tiles live on a shared S3 host, so match by path as well as host.
 const TILE_PATH_PATTERNS = [/elevation-tiles-prod/];

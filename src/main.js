@@ -78,6 +78,7 @@ import { createEmptyState } from './ui/emptystate.js';
 import { createUndoStack } from './ui/undo.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, fsplDb, receivedDbm } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
+import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
 import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
@@ -109,7 +110,7 @@ $('#statusBuildItem').title = `${BUILD.channel.toUpperCase()} · ${buildLabel}`;
 
 // ---- Map ----------------------------------------------------------------
 
-const mapApi = initMap($('#map'), { onBasemapFailover: handleBasemapFailover });
+const mapApi = initMap($('#map'), { onBasemapFailover: handleBasemapFailover, onHiresResult: handleHiresResult });
 const { map } = mapApi;
 const resize = keepMapSized(map);
 
@@ -421,6 +422,40 @@ function switchBasemap(category, variantId) {
   mapNotice?.hide();
 }
 
+// ---- High-resolution aerial: which source is really on screen --------------
+// The tile handler reports every source that delivered real imagery, with the
+// tile position. A source counts as "showing" when it has delivered imagery
+// inside the current view, so the readout follows panning and still holds when
+// MapLibre redraws from its own cache. (Bounding rectangles alone would credit
+// the wrong country near a border.)
+const hiresMemory = createCoverageMemory();
+let hiresStatusTimer = 0;
+function handleHiresResult({ id, real, z, x, y }) {
+  if (!real) return;
+  hiresMemory.record(id, z, x, y);
+  window.clearTimeout(hiresStatusTimer);
+  hiresStatusTimer = window.setTimeout(updateHiresStatus, 700);
+}
+mapApi.map.on('idle', () => window.setTimeout(() => updateHiresStatus(), 800));
+function updateHiresStatus() {
+  const showing = mapApi.isHiresOn() && mapApi.getBasemap() === 'imagery';
+  let live = [];
+  if (showing) {
+    const b = mapApi.map.getBounds();
+    const ids = new Set(hiresMemory.inView({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() }));
+    live = HIRES_SOURCES.filter((s) => ids.has(s.id));
+  }
+  // Credit only the providers whose imagery is really in view (licence terms
+  // require the credit; listing eleven at once buries it).
+  mapApi.setHiresCredits(live.map((s) => s.attribution));
+  const el = document.getElementById('hiresNow');
+  if (!el) return;
+  if (!showing) { el.textContent = ''; return; }
+  el.textContent = live.length
+    ? `Showing: ${live.map((s) => `${s.label} · ${s.resolution}`).join(', ')}`
+    : 'No national aerial imagery in this view. Showing the global layer.';
+}
+
 // ---- Basemap provider failover notice -------------------------------------
 // map.js detects an unreachable imagery provider and moves to another source;
 // this tells the user what happened and offers a retry. Hoisted: initMap()
@@ -461,6 +496,29 @@ function renderVariantMenu() {
   label.className = 'basemap-variant-menu__label';
   label.textContent = category === 'topo' ? 'Topo variants' : 'Imagery variants';
   variantMenu.appendChild(label);
+
+  if (category === 'imagery') {
+    const row = document.createElement('label');
+    row.className = 'basemap-hires';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.id = 'hiresToggle';
+    box.checked = mapApi.isHiresOn();
+    box.addEventListener('change', () => { mapApi.setHires(box.checked); updateHiresStatus(); });
+    const text = document.createElement('span');
+    text.textContent = 'Sharpest open aerial imagery where available';
+    row.append(box, text);
+    variantMenu.appendChild(row);
+    const now = document.createElement('div');
+    now.id = 'hiresNow';
+    now.className = 'basemap-hires__now';
+    variantMenu.appendChild(now);
+    const cov = document.createElement('div');
+    cov.className = 'basemap-hires__cov';
+    cov.textContent = 'National programmes: Netherlands 8 cm, Switzerland 10 cm, France 20 cm, Luxembourg, Flanders, Austria, Poland, Spain, NRW and Bavaria, USA. Elsewhere the global layer (10 m) is the sharpest open imagery.';
+    variantMenu.appendChild(cov);
+    updateHiresStatus();
+  }
 
   const currentVariant = mapApi.getVariant(category);
   for (const v of BASEMAP_VARIANTS[category]) {
