@@ -20,6 +20,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - **Black map when the satellite provider is unreachable.** If Esri (or any active basemap provider) is blocked, rate-limited or silent, the map now detects it from tile errors or tiles that never answer, switches to the next usable source (Sentinel-2, then a street map), and says so in a persistent notice with a "Try again" button. The failed provider is remembered for 30 minutes so a reload starts on the working source. Choosing a basemap yourself counts as a retry. Logic in `src/map/tile-health.js` (23 tests), wiring in `src/map/map.js`, notice in `src/ui/map-notice.js`.
 - App start-up (AOI, mission tools, toolbar wiring) no longer waits for the first basemap tiles, only for the style, so a slow provider cannot leave the controls dead.
+- **Readiness score** no longer reads 100 on an AOI alone. It needs at least 3 of 6 checks, says "based on n of 6", and deconfliction only counts with two or more radios.
+- **Coverage result** now shows what it rests on (frequency, power, mast and receiver height, grid cell size, clutter, terrain) and warns when default radio values were used. The completion toast says so too.
+- **Limits and validation** (`src/geo/validate.js`): 300 sites, 300 points, 2,000 route vertices, 80-character names; invalid or out-of-range coordinates are rejected everywhere. Promoting 50,000 imported points used to freeze the page for 32 s; marker redraw cost grows with the square of the count (500 sites 1 s). Bulk add keeps lines it could not add. Long GPS tracks are thinned, keeping both ends.
+- **Mission files**: a missing coordinate is no longer silently moved to 0°N 0°E, an out-of-range one no longer throws halfway through loading, and everything skipped is reported.
+- **Imports**: invalid geometry is dropped with a count instead of leaving the importer stuck on "Importing…".
+- **Far-apart objects** (over 800 km) get a clear explanation in Coverage, Site recommendation and Offline package instead of an exception and a silent flat-earth fallback. The compute window is clamped to valid latitudes.
+- **Radios**: "Save structure" no longer uses `window.prompt()` (it threw where prompts are blocked); the name is edited in place.
 
 ---
 

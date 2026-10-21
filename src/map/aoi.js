@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { isLatLng } from '../geo/validate.js';
 
 /**
  * AOI drawing + editing for MapLibre GL — radius circle and polygon.
@@ -315,13 +316,14 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     /** Programmatically set a polygon AOI from a ring of [lng, lat] (e.g. import). */
     setPolygon(ring) {
       if (!Array.isArray(ring) || ring.length < 3) return false;
+      if (!ring.every((c) => Array.isArray(c) && isLatLng(Number(c[1]), Number(c[0])))) return false;
       setMode(null);
       commitPolygon(ring.map(([lng, lat]) => [lng, lat]));
       return true;
     },
     /** Programmatically set a radius AOI from [lng, lat] + metres (mission load, M21). */
     setRadius(center, radiusM) {
-      if (!Array.isArray(center) || !Number.isFinite(center[0]) || !Number.isFinite(center[1]) || !(radiusM > 0)) return false;
+      if (!Array.isArray(center) || !isLatLng(center[1], center[0]) || !(radiusM > 0)) return false;
       setMode(null);
       commitRadius([center[0], center[1]], radiusM);
       return true;

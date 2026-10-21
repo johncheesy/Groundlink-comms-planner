@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { LIMITS } from '../geo/validate.js';
 
 /**
  * Mission map tools (M4) — click-to-place Site / Route / Point editing for
@@ -300,10 +301,10 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
   function onClick(e) {
     const ll = [e.lngLat.lng, e.lngLat.lat];
     if (mode === 'site') {
-      mission.addSite(e.lngLat.lat, e.lngLat.lng);
+      if (!mission.addSite(e.lngLat.lat, e.lngLat.lng)) onStatus?.(`Site limit reached (${LIMITS.sites}). Remove one to add another.`);
       refresh();
     } else if (mode === 'point') {
-      mission.addPoint(e.lngLat.lat, e.lngLat.lng);
+      if (!mission.addPoint(e.lngLat.lat, e.lngLat.lng)) onStatus?.(`Point limit reached (${LIMITS.points}). Remove one to add another.`);
       refresh();
     } else if (mode === 'route') {
       routeDraw.push(ll);

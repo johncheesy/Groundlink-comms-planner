@@ -1,4 +1,5 @@
 import LIBRARY from './library.json';
+import { clipName } from '../geo/validate.js';
 import {
   normalizeRadio,
   activeSetToCoverage,
@@ -339,12 +340,17 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       const fieldName = field?.label || '— none —';
       return (
         `<li class="structure-item" data-sid="${esc(s.id)}">` +
-        `<span class="structure-item__name">${esc(s.name)}</span>` +
+        `<span class="structure-item__name" role="button" tabindex="0" title="Click to rename">${esc(s.name)}</span>` +
         `<span class="structure-item__radios">${esc(infraName)} / ${esc(fieldName)}</span>` +
         `<button class="structure-item__remove" type="button" title="Remove structure" aria-label="Remove structure ${esc(s.name)}">×</button>` +
         `</li>`
       );
     }).join('');
+    els.structuresList.querySelectorAll('.structure-item__name').forEach((span) => {
+      const li = span.closest('.structure-item');
+      span.addEventListener('click', () => startRename(li));
+      span.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startRename(li); } });
+    });
     els.structuresList.querySelectorAll('.structure-item__remove').forEach((btn) => {
       btn.addEventListener('click', () => {
         const sid = btn.closest('.structure-item')?.dataset.sid;
@@ -353,20 +359,49 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     });
   }
 
+  /** Rename in place: no native dialog (window.prompt is blocked in sandboxed views and installed apps). */
+  function startRename(li) {
+    const s = structures.find((x) => x.id === li?.dataset.sid);
+    const span = li?.querySelector('.structure-item__name');
+    if (!s || !span) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'input structure-item__edit';
+    input.value = s.name;
+    input.maxLength = 60;
+    input.setAttribute('aria-label', 'Structure name, Enter to save, Escape to cancel');
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = (save) => {
+      if (done) return;
+      done = true;
+      const v = clipName(input.value, 60);
+      if (save && v) { s.name = v; persist(); }
+      renderStructures();
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+  }
+
   els.saveStructureBtn?.addEventListener('click', () => {
     const { infra, field } = getActive();
     if (!infra && !field) {
       onStatus?.('Assign an infrastructure tx or field unit first, then save as structure.');
       return;
     }
-    const defaultName = `Structure ${structures.length + 1}`;
-    // eslint-disable-next-line no-alert
-    const name = window.prompt('Name this coverage structure (e.g. "Primary VHF", "Alternate HF"):', defaultName);
-    if (name === null) return; // cancelled
     const id = `struct_${Date.now()}`;
-    structures.push({ id, name: name.trim() || defaultName, infraId: infra?.id || null, fieldId: field?.id || null });
+    structures.push({ id, name: `Structure ${structures.length + 1}`, infraId: infra?.id || null, fieldId: field?.id || null });
     persist();
     renderStructures();
+    // Saved with a default name right away; open the name for editing so the
+    // user can label it (e.g. "Primary VHF") without a blocking dialog.
+    startRename(els.structuresList?.querySelector(`.structure-item[data-sid="${id}"]`));
+    onStatus?.('Structure saved. Type a name and press Enter.');
   });
 
   // ── Wiring ─────────────────────────────────────────────────────────────

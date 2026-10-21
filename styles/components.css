@@ -4987,3 +4987,13 @@ select.input--sm { text-align: left; padding-right: 6px; }
   line-height: 1.4;
   color: var(--dim);
 }
+
+.result-card__assump { margin-top: var(--sp-2); font-size: 11px; line-height: 1.4; color: var(--dim); }
+.result-card__assump-line { display: block; color: var(--ink); }
+.result-card__assump-warn { margin: 4px 0 0; padding: 0; list-style: none; }
+.result-card__assump-warn li { position: relative; padding-left: 12px; margin-top: 2px; }
+.result-card__assump-warn li::before { content: ''; position: absolute; left: 0; top: 0.55em; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+
+.structure-item__name { cursor: text; }
+.structure-item__name:hover { text-decoration: underline dotted; }
+.structure-item__edit { flex: 1; min-width: 0; padding: 2px 6px; font-size: 12.5px; }

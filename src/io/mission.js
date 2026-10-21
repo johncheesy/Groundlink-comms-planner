@@ -10,26 +10,31 @@
  * the save dialog says so.
  */
 
+import { LIMITS, strictNum, isLatLng, clipName } from '../geo/validate.js';
+
 export const MISSION_FORMAT = 'groundlink-mission';
 export const MISSION_VERSION = 1;
 export const MISSION_EXT = '.groundlink.json';
 
-const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+
+// strictNum, not Number(): Number(null) and Number('') are 0, which used to move
+// a site with a missing coordinate to 0°N 0°E without a word.
+const num = strictNum;
 const str = (v) => (typeof v === 'string' ? v : '');
 const bool = (v) => Boolean(v);
 
-/** A named lat/lng entry ({lat, lng, name}); null when coords are bad. */
+/** A named lat/lng entry ({lat, lng, name}); null when coords are missing or out of range. */
 function namedPoint(p) {
   const lat = num(p?.lat);
   const lng = num(p?.lng);
-  if (lat == null || lng == null) return null;
-  return { lat, lng, name: str(p.name) };
+  if (lat == null || lng == null || !isLatLng(lat, lng)) return null;
+  return { lat, lng, name: clipName(p.name) };
 }
 
 function vertex(p) {
   const lat = num(p?.lat);
   const lng = num(p?.lng);
-  if (lat == null || lng == null) return null;
+  if (lat == null || lng == null || !isLatLng(lat, lng)) return null;
   return { lat, lng };
 }
 
@@ -39,6 +44,20 @@ function waypoint(p) {
 }
 
 const cleanList = (arr, fn) => (Array.isArray(arr) ? arr.map(fn).filter(Boolean) : []);
+
+/**
+ * Clean a list, keep at most `max`, and record what was lost in `report`
+ * (`dropped` = unusable entries, `truncated` = valid entries over the limit).
+ */
+function cleanListReport(arr, fn, key, max, report) {
+  const input = Array.isArray(arr) ? arr : [];
+  const valid = input.map(fn).filter(Boolean);
+  if (report) {
+    if (input.length > valid.length) report.dropped[key] = input.length - valid.length;
+    if (valid.length > max) report.truncated[key] = { over: valid.length - max, max };
+  }
+  return valid.slice(0, max);
+}
 
 /** Deep JSON-safe clone for user-authored lists (arsenal/structures/teams). */
 function jsonClone(v) {
@@ -54,9 +73,9 @@ function cleanAoi(aoi) {
   }
   if (aoi.type === 'polygon') {
     const ring = (Array.isArray(aoi.ring) ? aoi.ring : [])
-      .map((c) => (Array.isArray(c) && num(c[0]) != null && num(c[1]) != null ? [num(c[0]), num(c[1])] : null))
+      .map((c) => (Array.isArray(c) && num(c[0]) != null && num(c[1]) != null && isLatLng(num(c[1]), num(c[0])) ? [num(c[0]), num(c[1])] : null))
       .filter(Boolean);
-    return ring.length >= 3 ? { type: 'polygon', ring } : null;
+    return ring.length >= 3 && ring.length === (Array.isArray(aoi.ring) ? aoi.ring.length : -1) ? { type: 'polygon', ring } : null;
   }
   return null;
 }
@@ -65,7 +84,7 @@ function cleanDrone(d) {
   if (!d || !Array.isArray(d.lngLat)) return null;
   const lng = num(d.lngLat[0]);
   const lat = num(d.lngLat[1]);
-  if (lng == null || lat == null) return null;
+  if (lng == null || lat == null || !isLatLng(lat, lng)) return null;
   return { lngLat: [lng, lat], altM: num(d.altM) ?? 120 };
 }
 
@@ -114,15 +133,21 @@ function cleanBasemap(b) {
 }
 
 /** Whitelist-copy one gathered state (or parsed file block) into mission shape. */
-function cleanMission(m) {
+function cleanMission(m, report) {
   const src = m && typeof m === 'object' ? m : {};
+  const aoi = cleanAoi(src.aoi);
+  const drone = cleanDrone(src.drone);
+  if (report) {
+    if (src.aoi && !aoi) report.invalid.push('area of interest');
+    if (src.drone && !drone) report.invalid.push('drone position');
+  }
   return {
-    aoi: cleanAoi(src.aoi),
-    sites: cleanList(src.sites, namedPoint),
-    points: cleanList(src.points, namedPoint),
-    route: cleanList(src.route, vertex),
-    waypoints: cleanList(src.waypoints, waypoint),
-    drone: cleanDrone(src.drone),
+    aoi,
+    sites: cleanListReport(src.sites, namedPoint, 'sites', LIMITS.sites, report),
+    points: cleanListReport(src.points, namedPoint, 'points', LIMITS.points, report),
+    route: cleanListReport(src.route, vertex, 'route vertices', LIMITS.routeVertices, report),
+    waypoints: cleanListReport(src.waypoints, waypoint, 'waypoints', LIMITS.waypoints, report),
+    drone,
     arsenal: jsonClone(Array.isArray(src.arsenal) ? src.arsenal : []),
     structures: jsonClone(Array.isArray(src.structures) ? src.structures : []),
     coverage: cleanCoverage(src.coverage),
@@ -163,7 +188,22 @@ export function validateMission(obj) {
     };
   }
   // v1 parser tolerates missing optional blocks (forward-compatible adds).
-  return { ok: true, version: v, savedAt: str(obj.savedAt) || null, mission: cleanMission(obj.mission) };
+  const report = { dropped: {}, truncated: {}, invalid: [] };
+  const mission = cleanMission(obj.mission, report);
+  return { ok: true, version: v, savedAt: str(obj.savedAt) || null, mission, warnings: reportWarnings(report) };
+}
+
+/** Human sentences for whatever the cleaner had to skip. Empty when nothing was lost. */
+export function reportWarnings(report) {
+  const out = [];
+  for (const [key, n] of Object.entries(report.dropped)) {
+    out.push(`${n} ${key} skipped: missing or invalid coordinates.`);
+  }
+  for (const [key, t] of Object.entries(report.truncated)) {
+    out.push(`${t.over} ${key} skipped: the planner holds at most ${t.max}.`);
+  }
+  for (const what of report.invalid) out.push(`The ${what} in the file was invalid and was skipped.`);
+  return out;
 }
 
 /** Parse mission-file text; { ok, mission } or { ok: false, error }. */

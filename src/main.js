@@ -79,6 +79,8 @@ import { createUndoStack } from './ui/undo.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, fsplDb, receivedDbm } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { createMapNotice } from './ui/map-notice.js';
+import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
+import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
@@ -557,6 +559,11 @@ offlinePackBtn?.addEventListener('click', async () => {
   const bbox = mission?.bbox?.();
   if (!bbox) {
     offlineStatus.textContent = 'Draw an AOI or place a site first — the package covers your mission area.';
+    return;
+  }
+  const spread = missionSpanProblem(bbox);
+  if (spread) {
+    offlineStatus.textContent = spread;
     return;
   }
   // Package the same window coverage computes over (the WINDOW_CAP_MULT cap
@@ -1328,6 +1335,13 @@ whenStyleReady(() => {
   recommendBtn.addEventListener('click', () => {
     const bbox = mission.bbox();
     if (!bbox) return;
+    const spread = missionSpanProblem(bbox);
+    if (spread) {
+      siteResults.hidden = false;
+      siteList.innerHTML = '';
+      siteHelp.textContent = spread;
+      return;
+    }
     const params = { ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) };
     // Cap the AOI grid resolution for very large areas (edge case in the spec).
     const demand = mission.demandPoints({ maxDim: currentAoiAreaM2 > 1e10 ? 20 : 28 });
@@ -1802,16 +1816,32 @@ whenStyleReady(() => {
   function promoteLinesToRoute() {
     const line = importer.getFeatures().find((f) => f.geometry?.type === 'LineString');
     if (!line) return;
-    mission.setRoute(line.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })));
+    const r = mission.setRoute(line.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })));
+    const notes = [];
+    if (r.thinned) notes.push(`thinned from ${r.kept + r.thinned} to ${r.kept} vertices, shape kept`);
+    if (r.dropped) notes.push(`${r.dropped} invalid vertices skipped`);
+    statusMode.textContent = `Route set, ${r.kept} vertices${notes.length ? ` (${notes.join('; ')})` : ''}`;
   }
   function promotePoints(asSites) {
+    let added = 0;
+    let invalid = 0;
+    let overLimit = 0;
     for (const f of importer.getFeatures()) {
       if (f.geometry?.type !== 'Point') continue;
       const [lng, lat] = f.geometry.coordinates;
       const name = f.properties?.name || '';
-      if (asSites) mission.addSite(lat, lng, name);
-      else mission.addPoint(lat, lng, name);
+      const item = asSites ? mission.addSite(lat, lng, name) : mission.addPoint(lat, lng, name);
+      if (item) added += 1;
+      else if (isLatLng(lat, lng)) overLimit += 1;
+      else invalid += 1;
     }
+    const noun = asSites ? 'site' : 'demand point';
+    const limit = asSites ? LIMITS.sites : LIMITS.points;
+    const parts = [`Added ${added} ${noun}${added === 1 ? '' : 's'}.`];
+    if (overLimit) parts.push(`${overLimit} more skipped: the planner holds at most ${limit}. Filter the file to the points you need.`);
+    if (invalid) parts.push(`${invalid} skipped: invalid coordinates.`);
+    statusMode.textContent = parts.join(' ');
+    if (overLimit || invalid) showToast(parts.slice(1).join(' '));
   }
   function promotePolygonToAoi() {
     const pg = importer.getFeatures().find((f) => f.geometry?.type === 'Polygon');
@@ -1838,7 +1868,9 @@ whenStyleReady(() => {
     importer.clear();
     clearImportBtn.hidden = true;
     importPromote.hidden = true;
-    statusMode.textContent = 'Imported data added to the mission';
+    // Keep the specific message promotePoints/promoteLinesToRoute just wrote (it
+    // says what was skipped); only fall back to the generic one.
+    if (!/^(Added|Route set)/.test(statusMode.textContent)) statusMode.textContent = 'Imported data added to the mission';
   }
 });
 
@@ -1996,6 +2028,7 @@ function runBulkAdd() {
   let added = 0;
   const badNums = [];
   const badLines = [];
+  let overLimit = 0;
   lines.forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return;
@@ -2006,15 +2039,24 @@ function runBulkAdd() {
       badLines.push(raw);
       return;
     }
-    if (asSites) mission.addSite(parsed.lat, parsed.lng, name);
-    else mission.addPoint(parsed.lat, parsed.lng, name);
+    const item = asSites ? mission.addSite(parsed.lat, parsed.lng, name) : mission.addPoint(parsed.lat, parsed.lng, name);
+    if (!item) {
+      // Valid line, but the limit is reached: keep it in the box instead of losing it.
+      overLimit += 1;
+      badLines.push(raw);
+      return;
+    }
     added += 1;
   });
   missionTools.refresh();
 
   const parts = [];
   if (added) parts.push(`Added ${added} ${asSites ? 'site' : 'point'}${added > 1 ? 's' : ''}.`);
-  if (badNums.length) parts.push(`Could not parse line${badNums.length > 1 ? 's' : ''} ${badNums.join(', ')}.`);
+  if (badNums.length) {
+    const shown = badNums.slice(0, 12).join(', ');
+    parts.push(`Could not parse line${badNums.length > 1 ? 's' : ''} ${shown}${badNums.length > 12 ? ` and ${badNums.length - 12} more` : ''}.`);
+  }
+  if (overLimit) parts.push(`${overLimit} line${overLimit > 1 ? 's' : ''} left in the box: the planner holds at most ${asSites ? LIMITS.sites : LIMITS.points} ${asSites ? 'sites' : 'points'}.`);
   bulkReport.hidden = parts.length === 0;
   bulkReport.textContent = parts.join(' ');
   // Keep only the failed lines so the user can fix them in place.
@@ -3109,11 +3151,14 @@ function coverageBoundsFor(bbox, center, params) {
     rangeM / (111320 * Math.cos((center.lat * Math.PI) / 180)),
     WINDOW_CAP_MULT * halfLng,
   );
+  // Clamp to what the map can place: a window past ±85° latitude or ±180°
+  // longitude made the raster overlay throw and the run fall back to flat earth.
+  const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v));
   return {
-    west: Math.min(center.lng - dLng, bbox.west),
-    south: Math.min(center.lat - dLat, bbox.south),
-    east: Math.max(center.lng + dLng, bbox.east),
-    north: Math.max(center.lat + dLat, bbox.north),
+    west: clamp(Math.min(center.lng - dLng, bbox.west), 180),
+    south: clamp(Math.min(center.lat - dLat, bbox.south), 85),
+    east: clamp(Math.max(center.lng + dLng, bbox.east), 180),
+    north: clamp(Math.max(center.lat + dLat, bbox.north), 85),
   };
 }
 
@@ -3135,6 +3180,12 @@ function runCoverage() {
   const bbox = mission.bbox();
   if (!bbox) {
     coverageHelp.textContent = 'Define a mission first — draw an AOI or place a fixed site.';
+    return;
+  }
+  const spread = missionSpanProblem(bbox);
+  if (spread) {
+    coverageHelp.textContent = spread;
+    showToast('Mission too spread out for one plan. See the Coverage panel.');
     return;
   }
 
@@ -3214,7 +3265,8 @@ function finishRunAll() {
   }
   const stats = coverage?.getStats?.();
   const covPct = stats?.coveredFracAoi != null ? `${Math.round(stats.coveredFracAoi * 100)}% covered` : 'done';
-  showToast(`Analysis complete — ${covPct}`);
+  const usedDefaults = currentAssumptions().source === 'defaults';
+  showToast(`Analysis complete — ${covPct}${usedDefaults ? ' (default radio values, no radio selected)' : ''}`);
 }
 
 const CLOUDRF_SRC = 'cloudrf';
@@ -3524,8 +3576,20 @@ function loadMissionFromText(text, name) {
     statusMode.textContent = 'Mission load cancelled';
     return false;
   }
-  applyMissionState(r.mission);
-  statusMode.textContent = `Mission loaded from ${name}`;
+  try {
+    applyMissionState(r.mission);
+  } catch (err) {
+    // The file is sanitised before it gets here, so this is a last resort: say
+    // what happened instead of leaving a half-applied mission with no message.
+    statusMode.textContent = `Mission file could not be fully applied: ${err?.message ?? err}`;
+    showToast('Mission file could not be fully applied. Check what is on the map.');
+    return false;
+  }
+  const warnings = r.warnings ?? [];
+  statusMode.textContent = warnings.length
+    ? `Mission loaded from ${name} with skipped items: ${warnings.join(' ')}`
+    : `Mission loaded from ${name}`;
+  if (warnings.length) showToast(`Mission loaded, but some items were skipped. ${warnings[0]}`);
   return true;
 }
 
@@ -4089,7 +4153,25 @@ function showResultCard() {
   resultCard.show(
     summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds }),
     { modelKey, percentileLabel },
+    currentAssumptions(),
   );
+}
+
+/** What the last coverage run rested on (see analysis/assumptions.js). */
+function currentAssumptions() {
+  const st = coverage?.getStats?.() ?? {};
+  const p = coverageParams();
+  return describeAssumptions({
+    freqMHz: p.freqMHz,
+    powerW: clampNum(powerInput.value, 0.01, 100, 5),
+    txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
+    rxHeightM: p.rxHeightM,
+    terrainUsed: Boolean(st.terrain),
+    clutterRequested: Boolean(useClutterInput.checked),
+    clutterUsed: Boolean(st.clutter),
+    cellM: lastPaint ? cellSizeM(lastPaint.bounds, lastPaint.cols) : null,
+    radioApplied: Boolean(radios?.hasActive?.()),
+  });
 }
 
 // M20 §1: a stepper click jumps to that step's "do this next" tab.

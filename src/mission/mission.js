@@ -15,6 +15,7 @@
  */
 import { haversineM } from '../coverage/model.js';
 import { demandGrid, bboxOfPoints } from '../geo/aoi-mask.js';
+import { LIMITS, isLatLng, clipName, decimate } from '../geo/validate.js';
 
 const ROUTE_STEP_M = 250; // route resample spacing for demand points
 
@@ -48,19 +49,26 @@ export function createMission({ onChange } = {}) {
   }
 
   // ── Sites ──────────────────────────────────────────────────────────────
+  /**
+   * Add a fixed site. Returns the site, or null when the position is not a
+   * valid lat/lng or the site limit (LIMITS.sites) is reached. Callers report
+   * the skip; `capacity()` says how many more fit.
+   */
   function addSite(lat, lng, name = '') {
-    const site = { id: nextId(), lat, lng, name };
+    if (!isLatLng(lat, lng) || state.sites.length >= LIMITS.sites) return null;
+    const site = { id: nextId(), lat, lng, name: clipName(name) };
     state.sites.push(site);
     emit();
     return site;
   }
   function moveSite(id, lat, lng) {
+    if (!isLatLng(lat, lng)) return;
     const s = state.sites.find((x) => x.id === id);
     if (s) { s.lat = lat; s.lng = lng; emit(); }
   }
   function renameSite(id, name) {
     const s = state.sites.find((x) => x.id === id);
-    if (s) { s.name = name; emit(); }
+    if (s) { s.name = clipName(name); emit(); }
   }
   function removeSite(id) {
     state.sites = state.sites.filter((x) => x.id !== id);
@@ -69,19 +77,22 @@ export function createMission({ onChange } = {}) {
   function clearSites() { state.sites = []; emit(); }
 
   // ── Points ─────────────────────────────────────────────────────────────
+  /** Add a demand point. Null for an invalid position or at LIMITS.points. */
   function addPoint(lat, lng, name = '') {
-    const pt = { id: nextId(), lat, lng, name };
+    if (!isLatLng(lat, lng) || state.points.length >= LIMITS.points) return null;
+    const pt = { id: nextId(), lat, lng, name: clipName(name) };
     state.points.push(pt);
     emit();
     return pt;
   }
   function movePoint(id, lat, lng) {
+    if (!isLatLng(lat, lng)) return;
     const p = state.points.find((x) => x.id === id);
     if (p) { p.lat = lat; p.lng = lng; emit(); }
   }
   function renamePoint(id, name) {
     const p = state.points.find((x) => x.id === id);
-    if (p) { p.name = name; emit(); }
+    if (p) { p.name = clipName(name); emit(); }
   }
   function removePoint(id) {
     state.points = state.points.filter((x) => x.id !== id);
@@ -90,16 +101,26 @@ export function createMission({ onChange } = {}) {
   function clearPoints() { state.points = []; emit(); }
 
   // ── Route (one ordered polyline) ───────────────────────────────────────
+  /**
+   * Set the route. Invalid vertices are dropped and a very long track (a GPS
+   * log has tens of thousands of points) is thinned to LIMITS.routeVertices,
+   * keeping its shape and both ends. Returns { kept, dropped, thinned }.
+   */
   function setRoute(vertices) {
-    state.route = (vertices || []).map((v) => ({ lat: v.lat, lng: v.lng }));
+    const input = Array.isArray(vertices) ? vertices : [];
+    const valid = input.filter((v) => isLatLng(v?.lat, v?.lng));
+    const kept = decimate(valid, LIMITS.routeVertices);
+    state.route = kept.map((v) => ({ lat: v.lat, lng: v.lng }));
     emit();
+    return { kept: kept.length, dropped: input.length - valid.length, thinned: valid.length - kept.length };
   }
   function addRouteVertex(lat, lng) {
+    if (!isLatLng(lat, lng) || state.route.length >= LIMITS.routeVertices) return;
     state.route.push({ lat, lng });
     emit();
   }
   function updateRouteVertex(i, lat, lng) {
-    if (state.route[i]) { state.route[i] = { lat, lng }; emit(); }
+    if (state.route[i] && isLatLng(lat, lng)) { state.route[i] = { lat, lng }; emit(); }
   }
   function removeRouteVertex(i) {
     if (i >= 0 && i < state.route.length) { state.route.splice(i, 1); emit(); }
@@ -149,9 +170,15 @@ export function createMission({ onChange } = {}) {
     emit();
   }
 
+  /** How many more of each object fit before the limits in geo/validate.js. */
+  function capacity() {
+    return { sites: LIMITS.sites - state.sites.length, points: LIMITS.points - state.points.length };
+  }
+
   return {
     state,
     summary,
+    capacity,
     setAoi,
     addSite, moveSite, renameSite, removeSite, clearSites,
     addPoint, movePoint, renamePoint, removePoint, clearPoints,
