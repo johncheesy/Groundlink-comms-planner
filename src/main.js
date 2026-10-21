@@ -1468,8 +1468,11 @@ whenStyleReady(() => {
         })
       : null;
 
-    const decoSummary = decoPanel?.check(radios?.getArsenal?.() ?? []);
-    const decoConflicts = decoSummary
+    // Deconfliction compares radios with each other: with fewer than two there is
+    // nothing to check, and "no conflicts" must not count as a passed check.
+    const arsenal = radios?.getArsenal?.() ?? [];
+    const decoSummary = decoPanel?.check(arsenal);
+    const decoConflicts = decoSummary && arsenal.length >= 2
       ? Array.from({ length: decoSummary.errors }, () => ({ severity: 'error' }))
           .concat(Array.from({ length: decoSummary.warnings }, () => ({ severity: 'warn' })))
       : null;
@@ -1490,14 +1493,14 @@ whenStyleReady(() => {
         intelScoreBadge.removeAttribute('title');
       }
       if (intelScoreNum) intelScoreNum.textContent = '—';
-      updateOpsDashReadiness(null);
+      updateOpsDashReadiness(result); // dashboard explains why there is no score yet
       return;
     }
 
     const tier = result.tier;
     if (intelScoreBadge) {
       intelScoreBadge.className = `intel-score-badge is-visible intel-score-badge--${tier}`;
-      intelScoreBadge.title = `Mission readiness: ${result.score}/100 (${tier}). Open Ops Dashboard for breakdown.`;
+      intelScoreBadge.title = `Mission readiness: ${result.score}/100 (${tier}), based on ${result.assessed} of ${result.total} checks. Open Ops Dashboard for breakdown.`;
     }
     if (intelScoreNum) intelScoreNum.textContent = result.score;
     updateOpsDashReadiness(result);

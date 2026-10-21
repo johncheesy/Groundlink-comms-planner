@@ -98,14 +98,29 @@ export function dimSatcom(satcomSnap) {
  *   Each value is 0–100 or null (null = not yet computed, not penalised).
  * @returns {{ score: number|null, dims: object, tier: 'high'|'mid'|'low'|null }}
  */
+/**
+ * Fewest assessed dimensions before a score is shown. The score is the mean of
+ * the dimensions that exist, so with one or two of them it says nothing about
+ * the mission: an AOI alone (satcom look angle only) used to read 100.
+ */
+export const MIN_ASSESSED = 3;
+
+/**
+ * @returns {{ score:number|null, tier:'high'|'mid'|'low'|null, dims:object,
+ *             assessed:number, total:number, pending:boolean }}
+ *   `pending` is true while fewer than MIN_ASSESSED dimensions are assessed;
+ *   score and tier are then null.
+ */
 export function computeReadiness(dims) {
   const scored = READINESS_DIMS
     .map((d) => dims[d.key])
     .filter((v) => v != null);
+  const total = READINESS_DIMS.length;
+  const assessed = scored.length;
 
-  if (!scored.length) return { score: null, dims, tier: null };
+  if (assessed < MIN_ASSESSED) return { score: null, dims, tier: null, assessed, total, pending: true };
 
-  const score = Math.round(scored.reduce((a, b) => a + b, 0) / scored.length);
+  const score = Math.round(scored.reduce((a, b) => a + b, 0) / assessed);
   const tier  = score >= 75 ? 'high' : score >= 40 ? 'mid' : 'low';
-  return { score, dims, tier };
+  return { score, dims, tier, assessed, total, pending: false };
 }
