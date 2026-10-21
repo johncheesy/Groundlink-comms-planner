@@ -4938,3 +4938,47 @@ select.input--sm { text-align: left; padding-right: 6px; }
   font-size: 9.5px;
   color: var(--faint);
 }
+
+/* ---- Map notice: persistent, actionable (e.g. imagery provider unreachable) ---- */
+.map-notice {
+  position: absolute;
+  /* inset + auto margins centre a max-content box; `left: 50%` would cap the
+     available width at half the map and squeeze the text into a narrow column */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  bottom: calc(var(--status-h) + 56px);
+  z-index: calc(var(--z-toolbar) + 1);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: max-content;
+  max-width: min(640px, calc(100% - 32px));
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+}
+.map-notice[hidden] { display: none; }
+.map-notice--info { border-left-color: var(--accent2); }
+.map-notice__text { flex: 1; min-width: 0; }
+.map-notice__actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
+.map-notice__close {
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.map-notice__close:hover { color: var(--ink); }
+@media (max-width: 560px) {
+  .map-notice { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+  .map-notice__actions { justify-content: flex-end; }
+}

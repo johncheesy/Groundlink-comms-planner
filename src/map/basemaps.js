@@ -41,6 +41,7 @@ export const BASEMAP_VARIANTS = {
       // higher detail than Esri/Sentinel over NL; blank outside the Netherlands.
       id: 'pdok-nl-ortho',
       label: 'NL Luchtfoto (HR · PDOK)',
+      global: false, // regional only: never an automatic failover target (blank outside NL)
       wms: true,
       tiles: [
         'https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?service=WMS&request=GetMap&version=1.1.1' +
@@ -62,6 +63,7 @@ export const BASEMAP_VARIANTS = {
       // HTTP 400 for every tile. `_3857` supports EPSG:3857 / EPSG:900913.
       id: 's2cloudless-2024',
       label: 'Sentinel-2 (10 m · cloudless)',
+      note: 'Sentinel-2 is 10 m resolution, so detail is limited when zoomed in.',
       wms: true, // flag: tile URL uses {bbox-epsg-3857} instead of {x}/{y}/{z}
       tiles: [
         'https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&version=1.1.1' +

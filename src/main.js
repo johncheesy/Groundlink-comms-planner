@@ -78,6 +78,7 @@ import { createEmptyState } from './ui/emptystate.js';
 import { createUndoStack } from './ui/undo.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, fsplDb, receivedDbm } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
+import { createMapNotice } from './ui/map-notice.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
@@ -106,7 +107,7 @@ $('#statusBuildItem').title = `${BUILD.channel.toUpperCase()} · ${buildLabel}`;
 
 // ---- Map ----------------------------------------------------------------
 
-const mapApi = initMap($('#map'));
+const mapApi = initMap($('#map'), { onBasemapFailover: handleBasemapFailover });
 const { map } = mapApi;
 const resize = keepMapSized(map);
 
@@ -411,10 +412,36 @@ function reflectBasemap(category) {
   });
 }
 
-/** Switch category (and optionally variant). */
+/** Switch category (and optionally variant). A deliberate choice clears any failover notice. */
 function switchBasemap(category, variantId) {
   const result = mapApi.setBasemap(category, variantId);
   reflectBasemap(result.category);
+  mapNotice?.hide();
+}
+
+// ---- Basemap provider failover notice -------------------------------------
+// map.js detects an unreachable imagery provider and moves to another source;
+// this tells the user what happened and offers a retry. Hoisted: initMap()
+// above may report a provider that was already known to be down at startup.
+let mapNotice = null;
+function handleBasemapFailover(info) {
+  mapNotice ??= createMapNotice(document.querySelector('.map-wrap'));
+  const { kind, from, to } = info;
+  if (kind !== 'none') {
+    reflectBasemap(mapApi.getBasemap());
+    if (railState?.current?.() === 'basemap') renderVariantMenu();
+  }
+  const retry = { label: `Try ${from.label} again`, onClick: () => switchBasemap(from.category, from.variantId) };
+  const note = to ? BASEMAP_VARIANTS[to.category]?.find((v) => v.id === to.variantId)?.note : null;
+  let message;
+  if (kind === 'none') {
+    message = `${from.label} can't be reached from this network and no other map source is available. Check your connection.`;
+  } else if (kind === 'degraded') {
+    message = `No satellite imagery source can be reached from this network, so the map switched to ${to.label}.`;
+  } else {
+    message = `${from.label} can't be reached from this network, so the map switched to ${to.label}.${note ? ` ${note}` : ''}`;
+  }
+  mapNotice.show({ message, tone: 'warn', actions: [retry] });
 }
 
 // ---- Variant list (M20 §5: inline in the basemap flyout) ------------------
@@ -768,9 +795,17 @@ const markDirty = () => {
   if (!applyingMission) setDirty(true);
 };
 
+// Run once the style exists. `isStyleLoaded()` and the map 'load' event also wait
+// for the first basemap TILES, so a slow or blocked imagery provider used to
+// leave the whole app (AOI, mission tools, toolbar wiring) dead. Nothing here
+// needs tiles, only the style, so 'style.load' is enough; 'load' stays as the
+// backstop and the guard makes `fn` run exactly once.
 function whenStyleReady(fn) {
-  if (map.isStyleLoaded()) fn();
-  else map.once('load', fn);
+  let ran = false;
+  const run = () => { if (!ran) { ran = true; fn(); } };
+  if (map.isStyleLoaded()) { run(); return; }
+  map.once('style.load', run);
+  map.once('load', run);
 }
 
 whenStyleReady(() => {

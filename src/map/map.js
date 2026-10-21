@@ -8,6 +8,9 @@ import {
   BUILDINGS_LAYER,
   variantLayerId,
 } from './basemaps.js';
+import {
+  createTileHealth, pickFallback, pickStartVariant, readBlocked, markBlocked, clearBlocked, hostOf, providerOf,
+} from './tile-health.js';
 
 /**
  * Initialise the MapLibre GL map.
@@ -17,12 +20,42 @@ import {
  * have multiple variant tile sources; setBasemap(category, variantId) handles
  * both category switches and intra-category variant switches.
  */
-export function initMap(container) {
+/**
+ * @param {HTMLElement} container
+ * @param {object} [opts]
+ * @param {(info:{kind:'switched'|'degraded'|'none', from:object, to?:object, provider:string, startup?:boolean})=>void} [opts.onBasemapFailover]
+ *   Called when the active basemap provider is unreachable and the map moved
+ *   (or could not move) to another source. The UI explains it to the user.
+ */
+export function initMap(container, { onBasemapFailover } = {}) {
   // Initial active state
   let activeCategory = DEFAULT_BASEMAP;
   const activeVariantIds = Object.fromEntries(
     BASEMAPS.map((cat) => [cat, BASEMAP_VARIANTS[cat][0].id]),
   );
+
+  // A provider that failed recently is still skipped on this load, so a reload
+  // does not start on a black map and wait for the same failure again.
+  const sessionBlocked = new Set(readBlocked());
+  const labelOf = (cat, id) => BASEMAP_VARIANTS[cat]?.find((v) => v.id === id)?.label ?? id;
+  let startupFailover = null;
+  {
+    const defaultId = activeVariantIds[activeCategory];
+    const start = pickStartVariant({
+      variants: BASEMAP_VARIANTS, category: activeCategory, defaultVariantId: defaultId, blockedProviders: sessionBlocked,
+    });
+    if (start) {
+      startupFailover = {
+        kind: start.degraded ? 'degraded' : 'switched',
+        from: { category: activeCategory, variantId: defaultId, label: labelOf(activeCategory, defaultId) },
+        to: { category: start.category, variantId: start.variantId, label: labelOf(start.category, start.variantId) },
+        provider: providerOf(hostOf(BASEMAP_VARIANTS[activeCategory].find((v) => v.id === defaultId))),
+        startup: true,
+      };
+      activeCategory = start.category;
+      activeVariantIds[start.category] = start.variantId;
+    }
+  }
 
   const map = new maplibregl.Map({
     container,
@@ -40,6 +73,63 @@ export function initMap(container) {
 
   map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
+  // ---- Basemap provider health + automatic failover ----------------------
+  // Watches the ACTIVE base layer only (hidden layers load nothing). When its
+  // provider is down (hard errors or tiles that never answer) the map moves to
+  // the next usable source and tells the UI why; see tile-health.js.
+  const health = createTileHealth();
+  const handled = new Set(); // sources already failed over (avoid repeat firing)
+  const sourceInfo = new Map();
+  for (const cat of BASEMAPS) {
+    for (const v of BASEMAP_VARIANTS[cat]) sourceInfo.set(variantLayerId(cat, v.id), { category: cat, variant: v });
+  }
+  const isActiveBase = (id) => {
+    const i = sourceInfo.get(id);
+    return !!i && i.category === activeCategory && activeVariantIds[i.category] === i.variant.id;
+  };
+
+  map.on('dataloading', (e) => { if (e.tile && isActiveBase(e.sourceId)) health.loading(e.sourceId, Date.now()); });
+  map.on('sourcedata', (e) => {
+    if (e.tile && isActiveBase(e.sourceId) && (e.tile.state === undefined || e.tile.state === 'loaded')) {
+      health.success(e.sourceId, Date.now());
+    }
+  });
+  map.on('error', (e) => {
+    if (e.tile && isActiveBase(e.sourceId)) {
+      health.error(e.sourceId, e.error, Date.now());
+      checkHealth();
+    }
+  });
+  const healthTimer = setInterval(checkHealth, 2000);
+  map.on('remove', () => clearInterval(healthTimer));
+
+  function checkHealth() {
+    const id = variantLayerId(activeCategory, activeVariantIds[activeCategory]);
+    if (!sourceInfo.has(id) || handled.has(id)) return;
+    if (health.tripped(id, Date.now(), { sourcePending: !map.isSourceLoaded(id) })) failover(id);
+  }
+
+  function failover(id) {
+    if (handled.has(id)) return;
+    handled.add(id);
+    const info = sourceInfo.get(id);
+    const provider = providerOf(hostOf(info.variant));
+    markBlocked(provider);
+    sessionBlocked.add(provider);
+    const from = { category: info.category, variantId: info.variant.id, label: info.variant.label };
+    const next = pickFallback({
+      variants: BASEMAP_VARIANTS, category: info.category, variantId: info.variant.id, blockedProviders: sessionBlocked,
+    });
+    if (!next) { onBasemapFailover?.({ kind: 'none', from, provider }); return; }
+    applyBasemap(next.category, next.variantId);
+    onBasemapFailover?.({
+      kind: next.degraded ? 'degraded' : 'switched',
+      from,
+      to: { category: next.category, variantId: next.variantId, label: labelOf(next.category, next.variantId) },
+      provider,
+    });
+  }
+
   /**
    * Switch to a basemap category (imagery | topo), optionally selecting a
    * specific variant. If variantId is omitted, the current variant for that
@@ -49,7 +139,22 @@ export function initMap(container) {
    */
   function setBasemap(category, variantId) {
     if (!BASEMAPS.includes(category)) return { category: activeCategory, variantId: activeVariantIds[activeCategory] };
+    // A deliberate choice is also a retry: give a provider that was marked
+    // unreachable a fresh chance (it trips again, once, if it is still down).
+    const target = BASEMAP_VARIANTS[category]?.find((v) => v.id === (variantId ?? activeVariantIds[category]));
+    const provider = target ? providerOf(hostOf(target)) : null;
+    if (provider && sessionBlocked.has(provider)) {
+      sessionBlocked.delete(provider);
+      clearBlocked(provider);
+    }
+    if (target) {
+      health.reset(variantLayerId(category, target.id));
+      handled.delete(variantLayerId(category, target.id));
+    }
+    return applyBasemap(category, variantId);
+  }
 
+  function applyBasemap(category, variantId) {
     const newVariant = variantId ?? activeVariantIds[category];
 
     // Hide every variant layer across all categories
@@ -148,6 +253,9 @@ export function initMap(container) {
       map.setPaintProperty(l.id, 'hillshade-illumination-anchor', 'map');
     }
   }
+
+  // The default provider was already known to be down: say so once the UI exists.
+  if (startupFailover) setTimeout(() => onBasemapFailover?.(startupFailover), 0);
 
   return {
     map,
