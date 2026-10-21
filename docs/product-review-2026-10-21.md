@@ -194,6 +194,24 @@ Effort: S under a day, M a few days, L a week or more.
 
 ---
 
+### Status of P0 (updated the same day)
+
+All seven P0 items are done on branch `fix/p0-trust`, with tests (479 pass) and live checks in the app.
+
+| P0 item | Result |
+|---|---|
+| Basemap failover (F6) | Done. Verified against a real Esri block: switches in about 10 s, a reload makes no Esri requests, retry falls back again without looping. |
+| Readiness (F2) | Done. Needs 3 of 6 checks, shows "based on n of 6". |
+| Assumptions strip (F3) | Done. Result card and completion toast. The grid cell size is shown but F4 (fixed 220-cell grid) is a P1 item and is not fixed yet. |
+| Import cap (F1) | Done. 300 sites and 300 points. Promoting 20,000 points takes 1.9 s. |
+| Mission validation (F7, F8, F18, F24) | Done. |
+| Far-apart objects (F5) | Done. Explained in Coverage, Site recommendation and Offline package. |
+| `prompt()` (F9) | Done. |
+
+Not touched on purpose: F4, F10 to F17 and F19 to F27, which sit in P1 and P2.
+
+---
+
 ## 8. Asking for help on Reddit
 
 ### Before posting
