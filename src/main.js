@@ -517,6 +517,12 @@ function renderVariantMenu() {
     cov.className = 'basemap-hires__cov';
     cov.textContent = `National aerial programmes: ${HIRES_SOURCES.map((s) => s.short).join(', ')}. Elsewhere the global layer (10 m) is the sharpest open imagery.`;
     variantMenu.appendChild(cov);
+    const terms = document.createElement('div');
+    terms.className = 'basemap-hires__cov basemap-hires__terms';
+    terms.textContent =
+      'Terms: intended for research and other non-commercial use. Esri imagery stays under Esri\'s own terms, needs its credit, and is never stored offline by this app. ' +
+      'Sentinel-2 is CC BY-NC-SA (non-commercial). National aerial sources are open data under each provider\'s terms. Check them before any commercial use.';
+    variantMenu.appendChild(terms);
     updateHiresStatus();
   }
 

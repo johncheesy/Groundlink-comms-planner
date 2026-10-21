@@ -21,8 +21,10 @@ export const DEFAULT_BASEMAP = 'imagery';
 
 /**
  * Variants for each basemap category. The first entry in each array is the
- * default. All are free and token-free (Esri AGOL open tiles, OpenTopoMap,
- * OSM, CARTO). Add more later — only visible layers load tiles.
+ * default. All load without a key (Esri public tiles, OpenTopoMap, OSM, CARTO),
+ * but "free to load" is not "free to store or use commercially": Esri keeps its
+ * own terms, so its tiles are never cached offline (public/sw.js). See
+ * docs/DATA-SOURCES.md. Add more later; only visible layers load tiles.
  */
 export const BASEMAP_VARIANTS = {
   imagery: [

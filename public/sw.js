@@ -3,6 +3,7 @@
  * Workbox-free; uses the Cache API directly. Three routing strategies:
  *   • App shell (HTML/JS/CSS)  → cache-first, pre-cached on install.
  *   • Map / DEM tiles          → stale-while-revalidate, 7-day TTL, 500-tile cap.
+ *   • Esri imagery             → network only, never stored (see NO_STORE below).
  *   • Everything else          → network-first with cache fallback.
  *
  * Subpath-safe: the app deploys under a GitHub Pages subpath
@@ -53,7 +54,6 @@ const TILE_HOST_PATTERNS = [
   /(^|\.)tile\.opentopomap\.org$/,
   /(^|\.)opentopomap\.org$/,
   /(^|\.)tile\.openstreetmap\.org$/,
-  /\.arcgisonline\.com$/,
   /(^|\.)openfreemap\.org$/,
   /(^|\.)openmaptiles\.org$/,
   /tiles\.maps\.eox\.at$/,
@@ -76,6 +76,13 @@ const TILE_HOST_PATTERNS = [
   /^ags\.cuzk\.cz$/,
   /^geodienste\.sachsen\.de$/,
 ];
+// Providers whose imagery GroundLink must NOT keep. Esri's terms treat storing or
+// caching its tiles for offline use as a licensed use, so these go straight to
+// the network: no cache.put, no stale copy, nothing served when offline. The
+// activate step also deletes anything an older build stored.
+const NO_STORE_HOST_PATTERNS = [/(^|\.)arcgisonline\.com$/];
+const isNoStore = (url) => NO_STORE_HOST_PATTERNS.some((re) => re.test(url.hostname));
+
 // DEM tiles live on a shared S3 host, so match by path as well as host.
 const TILE_PATH_PATTERNS = [/elevation-tiles-prod/];
 
@@ -125,6 +132,16 @@ self.addEventListener('activate', (event) => {
       const keep = new Set([APP_SHELL_CACHE, TILE_CACHE]);
       const names = await caches.keys();
       await Promise.all(names.filter((n) => !keep.has(n)).map((n) => caches.delete(n)));
+      // Older builds cached Esri tiles; remove them (see NO_STORE_HOST_PATTERNS).
+      try {
+        const tiles = await caches.open(TILE_CACHE);
+        const stored = await tiles.keys();
+        await Promise.all(
+          stored.filter((req) => isNoStore(new URL(req.url))).map((req) => tiles.delete(req)),
+        );
+      } catch {
+        /* best effort: the cache is also bounded and ages out */
+      }
       // Control every open tab immediately (no second reload needed), then
       // tell each one a new build is live so the page can refresh itself.
       await self.clients.claim();
@@ -150,6 +167,11 @@ self.addEventListener('fetch', (event) => {
   // Never cache CloudRF API requests (API key in Authorization header)
   if (url.hostname === 'api.cloudrf.com') {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  if (isNoStore(url)) {
+    event.respondWith(fetch(request));
     return;
   }
 

@@ -10,8 +10,17 @@ There is **no global open satellite layer sharper than about 10 m** (Sentinel-2)
 
 | Layer | Resolution | Terms (as stated by the provider) | Note |
 |---|---|---|---|
-| Esri World Imagery | to about 30 cm in many places | Esri public service, attribution required, not an open licence | Best global detail. Can be blocked by some networks, in which case the app switches automatically. |
+| Esri World Imagery | about 30 cm in over 1,000 metro areas, 15 cm in a few cities, 1 m or better over most land, 15 m worldwide at small scale (Esri's description, via search summaries; the page itself could not be fetched) | Esri's own terms, attribution required, **not an open licence** | Best global detail. Used for research and other non-commercial purposes. Never stored offline by this app (the service worker bypasses and purges it). Can be blocked by some networks, in which case the app switches automatically. |
 | EOX Sentinel-2 cloudless 2024 | 10 m | CC BY-NC-SA 4.0 (non-commercial) | Automatic fallback. Non-commercial terms apply. |
+
+### Intended use
+
+GroundLink is meant for **research and other non-commercial use**. Loading a tile without a key is not the same as being licensed to store it or to use it in a commercial product:
+
+- **Esri:** the app does not cache or store Esri tiles (service worker network-only, and an activate step deletes tiles stored by older builds). Storing Esri imagery for offline use, or using it commercially, is described as needing an Esri licence. The official terms page could not be retrieved, so this is the conservative reading; confirm with Esri before any commercial or defence deployment.
+- **Sentinel-2 (EOX):** CC BY-NC-SA 4.0, non-commercial.
+- **National sources:** open data, each under its own terms (table below).
+- **No sharp global layer is both open and commercially clean.** For commercial use, either rely on the national sources where they exist or bring your own licensed imagery.
 
 ### National aerial imagery (`src/map/hires-imagery.js`)
 

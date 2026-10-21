@@ -63,7 +63,7 @@ For development guidance, open the folder in Claude Code and read `CLAUDE.md` fi
 ## Attribution
 
 - Elevation tiles: [Terrain Tiles (AWS Open Data)](https://registry.opendata.aws/terrain-tiles/) — Mapzen / AWS, public domain
-- Basemaps: Esri (Esri World Imagery), PDOK (CC BY 4.0), EOX (Sentinel-2, CC BY-NC-SA), OpenTopoMap (CC-BY-SA), OpenStreetMap contributors (ODbL), CARTO, OpenFreeMap
+- Basemaps: Esri (Esri World Imagery, under Esri's terms and never stored offline), national aerial imagery (see `docs/DATA-SOURCES.md`), EOX (Sentinel-2, CC BY-NC-SA), OpenTopoMap (CC-BY-SA), OpenStreetMap contributors (ODbL), CARTO, OpenFreeMap. Intended for research and other non-commercial use.
 - Buildings: Overture Maps Foundation (© OpenStreetMap contributors)
 - Cellular towers: OpenCelliD / Unwired Labs (CC BY 4.0) via Overpass API
 - Land cover: ESA WorldCover (CC BY 4.0), Digital Earth Africa WMS
