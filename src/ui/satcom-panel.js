@@ -46,7 +46,10 @@ function renderLive(el, w, { fetchedAt, stale }) {
       ? `None ≥ ${mask} now · next pass <b>${fmtTime(w.nextPass.riseMs)}</b>, peak ${w.nextPass.peakElevDeg.toFixed(0)}°`
       : `None ≥ ${mask} in the next ${w.horizonMin} min`);
   }
-  if (w.gaps.length) {
+  const wholeWindowGap = w.nowVisible === 0 && !w.nextPass; // already said "None … in the next N min"
+  if (wholeWindowGap) {
+    tier = 'gap';
+  } else if (w.gaps.length) {
     tier = 'gap';
     parts.push(`next ${w.horizonMin} min: <b>${w.gaps.length}</b> gap${w.gaps.length === 1 ? '' : 's'}, longest ${fmtMin(w.longestGapMin)}`);
   } else if (w.worst) {
