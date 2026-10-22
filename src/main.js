@@ -509,7 +509,7 @@ function renderVariantMenu() {
     box.checked = mapApi.isHiresOn();
     box.addEventListener('change', () => { mapApi.setHires(box.checked); updateHiresStatus(); });
     const text = document.createElement('span');
-    text.textContent = 'Sharpest open aerial imagery where available';
+    text.textContent = 'National aerial photos where available (off: Esri only)';
     row.append(box, text);
     variantMenu.appendChild(row);
     const now = document.createElement('div');

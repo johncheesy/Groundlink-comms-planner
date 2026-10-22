@@ -9,6 +9,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Fixed
+- **National hi-res aerial photos are opt-in.** Esri is the imagery you see by default; the national layers (PDOK, IGN, …) only draw after you tick them in the Imagery flyout, because they could hide what Esri shows, such as water in the Netherlands. A previously stored "on" is ignored once.
 - **Coordinates as people paste them** (review F11, `src/geo/coords.js`): decimal comma (`52,3676 4,9041`, also with `;` or `, `), hemisphere prefixes (`N52.5 E4.5`), brackets, leading `+`, semicolons, unicode minus, `geo:` URIs and Google / OpenStreetMap / Apple Maps links. A bare `52,5` stays a lat,lng pair. Works in search and bulk add. 7 tests.
 - **Satcom and HF follow route and point missions** (review F15): without an area they use the middle of the sites, route and points instead of asking for an area. The readiness score's satcom input follows too.
 - **Satcom footer hemisphere** (review F17): southern and western positions print as "1.3011° S", not "−1.3011° N".
