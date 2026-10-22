@@ -8,8 +8,9 @@
  *                       dbAt(lng, lat) → extra path-loss dB (fallback engine) }
  *
  * Build order (first available wins):
- *   elevation: local COG file (composed over Terrarium where the file has no
- *              data) → OPFS offline package → network Terrarium.
+ *   elevation: local COG file (composed over the network terrain where the file
+ *              has no data) → OPFS offline package → network terrain
+ *              (Mapterhorn / Copernicus GLO-30, AWS Terrarium fallback per tile).
  *   clutter:   local COG file (canopy/DSM heights) → ESA WorldCover WMS
  *              (Africa) → none.
  *
@@ -61,7 +62,7 @@ export async function buildElevationSampler({ bounds, cog = null }) {
   }
   if (!base) {
     base = await buildDem(bounds).catch(() => null);
-    if (base) baseId = 'terrarium';
+    if (base) baseId = base.id || 'terrain';
   }
 
   if (cog) {

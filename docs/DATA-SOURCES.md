@@ -69,7 +69,8 @@ Only the providers whose imagery is actually in view are credited (rebuilt as th
 
 | Source | Used for | Terms |
 |---|---|---|
-| AWS Terrain Tiles (Terrarium) | Elevation | Open, see registry.opendata.aws/terrain-tiles |
+| Mapterhorn (Copernicus GLO-30, zoom ≤ 12) | Elevation for coverage, path profile, drone envelope, offline packages | Copernicus DEM licence, attribution required: "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA"; Mapterhorn attribution at mapterhorn.com/attribution. See ADR 0007 |
+| AWS Terrain Tiles (Terrarium) | Elevation fallback per tile; 3D map terrain | Open, see registry.opendata.aws/terrain-tiles |
 | OpenStreetMap, Overpass, OpenFreeMap, Photon | Towers, buildings, search | ODbL 1.0, attribution required |
 | CelesTrak | Satellite element sets (LEO pass window) | Public, citation requested |
 | ESA WorldCover via Digital Earth Africa WMS | Clutter (Africa only) | CC BY 4.0 |

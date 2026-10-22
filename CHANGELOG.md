@@ -8,6 +8,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Terrain from Copernicus GLO-30 (via Mapterhorn)** for coverage, path profile, drone envelope and offline packages, with a per-tile fallback to the previous AWS source. Newer and more accurate than SRTM: Matterhorn 4438 m (was 4274 m, true 4478 m), Dead Sea −432 m (was −412 m), Amsterdam 2 m (was 6.8 m). Capped at zoom 12 on purpose: above that the service has bare-earth LiDAR, which without a clutter layer would make coverage optimistic (ADR 0007). Tiles are decoded one by one so a 512 px tile next to a 256 px fallback tile never corrupts heights. The path profile now uses the same terrain at zoom 12 for short paths. The result card and help text name the terrain source. 12 tests.
+
+
 ### Added
 
 **M48 — Live LEO/MEO pass window** (`docs/M48-leo-passes.md`)

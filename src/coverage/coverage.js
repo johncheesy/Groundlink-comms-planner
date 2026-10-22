@@ -149,6 +149,7 @@ export function createCoverageController(
       coveredFracAoi: coveredFracAoi ?? null,
       terrain: !!terrain,
       clutter: !!clutter,
+      elevSource: msg.elevSource ?? null, // which terrain the run used (shown in the result card)
     };
     if (!currentRender) return; // stats-only pass (e.g. gain-vs-ground baseline)
     renderRaster();

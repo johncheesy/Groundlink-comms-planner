@@ -82,6 +82,7 @@ import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
 import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
+import { terrainCredit } from './data/terrain-tiles.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
@@ -1062,6 +1063,7 @@ whenStyleReady(() => {
         }
         if (info?.elevSource === 'offline') bits.push('Elevation from the offline package (OPFS).');
         else if (info?.elevSource?.startsWith('cog')) bits.push('Elevation from your local COG.');
+        else if (terrain && info?.elevSource) bits.push(`Terrain: ${terrainCredit(info.elevSource)}.`);
         if (useClutterInput.checked) {
           bits.push(clutter
             ? (info?.clutterSource === 'cog' ? 'Clutter heights from your local COG.' : 'ESA WorldCover clutter applied.')
@@ -4235,6 +4237,7 @@ function currentAssumptions() {
     clutterUsed: Boolean(st.clutter),
     cellM: lastPaint ? cellSizeM(lastPaint.bounds, lastPaint.cols) : null,
     radioApplied: Boolean(radios?.hasActive?.()),
+    terrainSource: st.terrain ? terrainCredit(st.elevSource) : null,
   });
 }
 

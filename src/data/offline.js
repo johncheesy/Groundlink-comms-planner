@@ -23,7 +23,7 @@ import { zxyToTileId } from './tileid.js';
 const DIR_NAME = 'groundlink-offline';
 const PACK_FILE = 'terrarium.pmtiles';
 const MANIFEST_FILE = 'manifest.json';
-const TERRARIUM_URL = (z, x, y) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
+import { fetchTerrainTile } from './terrain-tiles.js';
 export const MAX_PACK_TILES = 600; // ~150 MB worst case; keep deliberate
 
 /* ------------------------------------------------------------------ */
@@ -209,10 +209,15 @@ export async function packageAoi(bounds, { zooms = [8, 9, 10, 11], onProgress } 
   if (!list.length) throw new Error('AOI too large to package — zoom levels exceed the tile budget');
   const tiles = [];
   let done = 0;
+  const used = new Set();
   for (const t of list) {
     try {
-      const r = await fetch(TERRARIUM_URL(t.z, t.x, t.y));
-      if (r.ok) tiles.push({ ...t, data: new Uint8Array(await r.arrayBuffer()) });
+      // Same source and per-tile fallback as the online path, so offline runs see the same ground.
+      const got = await fetchTerrainTile(t.z, t.x, t.y);
+      if (got) {
+        tiles.push({ ...t, data: new Uint8Array(await got.blob.arrayBuffer()) });
+        used.add(got.source);
+      }
     } catch { /* missing tile (ocean/edge) — sampler treats as 0 */ }
     done += 1;
     onProgress?.(done / list.length);
@@ -220,14 +225,16 @@ export async function packageAoi(bounds, { zooms = [8, 9, 10, 11], onProgress } 
   if (!tiles.length) throw new Error('No DEM tiles could be fetched — offline package not written');
 
   const packed = writePmtiles(tiles, {
-    tileType: 2,
+    // 4 = WebP (Mapterhorn), 2 = PNG (AWS). The reader sniffs each tile's own
+    // bytes, so a package mixing both still decodes correctly.
+    tileType: used.has('mapterhorn') ? 4 : 2,
     minZoom: Math.min(...tiles.map((t) => t.z)),
     maxZoom: Math.max(...tiles.map((t) => t.z)),
     bounds,
   });
   const manifest = {
     v: 1,
-    dataset: 'terrarium',
+    dataset: [...used].sort().join('+') || 'terrain',
     bounds,
     zooms: [...new Set(tiles.map((t) => t.z))].sort((a, b) => a - b),
     tiles: tiles.length,
