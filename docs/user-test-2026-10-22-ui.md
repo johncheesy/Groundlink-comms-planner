@@ -79,3 +79,45 @@ misleading, **S3** polish.
 6. **U13, U14:** beta card stacks vertically on narrow screens; 44 px tap
    targets on touch devices.
 7. **U17, U12:** status text follows the active view; fade the raster edge.
+
+---
+
+## Retest after the fixes (22 Oct 2026, branch `feat/ui-readability`)
+
+Same roles and mission (three sites around Utrecht, 450 MHz, P.1812 with
+clutter), light, dark, and a real 375 px layout (the app in a 375 px iframe;
+the viewport emulation misreported widths). The contrast scan was corrected to
+read `color-mix()` colours, which the first scan missed.
+
+| ID | Result | How it was checked |
+|---|---|---|
+| U1 | Fixed — no-coverage is unpainted by default ("Show no-coverage area" brings it back); legend says "not painted". | Screenshot: photo visible outside usable signal |
+| U2 | Fixed — default opacity 55%; roads and place names readable through and above the raster. | Screenshot |
+| U3 | Fixed — Esri place names (above the raster) and roads (under it) on satellite maps, toggle in the Imagery menu. | Layer order checked; screenshot |
+| U4 | Fixed — Run button dark ink on teal, 10.8:1. | Computed colours |
+| U5 | Fixed — 0 contrast failures in light and in dark with coverage, key and result card on screen (was 22 / 27). Also fixed on the way: teal text on grey (4.0–4.2:1), coloured badges (2.5–3.5:1), active tabs. | Scan |
+| U6 | Fixed — 0 text under 11 px; normal text at least 12 px. | Scan |
+| U7 | Fixed — colour key on the map for each view. | Screenshot |
+| U8 | Fixed — best-server zones only where the signal is usable. | Screenshot, test |
+| U9 | Fixed — sites take their zone colour in best-server view; key names the zones. | Computed marker colours |
+| U10 | Fixed — 20 px sites with a light ring and a name label. | Screenshot |
+| U11 | Fixed — card docked bottom-right, 320 px, foldable to 320×64; folded by default on phones. | Measured |
+| U12 | Fixed — soft edge on screen (exports stay crisp). | Screenshot, test |
+| U13 | Fixed — beta card spans the map width minus 24 px and wraps. | 375 px layout |
+| U14 | Fixed for touch screens — 44 px minimum via `pointer: coarse`. | CSS; not measurable in this browser (no touch emulation in the iframe) |
+| U15 | Fixed — "Loading map imagery…" until the first idle. | Screenshot |
+| U16 | Fixed — the beta notice waits for the start card. | DOM check |
+| U17 | Fixed — status follows the view. | DOM check |
+| U18 | Resolved by U1 — the rose band is hidden by default. | — |
+
+New problems found during the retest, fixed in the same branch:
+
+- **Phone width:** the page was 418–476 px wide on a 375 px screen (header
+  module groups, a `1fr` grid column growing to the header's minimum width,
+  and the status bar build number). Now 375 px before and after a run.
+- **Phone overlays:** the start card sat under the map rail; the attribution
+  ran behind the menu button.
+
+Still open: a check on a real phone (touch sizes, iOS Safari); the "poor" band
+(−103 to −110 dBm) can still cover a large area at low power — it is shown on
+purpose as the weak-signal warning.
