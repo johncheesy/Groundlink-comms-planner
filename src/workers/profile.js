@@ -28,12 +28,21 @@ export function buildProfile(tx, rx, totalDist, dem) {
   return profile;
 }
 
+/** Extra profile samples (m from each terminal) where the ~1 km grid is coarser. */
+export const NEAR_TERMINAL_M = [25, 50, 100, 200, 400];
+
 /**
  * Tx→rx profile in the P.1812 contract: ~1 km spacing (10–60 intervals),
  * BOTH endpoints included, bare DEM heights (no earth-bulge folding — P.1812
  * handles curvature itself via its effective-earth radii) plus a representative
  * clutter height per point (0 when no land-cover sampler is supplied — the
  * DSM-only terrain-only mode, see docs/decisions/0005).
+ *
+ * P.1812-8 has no separate terminal clutter loss: clutter next to a terminal
+ * blocks the path through the Bullington profile. With ~1 km spacing the
+ * trees or buildings around a handheld would fall between samples, so the
+ * profile also samples NEAR_TERMINAL_M from both ends (where finer than the
+ * grid and inside the half-path).
  *
  * @param tx   { lng, lat }
  * @param rx   { lng, lat }
@@ -45,9 +54,16 @@ export function buildProfile(tx, rx, totalDist, dem) {
  */
 export function buildProfileP1812(tx, rx, totalDist, dem, clutter) {
   const n = Math.max(10, Math.min(60, Math.round(totalDist / 1000)));
+  const step = totalDist / n;
+  const fracs = [];
+  for (let i = 0; i <= n; i++) fracs.push(i / n);
+  for (const m of NEAR_TERMINAL_M) {
+    if (m >= step || m >= totalDist / 2) continue;
+    fracs.push(m / totalDist, 1 - m / totalDist);
+  }
+  fracs.sort((a, b) => a - b);
   const profile = [];
-  for (let i = 0; i <= n; i++) {
-    const f = i / n;
+  for (const f of fracs) {
     const lng = tx.lng + (rx.lng - tx.lng) * f;
     const lat = tx.lat + (rx.lat - tx.lat) * f;
     profile.push({

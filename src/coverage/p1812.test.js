@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   p1812Loss,
   receivedDbmP1812,
-  terminalClutterDb,
   invCumNorm,
   medianEffectiveEarthKm,
   refractivityForLatitude,
@@ -151,21 +150,23 @@ describe('clutter', () => {
     expect(cluttered.lossDb).toBeGreaterThan(bare.lossDb);
   });
 
-  it('terminal clutter applies the §4.7 height-gain correction', () => {
-    // 15 m clutter over a 1.5 m handheld at 150 MHz:
-    // hdif = 13.5 m, θclut = 26.57°, Knu = 0.1325, ν = 2.509 →
-    // J(ν) − 6.03 = 14.88 dB (hand-derived).
-    expect(terminalClutterDb(0.15, 15, 1.5)).toBeCloseTo(14.88, 1);
-    // Antenna above the clutter → no correction.
-    expect(terminalClutterDb(0.15, 15, 20)).toBe(0);
-    expect(terminalClutterDb(0.15, 0, 1.5)).toBe(0);
-
+  it('clutter AT a terminal adds nothing by itself (P.1812-8: terminals stay bare)', () => {
     const prof = flatProfile(10, 10, 0, 0);
-    prof[10].clutterM = 15; // rx end inside clutter
+    prof[10].clutterM = 15;
     const bare = p1812Loss({ freqMHz: 150, txHeightM: 30, rxHeightM: 1.5, profile: flatProfile(10, 10, 0, 0) });
-    const inClutter = p1812Loss({ freqMHz: 150, txHeightM: 30, rxHeightM: 1.5, profile: prof });
-    expect(inClutter.components.clutterRxDb).toBeCloseTo(14.88, 1);
-    expect(inClutter.lossDb - bare.lossDb).toBeCloseTo(14.88, 1);
+    const atRx = p1812Loss({ freqMHz: 150, txHeightM: 30, rxHeightM: 1.5, profile: prof });
+    expect(atRx.lossDb).toBeCloseTo(bare.lossDb, 9);
+  });
+
+  it('clutter right next to a low receiver blocks it through diffraction', () => {
+    // Densely sampled near the rx, as the worker profile does: 15 m clutter
+    // from 400 m up to 25 m before a 1.5 m handheld.
+    const prof = flatProfile(10, 10, 0, 0).concat(
+      [9600, 9800, 9900, 9950, 9975].map((distM) => ({ distM, terrainM: 0, clutterM: 15 })),
+    ).sort((a, b) => a.distM - b.distM);
+    const bare = p1812Loss({ freqMHz: 150, txHeightM: 30, rxHeightM: 1.5, profile: flatProfile(10, 10, 0, 0), sigmaL: 0 });
+    const inClutter = p1812Loss({ freqMHz: 150, txHeightM: 30, rxHeightM: 1.5, profile: prof, sigmaL: 0 });
+    expect(inClutter.lossDb - bare.lossDb).toBeGreaterThan(10);
   });
 });
 
@@ -237,6 +238,21 @@ describe('buildProfileP1812 (worker profile contract)', () => {
     expect(prof[prof.length - 1].terrainM).toBe(110);
     expect(prof.every((pt) => pt.clutterM === 20)).toBe(true);
     expect(prof.length).toBeGreaterThanOrEqual(11); // ~1 km spacing
+  });
+
+  it('samples densely near both terminals on long paths', () => {
+    const prof = buildProfileP1812({ lng: 0, lat: 0 }, { lng: 1, lat: 0 }, 12000, dem, clutter);
+    const d = prof.map((pt) => pt.distM);
+    for (const m of [25, 50, 100, 200, 400]) {
+      expect(d.some((x) => Math.abs(x - m) < 1e-6)).toBe(true);
+      expect(d.some((x) => Math.abs(x - (12000 - m)) < 1e-6)).toBe(true);
+    }
+    expect(d.every((x, i) => i === 0 || x > d[i - 1])).toBe(true); // strictly ordered
+  });
+
+  it('adds no near-terminal points where the grid is already finer', () => {
+    const prof = buildProfileP1812({ lng: 0, lat: 0 }, { lng: 1, lat: 0 }, 300, dem, clutter);
+    expect(prof).toHaveLength(11 + 2); // 30 m grid; only the 25 m pair is finer
   });
 
   it('uses zero clutter without a land-cover sampler (terrain-only mode)', () => {
