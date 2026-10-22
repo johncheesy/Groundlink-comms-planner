@@ -603,9 +603,13 @@
   box-sizing: border-box;
 }
 .mission-marker--site {
-  background: var(--feat-site);
-  border-radius: 3px; /* square-ish = fixed infrastructure */
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--feat-site) 30%, transparent);
+  width: 20px;
+  height: 20px;
+  /* --zone-color: the site's best-server zone colour while that view is on */
+  background: var(--zone-color, var(--feat-site));
+  border: 2px solid var(--mapring); /* light ring + dark edge: reads on photo and on coverage colours */
+  border-radius: 4px; /* square-ish = fixed infrastructure */
+  box-shadow: 0 0 0 1px var(--mapbg), 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 .mission-marker--point {
   background: var(--feat-event);
@@ -5027,4 +5031,45 @@ select.input--sm { text-align: left; padding-right: 6px; }
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ── Map colour key (UI test U7) ─────────────────────────────────────────── */
+.map-key {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 5;
+  min-width: 150px;
+  max-width: 230px;
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  pointer-events: none;
+}
+.map-key[hidden] { display: none; }
+.map-key__title { font-weight: 600; margin-bottom: 4px; }
+.map-key__row { display: flex; align-items: center; gap: 6px; line-height: 1.6; }
+.map-key__row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-key__row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.map-key__swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+.map-key__note { margin-top: 4px; color: var(--dim); }
+@media (max-width: 640px) {
+  .map-key { bottom: 84px; } /* clear of the mobile menu button */
+}
+
+/* Fixed-site name next to its marker (UI test U9/U10). Halo for any map. */
+.mission-marker__label {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font: 600 12px var(--ui);
+  color: var(--mapring);
+  text-shadow: 0 0 3px var(--mapbg), 0 0 3px var(--mapbg), 0 1px 2px var(--mapbg);
+  pointer-events: none;
 }
