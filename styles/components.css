@@ -3324,11 +3324,12 @@ select.input--sm { text-align: left; padding-right: 6px; }
 
 .result-card {
   position: absolute;
-  bottom: var(--sp-4);
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 36px; /* clear of the attribution line */
+  right: var(--sp-4);
   z-index: var(--z-toolbar);
-  width: min(380px, calc(100% - 2 * var(--sp-4)));
+  width: min(320px, calc(100% - 2 * var(--sp-4)));
+  max-height: calc(100% - 120px);
+  overflow-y: auto;
   padding: var(--sp-3) var(--sp-4);
   background: var(--surface);
   border: 1px solid var(--hair);
@@ -3339,9 +3340,25 @@ select.input--sm { text-align: left; padding-right: 6px; }
 @keyframes gl-rise {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(6px);
+    transform: translateY(6px);
   }
 }
+.result-card__fold {
+  position: absolute;
+  top: 6px;
+  right: 30px;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.result-card__fold:hover { color: var(--ink); }
+.result-card.is-collapsed .result-card__body { display: none; }
+.result-card__zones-wrap { margin-top: var(--sp-2); }
+.result-card__zones-wrap > summary { cursor: pointer; font-size: 12px; color: var(--dim); }
 .result-card__close {
   position: absolute;
   top: 6px;
@@ -5071,5 +5088,20 @@ select.input--sm { text-align: left; padding-right: 6px; }
   font: 600 12px var(--ui);
   color: var(--mapring);
   text-shadow: 0 0 3px var(--mapbg), 0 0 3px var(--mapbg), 0 1px 2px var(--mapbg);
+  pointer-events: none;
+}
+
+/* First-load hint while the basemap imagery arrives (UI test U15). */
+.map-loading {
+  position: absolute;
+  top: 16px; /* clear of the centred start card */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mapbg) 80%, transparent);
+  color: var(--mapink);
+  font-size: 13px;
   pointer-events: none;
 }

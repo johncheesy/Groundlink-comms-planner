@@ -110,15 +110,35 @@ $('#statusBuildItem').title = `${BUILD.channel.toUpperCase()} · ${buildLabel}`;
 (() => {
   const notice = $('#alphaNotice');
   if (!notice) return;
-  notice.hidden = false; // show on every page load; dismiss is session-only (in-memory)
-  $('#alphaNoticeClose').addEventListener('click', () => { notice.hidden = true; });
+  // Shown on every page load, dismiss is session-only (in-memory) — but only
+  // once the start card is gone, so two overlays never cover the map (U16).
+  $('#alphaNoticeClose').addEventListener('click', () => { notice.hidden = true; betaNoticeDone = true; });
 })();
+let betaNoticeDone = false;
+function revealBetaNotice() {
+  const notice = $('#alphaNotice');
+  if (!notice || betaNoticeDone) return;
+  betaNoticeDone = true;
+  notice.hidden = false;
+}
 
 // ---- Map ----------------------------------------------------------------
 
 const mapApi = initMap($('#map'), { onBasemapFailover: handleBasemapFailover, onHiresResult: handleHiresResult });
 const { map } = mapApi;
 const resize = keepMapSized(map);
+
+// U15: the map is black until the first imagery arrives — say so.
+(() => {
+  const hint = document.createElement('div');
+  hint.className = 'map-loading';
+  hint.setAttribute('role', 'status');
+  hint.textContent = 'Loading map imagery…';
+  document.querySelector('.map-wrap')?.appendChild(hint);
+  const done = () => hint.remove();
+  map.once('idle', done);
+  setTimeout(done, 20000); // never linger if the provider is slow or blocked
+})();
 
 // ---- Status bar ---------------------------------------------------------
 
@@ -1935,10 +1955,12 @@ whenStyleReady(() => {
       armMissionMode('sites');
     },
     onOpenMission: () => $('#importBtn')?.click(),
+    onRetire: revealBetaNotice,
   });
 
   // Initial state once the modules above exist (covers a restored arsenal).
   refreshWorkflowUi();
+  if (!emptyState.isVisible()) revealBetaNotice(); // no start card → the notice can show now
 
   function finishPromotion() {
     // Promoted data now lives in the mission (with its own markers); drop the
