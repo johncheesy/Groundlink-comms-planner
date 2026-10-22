@@ -306,7 +306,7 @@ export function createImportController(map, { onStatus } = {}) {
 
     const skipped = dropped ? ` (${dropped} skipped: invalid coordinates)` : '';
     onStatus?.(`Imported ${features.length} feature${features.length > 1 ? 's' : ''} from ${file.name}${skipped}`, 'done');
-    return { ok: true, count: features.length, dropped, byType: countByType(data.features) };
+    return { ok: true, count: features.length, dropped, byType: countByType(data.features), fileByType: countByType(features) };
   }
 
   function clear() {

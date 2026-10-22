@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Opening and importing files is easy to find.** An **Open / import** button in the top bar (also ⌘O, the ⌘K palette and the start card) takes every file GroundLink reads: mission files, KML/KMZ, GPX, GeoJSON and field-calibration CSV, several at once. Dragging files over the app now says what you can drop, and a message after each import says what was loaded and where it went (calibration opens its panel). Files dropped while the map is still loading open once it is ready instead of being lost. GeoTIFFs open the Data panel, where you choose elevation or clutter. On narrow phones the header shows the logo mark without the name to make room.
+
 ### Fixed
 - **Bugs found in a full app run-through and code check:**
   - The satellite place names and roads come from Esri, so they disappeared whenever Esri is unreachable (it answers 403 on some networks). OpenFreeMap place names now stand in automatically. The CARTO label tiles first tried for this turned out to need an API key and only return an "API KEY REQUIRED" watermark.
