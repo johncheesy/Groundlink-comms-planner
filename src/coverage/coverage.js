@@ -8,6 +8,26 @@ import {
 } from './bestserver.js';
 
 /**
+ * Soften the raster's outer band (UI test U12): the compute window is a
+ * rectangle, and a hard edge at its border reads as a feature of the map.
+ * Alpha ramps from 0 at the border to full over `frac` of the grid. Pure,
+ * in place; exported for tests.
+ */
+export function fadeEdges(data, cols, rows, frac = 0.04) {
+  const bx = Math.max(1, Math.round(cols * frac));
+  const by = Math.max(1, Math.round(rows * frac));
+  for (let r = 0; r < rows; r++) {
+    const fy = Math.min(1, (Math.min(r, rows - 1 - r) + 0.5) / by);
+    for (let c = 0; c < cols; c++) {
+      const f = Math.min(fy, (Math.min(c, cols - 1 - c) + 0.5) / bx);
+      if (f >= 1) continue;
+      const o = (r * cols + c) * 4 + 3;
+      data[o] = Math.round(data[o] * f);
+    }
+  }
+}
+
+/**
  * Coverage controller (main thread) for MapLibre GL.
  *
  * Owns the compute Web Worker, turns its class grid into a coloured canvas
@@ -202,9 +222,16 @@ export function createCoverageController(
       img = new ImageData(data, cols, rows);
     }
     ctx.putImageData(img, 0, 0);
-    lastCanvas = canvas; // keep a reference for raster export (GeoTIFF/KMZ/TAK)
+    lastCanvas = canvas; // crisp raster for export (GeoTIFF/KMZ/TAK) — no edge fade
     lastPaintBounds = bounds;
-    const url = canvas.toDataURL('image/png');
+    // On screen only: soften the compute window's rectangular border.
+    const shown = document.createElement('canvas');
+    shown.width = cols;
+    shown.height = rows;
+    const faded = new ImageData(new Uint8ClampedArray(img.data), cols, rows);
+    fadeEdges(faded.data, cols, rows);
+    shown.getContext('2d').putImageData(faded, 0, 0);
+    const url = shown.toDataURL('image/png');
     // image-source coordinates: TL, TR, BR, BL
     const coordinates = [
       [bounds.west, bounds.north],

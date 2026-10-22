@@ -4493,6 +4493,7 @@ function refreshMapKey() {
 viewQualityBtn?.addEventListener('click', () => {
   coverage?.setView('quality');
   reflectServerView();
+  statusMode.textContent = 'Signal quality — strength per cell'; // U17: status follows the view
 });
 viewServerBtn?.addEventListener('click', () => {
   coverage?.setView('server');
