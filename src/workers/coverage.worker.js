@@ -32,7 +32,7 @@
  */
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
 import { receivedDbmP1812 } from '../coverage/p1812.js';
-import { NO_SERVER, MARGIN_SINGLE, quantizeMarginDb } from '../coverage/bestserver.js';
+import { NO_SERVER, MARGIN_SINGLE, CI_NONE, quantizeMarginDb, quantizeCiDb } from '../coverage/bestserver.js';
 import { patternLossDb, bearingDeg, isOmni } from '../coverage/antenna.js';
 import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
 import { buildLidarDem } from './dem.js';
@@ -103,6 +103,9 @@ self.onmessage = async (e) => {
   const collectServer = !!params.collectServer && (msg.txs?.length ?? 0) >= 2;
   const servers = collectServer ? new Uint8Array(cols * rows) : null;
   const marginQ = collectServer ? new Uint8Array(cols * rows) : null;
+  // Interference view: C/I with all sites on one channel — best signal over
+  // the summed power of every other site that reaches above the floor.
+  const ciQ = collectServer ? new Uint8Array(cols * rows) : null;
   const lngSpan = east - west;
   const latSpan = north - south;
   const reportEvery = Math.max(1, Math.floor(rows / 40));
@@ -155,6 +158,7 @@ self.onmessage = async (e) => {
       let maxDbm = -Infinity;
       let secondDbm = -Infinity;
       let bestIdx = -1;
+      let sumMw = 0; // linear power of every site above the floor
       for (let ti = 0; ti < txList.length; ti++) {
         const t = txList[ti];
         const dist = haversineM(t.lat, t.lng, lat, lng);
@@ -178,6 +182,7 @@ self.onmessage = async (e) => {
           dbm = receivedDbm(params, dist, diffraction, useP1812 ? 0 : clutterDb);
         }
         if (txAntennas[ti]) dbm -= patternLossDb(txAntennas[ti], bearingDeg(t.lat, t.lng, lat, lng));
+        if (collectServer && dbm >= floorDbm) sumMw += 10 ** (dbm / 10);
         if (dbm > maxDbm) {
           secondDbm = maxDbm;
           maxDbm = dbm;
@@ -196,6 +201,9 @@ self.onmessage = async (e) => {
           servers[off] = bestIdx;
           // Second site below the floor → effectively a single server here.
           marginQ[off] = secondDbm < floorDbm ? MARGIN_SINGLE : quantizeMarginDb(maxDbm - secondDbm);
+          const bestMw = 10 ** (maxDbm / 10);
+          const interMw = sumMw - bestMw;
+          ciQ[off] = secondDbm < floorDbm || interMw <= 0 ? CI_NONE : quantizeCiDb(10 * Math.log10(bestMw / interMw));
         }
       }
       if (aoi && inAoi(aoi, lng, lat)) {
@@ -215,7 +223,7 @@ self.onmessage = async (e) => {
   self.postMessage(
     {
       type: 'done', id, cols, rows, classes,
-      servers, marginQ, // M24 best-server data (null unless collected)
+      servers, marginQ, ciQ, // M24 best-server + interference data (null unless collected)
       terrain: !!dem, clutter: !!clutter,
       engine: useP1812 ? 'p1812' : 'fallback',
       elevSource: dem?.id ?? null, clutterSource: clutter?.id ?? null, clutterError,
@@ -224,7 +232,7 @@ self.onmessage = async (e) => {
       coveredInAoi: aoi ? coveredInAoiCount : null,
       coveredFracAoi: aoi && inAoiCount ? coveredInAoiCount / inAoiCount : null,
     },
-    [classes.buffer, ...(servers ? [servers.buffer, marginQ.buffer] : [])],
+    [classes.buffer, ...(servers ? [servers.buffer, marginQ.buffer, ciQ.buffer] : [])],
   );
 };
 

@@ -8,6 +8,11 @@ import {
   buildServerImage,
   serverLegend,
   SERVER_PALETTE_FALLBACK,
+  CI_NONE,
+  quantizeCiDb,
+  dequantizeCi,
+  ciBand,
+  buildInterferenceImage,
 } from './bestserver.js';
 
 const PAL = [
@@ -86,5 +91,39 @@ describe('serverLegend', () => {
     expect(rows[1].name).toBe('Alpha');
     expect(rows[0].frac).toBeCloseTo(5 / 7, 6);
     expect(rows.find((r) => r.index === 2)).toBeUndefined(); // zero cells
+  });
+});
+
+describe('interference (C/I) view', () => {
+  const P = [[1, 0, 0], [2, 0, 0], [3, 0, 0], [4, 0, 0], [5, 0, 0]];
+
+  it('round-trips C/I through the byte encoding', () => {
+    for (const db of [-10, -3, 0, 6.25, 12, 30, 53.5]) expect(dequantizeCi(quantizeCiDb(db))).toBeCloseTo(db, 6);
+    expect(dequantizeCi(CI_NONE)).toBe(Infinity);
+    expect(quantizeCiDb(-40)).toBe(0); // clamps, never collides with CI_NONE
+    expect(quantizeCiDb(500)).toBe(254);
+  });
+
+  it('bands C/I at 20 / 12 / 6 / 0 dB', () => {
+    expect(ciBand(Infinity)).toBe(0);
+    expect(ciBand(20)).toBe(0);
+    expect(ciBand(19.9)).toBe(1);
+    expect(ciBand(12)).toBe(1);
+    expect(ciBand(6)).toBe(2);
+    expect(ciBand(0)).toBe(3);
+    expect(ciBand(-0.1)).toBe(4);
+  });
+
+  it('paints only usable cells, colours by band, counts cells at risk', () => {
+    const classes = new Uint8Array([0, 1, 2, 3, 255, 0]);
+    const ciQ = new Uint8Array([CI_NONE, quantizeCiDb(15), quantizeCiDb(3), quantizeCiDb(30), CI_NONE, quantizeCiDb(-5)]);
+    const res = buildInterferenceImage(classes, ciQ, { palette: P });
+    expect(res.covered).toBe(4);
+    expect(res.byBand).toEqual([1, 1, 0, 1, 1]);
+    expect(res.atRisk).toBe(2); // 3 dB and −5 dB
+    expect([...res.data.slice(0, 4)]).toEqual([1, 0, 0, 255]); // no interferer → clean
+    expect([...res.data.slice(8, 12)]).toEqual([4, 0, 0, 255]); // 3 dB → band 3
+    expect(res.data[3 * 4 + 3]).toBe(0); // poor cell not painted
+    expect([...res.data.slice(20, 24)]).toEqual([5, 0, 0, 255]); // interferer wins
   });
 });

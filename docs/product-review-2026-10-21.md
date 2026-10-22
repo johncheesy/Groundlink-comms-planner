@@ -181,6 +181,7 @@ Effort: S under a day, M a few days, L a week or more.
 - **F10 global clutter:** ESA WorldCover now comes from Microsoft Planetary Computer for the whole world (DEA WMS kept as Africa fallback), 15 s time-out, and the reason is shown when clutter is missing.
 - **Tree heights:** Meta canopy height (CHM v2) refines WorldCover clutter; small P.1812 runs use bare-earth LiDAR where it exists (ADR 0008).
 - **Antenna model (M49):** gain, beamwidth, pointing, front-to-back and rx gain with omni/dipole/Yagi/sector/panel presets (`src/coverage/antenna.js`).
+- **Interference map:** C/I view (all sites on one channel) next to best-server, adjustable overlap margin, ⌘K entries.
 - **Sharpest open aerial imagery** per country and Esri licence handling shipped (PR #29).
 
 ### P2 — Reach and differentiation (later)

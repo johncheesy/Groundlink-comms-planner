@@ -40,6 +40,30 @@ pro-suite lesson from the competitive research):
   (`styles/tokens.css`) — distinct hues on the dark canvas, no purple/indigo
   per the design rules, cycling past 8 sites.
 
+## Interference view (C/I) — added 22 Oct 2026
+
+Review item "Best-server and interference rasters": the overlap band only
+compared the top two sites. The third view, **Interference**, shows the
+carrier-to-interference ratio with every site on one channel (simulcast or
+single-frequency reuse — the worst case):
+
+- **Worker:** with `collectServer`, sums the linear power of every site above
+  the floor per cell; `ciQ` = best ÷ (sum − best) in dB, quarter-dB offset by
+  10 dB (`quantizeCiDb`), 255 = no other site above the floor. One more byte
+  per cell, transferred with the rest.
+- **Raster** (`buildInterferenceImage`): only usable cells (class ≤ 2), five
+  bands ≥20 / 12–20 / 6–12 / 0–6 / <0 dB in the coverage spectrum tokens
+  `--s1…--s5` (teal clean → rose, the interferer wins). Summary: share of the
+  covered area below 12 dB C/I, where most FM and digital voice breaks up.
+- **UI:** Quality / Best server / Interference switch; the overlap margin is
+  now editable (1–20 dB, was fixed at 6) and only shown on the zone map;
+  ⌘K commands "Best-server zones" and "Interference map (C/I)".
+- Exports pick up whichever view is on screen (they read the painted canvas).
+
+Not an SINR: thermal noise, capture effect and per-site channels are not
+modelled. Different channels per site are the next step (needs a channel
+field per site).
+
 ## Honesty
 
 Same engine, same planning-grade caveats. "Best server" is the strongest
@@ -50,7 +74,8 @@ modelled; the contested band is a margin statement, not an SINR computation.
 
 - A/B plan comparison (the other half of roadmap M24) — needs a second plan
   snapshot to diff; pairs naturally with the mission-file work, later.
-- True SINR / C/I maps (needs per-site channel assignments).
+- True SINR with noise and per-site channel assignments (C/I with one shared
+  channel is built, see above).
 - Cellular layers (each network type is its own single-tint compute; the
   M22 best-network heuristic already covers the operator question there).
 

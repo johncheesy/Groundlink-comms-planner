@@ -1744,6 +1744,8 @@ whenStyleReady(() => {
         getItems: () => [
           { label: 'Recompute coverage', keywords: 'run analyse rf plot', run: () => runCoverage() },
           { label: 'Clear coverage', keywords: 'remove raster', run: () => clearCoverageBtn.click() },
+          { label: 'Best-server zones', keywords: 'multi site zones handover overlap view', run: () => { jumpToAnchor('coverageTitle'); if (coverage?.hasServerData?.()) viewServerBtn?.click(); else statusMode.textContent = 'Best-server needs a coverage run with two or more sites'; } },
+          { label: 'Interference map (C/I)', keywords: 'co-channel simulcast sinr ci overlap view', run: () => { jumpToAnchor('coverageTitle'); if (coverage?.hasServerData?.()) viewInterferenceBtn?.click(); else statusMode.textContent = 'Interference needs a coverage run with two or more sites'; } },
           { label: 'Recommend sites', keywords: 'masts relay advice', run: () => { jumpToAnchor('siteTitle'); if (!recommendBtn.disabled) recommendBtn.click(); } },
           { label: 'Optimise mast height', keywords: 'antenna height wizard clearance fresnel mast drone', run: () => {
             const rf = ['mast', 'repeater', 'tx', 'drone'].flatMap((k) => registry.byKind(k));
@@ -4126,13 +4128,35 @@ function updateOpsDash() {
 const serverViewRow = $('#serverViewRow');
 const viewQualityBtn = $('#viewQualityBtn');
 const viewServerBtn = $('#viewServerBtn');
+const viewInterferenceBtn = $('#viewInterferenceBtn');
 const interferenceChk = $('#interferenceChk');
+const overlapRow = $('#overlapRow');
+const overlapDb = $('#overlapDb');
 const bestServerLegend = $('#bestServerLegend');
 
 const escHtml = htmlEsc; // alias — use htmlEsc (from util/esc.js) everywhere
 
+function renderInterferenceLegend(ci) {
+  const pct = (f) => Math.round(f * 100);
+  const [b0, b1, b2, b3] = ci.bands;
+  const labels = [`≥ ${b0} dB`, `${b1}–${b0} dB`, `${b2}–${b1} dB`, `${b3}–${b2} dB`, `< ${b3} dB`];
+  const chips = labels.map((label, i) =>
+    `<span class="srv-legend__chip"><i class="srv-legend__swatch" style="background:${ci.colors[i]}"></i>` +
+    `C/I ${label}<b data-numeric>${pct(ci.fracs[i])}%</b></span>`);
+  chips.push(`<p class="srv-legend__note">${pct(ci.atRiskFrac)}% of the covered area is below ${ci.riskDb} dB C/I, ` +
+    'where most FM and digital voice breaks up. Assumes every site transmits on the same channel at the same time; ' +
+    'give sites different channels where zones meet, or accept the overlap as handover area.</p>');
+  bestServerLegend.innerHTML = chips.join('');
+  bestServerLegend.hidden = false;
+}
+
 function renderServerLegend() {
   if (!bestServerLegend) return;
+  const ci = coverage?.getView?.() === 'interference' ? coverage.getInterferenceInfo() : null;
+  if (ci) {
+    renderInterferenceLegend(ci);
+    return;
+  }
   const info = coverage?.getView?.() === 'server' ? coverage.getServerInfo() : null;
   if (!info) {
     bestServerLegend.hidden = true;
@@ -4158,6 +4182,9 @@ function reflectServerView() {
   viewQualityBtn?.setAttribute('aria-pressed', String(v === 'quality'));
   viewServerBtn?.classList.toggle('is-active', v === 'server');
   viewServerBtn?.setAttribute('aria-pressed', String(v === 'server'));
+  viewInterferenceBtn?.classList.toggle('is-active', v === 'interference');
+  viewInterferenceBtn?.setAttribute('aria-pressed', String(v === 'interference'));
+  if (overlapRow) overlapRow.hidden = v !== 'server'; // the overlap band belongs to the zone map
   renderServerLegend();
   // The M15 cliff band describes quality classes — hide it in server view.
   if (lastPaint) {
@@ -4182,8 +4209,19 @@ viewServerBtn?.addEventListener('click', () => {
   reflectServerView();
   statusMode.textContent = 'Best-server zones — strongest site per cell';
 });
+viewInterferenceBtn?.addEventListener('click', () => {
+  coverage?.setView('interference');
+  reflectServerView();
+  statusMode.textContent = 'Interference — C/I with all sites on one channel';
+});
+const overlapMarginDb = () => clampNum(overlapDb?.value, 1, 20, 6);
 interferenceChk?.addEventListener('change', () => {
-  coverage?.setInterference(interferenceChk.checked);
+  coverage?.setInterference(interferenceChk.checked, overlapMarginDb());
+  renderServerLegend();
+});
+overlapDb?.addEventListener('change', () => {
+  if (overlapDb) overlapDb.value = String(overlapMarginDb());
+  coverage?.setInterference(interferenceChk?.checked ?? false, overlapMarginDb());
   renderServerLegend();
 });
 

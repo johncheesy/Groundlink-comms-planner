@@ -619,10 +619,13 @@
                 <div class="basemap-switch" role="group" aria-label="Coverage view">
                   <button class="basemap-switch__btn is-active" type="button" id="viewQualityBtn" aria-pressed="true" title="Signal-quality spectrum (default)">Quality</button>
                   <button class="basemap-switch__btn" type="button" id="viewServerBtn" aria-pressed="false" title="Colour each cell by the site with the strongest signal">Best server</button>
+                  <button class="basemap-switch__btn" type="button" id="viewInterferenceBtn" aria-pressed="false" title="Carrier-to-interference ratio if every site transmits on the same channel (simulcast, or reuse of one frequency)">Interference</button>
                 </div>
-                <label class="check srv-view-row__chk" title="Shade cells where the top two sites are within 6 dB — co-channel interference / handover candidates">
+                <label class="check srv-view-row__chk" id="overlapRow" title="Shade cells where the top two sites are within this margin — handover zones and co-channel risk">
                   <input type="checkbox" id="interferenceChk" />
-                  <span>Overlap &lt; 6 dB</span>
+                  <span>Overlap &lt;</span>
+                  <input class="input input--inline" id="overlapDb" type="number" value="6" min="1" max="20" step="1" aria-label="Overlap margin in dB" />
+                  <span>dB</span>
                 </label>
               </div>
               <div class="srv-legend" id="bestServerLegend" hidden></div>

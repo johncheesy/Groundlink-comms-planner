@@ -3,6 +3,7 @@ import { gridDims, ringBounds } from './grid.js';
 import { COVERAGE_CLASS } from './model.js';
 import {
   buildServerImage, serverLegend, SERVER_PALETTE_FALLBACK, CONTEST_FALLBACK,
+  buildInterferenceImage, CI_BANDS, CI_RISK_DB,
   DEFAULT_INTERFERENCE_DB,
 } from './bestserver.js';
 
@@ -66,11 +67,12 @@ export function createCoverageController(
   let pendingResolve = null; // for computeAsync()
   let lastGrid = null; // { cols, rows, cellKm, capped } of the last run (shown in the result card)
   // M24 best-server view state.
-  let lastRaw = null; // { classes, servers, marginQ, cols, rows, bounds }
-  let view = 'quality'; // 'quality' | 'server'
+  let lastRaw = null; // { classes, servers, marginQ, ciQ, cols, rows, bounds }
+  let view = 'quality'; // 'quality' | 'server' | 'interference'
   let interference = false;
   let interferenceDb = DEFAULT_INTERFERENCE_DB;
   let lastServer = null; // { counts, covered, contested } from the last server render
+  let lastInterference = null; // { byBand, covered, atRisk } from the last C/I render
   let currentTxNames = null; // site names captured at compute time (legend)
   let renderRetryArmed = false; // deferred renderRaster() while the style loads
 
@@ -120,8 +122,8 @@ export function createCoverageController(
     if (!bounds) return;
     // Keep the raw worker arrays so the M24 view toggle re-renders without a
     // recompute (classes for quality, servers/marginQ for best-server).
-    lastRaw = { classes, servers: msg.servers ?? null, marginQ: msg.marginQ ?? null, cols, rows, bounds };
-    if (!lastRaw.servers && view === 'server') view = 'quality'; // single-tx run
+    lastRaw = { classes, servers: msg.servers ?? null, marginQ: msg.marginQ ?? null, ciQ: msg.ciQ ?? null, cols, rows, bounds };
+    if (!lastRaw.servers && view !== 'quality') view = 'quality'; // single-tx run
     const byClass = [0, 0, 0, 0, 0];
     let covered = 0;
     for (let i = 0; i < classes.length; i++) {
@@ -155,7 +157,7 @@ export function createCoverageController(
   /** Paint lastRaw to the image source according to the active view (M24). */
   function renderRaster() {
     if (!lastRaw) return;
-    const { classes, servers, marginQ, cols, rows, bounds } = lastRaw;
+    const { classes, servers, marginQ, ciQ, cols, rows, bounds } = lastRaw;
     const canvas = document.createElement('canvas');
     canvas.width = cols;
     canvas.height = rows;
@@ -169,9 +171,17 @@ export function createCoverageController(
         contestColor: contestRgb,
       });
       lastServer = res;
+      lastInterference = null;
+      img = new ImageData(res.data, cols, rows);
+    } else if (view === 'interference' && ciQ) {
+      // Same five-step spectrum as quality: teal = clean … rose = interferer wins.
+      const res = buildInterferenceImage(classes, ciQ, { palette });
+      lastServer = null;
+      lastInterference = res;
       img = new ImageData(res.data, cols, rows);
     } else {
       lastServer = null;
+      lastInterference = null;
       const data = new Uint8ClampedArray(cols * rows * 4);
       for (let i = 0; i < classes.length; i++) {
         const cls = classes[i];
@@ -317,6 +327,7 @@ export function createCoverageController(
     lastPaintBounds = null;
     lastRaw = null;
     lastServer = null;
+    lastInterference = null;
     view = 'quality';
     txMarker?.remove();
     txMarker = null;
@@ -337,9 +348,9 @@ export function createCoverageController(
     // ── M24 best-server view ────────────────────────────────────────────
     hasServerData: () => !!lastRaw?.servers,
     getView: () => view,
-    /** Switch quality ↔ best-server; re-renders from cached data, no recompute. */
+    /** Switch quality / best-server / interference; re-renders from cached data, no recompute. */
     setView(v) {
-      view = v === 'server' && lastRaw?.servers ? 'server' : 'quality';
+      view = (v === 'server' || v === 'interference') && lastRaw?.servers ? v : 'quality';
       if (lastRaw) renderRaster();
       return view;
     },
@@ -348,6 +359,19 @@ export function createCoverageController(
       interference = !!on;
       if (Number.isFinite(thresholdDb)) interferenceDb = thresholdDb;
       if (lastRaw && view === 'server') renderRaster();
+    },
+    /** C/I bands + stats for the last interference render (null in other views). */
+    getInterferenceInfo() {
+      if (!lastInterference) return null;
+      const { byBand, covered, atRisk } = lastInterference;
+      return {
+        bands: CI_BANDS,
+        riskDb: CI_RISK_DB,
+        fracs: byBand.map((n) => (covered ? n / covered : 0)),
+        covered,
+        atRiskFrac: covered ? atRisk / covered : 0,
+        colors: palette.map((rgb) => `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`),
+      };
     },
     /** Zone legend + stats for the last server render (null in quality view). */
     getServerInfo() {

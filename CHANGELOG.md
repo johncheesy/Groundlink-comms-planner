@@ -18,6 +18,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+**Interference map (M24 follow-up)** (`docs/M24-best-server.md`)
+- Multi-site coverage gets a third view next to Quality and Best server: **Interference**, the carrier-to-interference ratio (C/I) with every site on one channel, summed over all other sites instead of only the runner-up. Five bands from ≥20 dB to below 0 dB in the coverage colours, and a line saying how much of the covered area is below 12 dB. The overlap margin on the zone map is now adjustable (1–20 dB). Both views are in the ⌘K palette. Checked in the app with three masts 10–15 km apart: 93% of the covered area below 12 dB C/I. 3 tests.
+
 **M49 — Antenna model** (`docs/M49-antenna-model.md`)
 - Coverage panel: transmit antenna preset (dipole, collinear, Yagi 3/5-element, sector 90°, panel 60°, custom) and pointing; in advanced mode gain, beamwidth, front-to-back and receive antenna gain. Directional antennas use the 3GPP parabolic horizontal pattern, so a Yagi pointing east now covers far to the east and little behind it (checked in the app: 4x the covered cells to the east of an omni at equal power). Applies to coverage, team coverage, calibration, path profile, mast wizard and CloudRF; site search keeps an omni. Saved in mission files and shown in the assumptions line. 15 tests.
 
