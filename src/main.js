@@ -799,7 +799,7 @@ let cellular = null; // M9 cellular controller (own coverage layer)
 // M27 field calibration — fitted per-radio offsets; offsets + choice persist
 // (gl.calibration.v1, try/catch), measurement points stay in-memory only.
 const CAL_STORE_KEY = 'gl.calibration.v1';
-const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applied: false };
+const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applied: false, fieldSummary: null };
 let hfPanel = null; // M12 HF ionosphere panel
 let satPanel = null; // M38 satcom look-angle panel
 let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
@@ -1529,6 +1529,7 @@ whenStyleReady(() => {
   const intelScoreBadge = $('#intelScoreBadge');
   const intelScoreNum   = $('#intelScoreNum');
 
+  readinessBadgeHook = () => updateReadinessBadge(); // reachable from module-level refreshes
   function updateReadinessBadge() {
     const covData = lastPaint
       ? summarizeCoverage({
@@ -2105,6 +2106,9 @@ function missionCentre() {
   return b ? { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 } : null;
 }
 
+// M47 readiness badge refresh, set once the map-load wiring defines it.
+let readinessBadgeHook = null;
+
 /** M38: satcom look angles + the M47 readiness input follow the mission centre. */
 function refreshSatcom() {
   const c = missionCentre();
@@ -2117,7 +2121,7 @@ function refreshSatcom() {
     satPanel?.clear();
     lastSatcomStatus = null;
   }
-  setTimeout(() => updateReadinessBadge?.(), 0);
+  setTimeout(() => readinessBadgeHook?.(), 0);
 }
 
 function onMissionChange(s) {
@@ -2926,7 +2930,66 @@ async function importCalText(text) {
   );
   renderCalUi({ skipped, terrain: !!dem });
   updateCalLayer(samples);
+  runFieldValidation(points, txs, dem);
 }
+
+/**
+ * Validation part 2: score each coverage model against the imported
+ * measurements with the map's own per-cell math (analysis/field-validation.js).
+ * One radio id across the file → that radio's frequency/power; otherwise the
+ * Coverage panel settings.
+ */
+async function runFieldValidation(points, txs, dem) {
+  const wrap = $('#fieldValWrap');
+  const table = $('#fieldValTable');
+  const help = $('#fieldValHelp');
+  if (!wrap || !table) return;
+  const { compareEngines, fieldSummary, HIT_DB } = await import('./analysis/field-validation.js');
+  const ids = [...new Set(points.map((p) => p.radioId).filter(Boolean))];
+  const params = {
+    ...(ids.length === 1 ? calParamsForRadio(ids[0]) : coverageParams()),
+    txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
+  };
+  const lats = points.map((p) => p.lat).concat(txs.map((t) => t.lat));
+  const lngs = points.map((p) => p.lon).concat(txs.map((t) => t.lng));
+  const bounds = {
+    west: Math.min(...lngs) - 0.02, east: Math.max(...lngs) + 0.02,
+    south: Math.min(...lats) - 0.02, north: Math.max(...lats) + 0.02,
+  };
+  wrap.hidden = false;
+  table.innerHTML = '';
+  help.textContent = 'Loading clutter and comparing the models…';
+  const clutter = await buildClutterSampler({ bounds, cog: dataFiles.clutterCog }).catch(() => null);
+  const results = compareEngines(points, txs, params, { dem, clutter });
+  const fmt = (v) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
+  table.innerHTML =
+    `<thead><tr><th>Model</th><th>Bias</th><th>RMSE</th><th>Within ±${HIT_DB} dB</th><th>Too optimistic</th></tr></thead><tbody>` +
+    results.map(({ label, stats: s }) => s.n
+      ? `<tr><td>${escapeHtml(label)}</td><td>${fmt(s.biasDb)} dB</td><td>${s.rmseDb.toFixed(1)} dB</td><td>${s.withinPct}%</td><td>${s.optimisticPct}%</td></tr>`
+      : `<tr><td>${escapeHtml(label)}</td><td colspan="4">needs terrain</td></tr>`).join('') + '</tbody>';
+  help.textContent = `${points.length} measurements, ${ids.length === 1 ? `radio ${ids[0]}` : 'Coverage panel settings'}` +
+    `${clutter ? '' : ', no clutter data for this area'}. Error is model minus measured: a plus means the map promised more signal than you measured.`;
+  calState.fieldSummary = fieldSummary({
+    results, points, txs, params,
+    terrain: dem ? terrainCredit(dem.id) : null,
+    clutter: clutter ? clutter.id : null,
+  });
+}
+
+function downloadJson(obj, filename) {
+  const url = URL.createObjectURL(new Blob([`${JSON.stringify(obj, null, 2)}\n`], { type: 'application/json' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+$('#fieldValExportBtn')?.addEventListener('click', () => {
+  if (!calState.fieldSummary) return;
+  downloadJson(calState.fieldSummary, `groundlink-field-validation_${calState.fieldSummary.generated}.json`);
+  statusMode.textContent = 'Validation summary exported — statistics only, no coordinates';
+});
 
 function renderCalUi({ skipped = 0, terrain = false } = {}) {
   const calReadout = $('#calReadout');
@@ -2940,6 +3003,9 @@ function renderCalUi({ skipped = 0, terrain = false } = {}) {
   if (!n) {
     calReadout.textContent = '';
     wrap.hidden = true; applyRow.hidden = true; actionRow.hidden = true; clearBtn.hidden = true;
+    const fieldWrap = $('#fieldValWrap');
+    if (fieldWrap) fieldWrap.hidden = true;
+    calState.fieldSummary = null;
     return;
   }
   const agree = calState.samples.filter((s) => s.bucket === 'agree').length;

@@ -9,6 +9,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Fixed
+- Satcom refreshes threw "updateReadinessBadge is not defined" on every mission change since satcom started following sites and routes; the readiness badge refresh is now reachable from there.
 - **Small review fixes** (F12, F13, F19–F23, F26): GeoTIFF, KMZ and TAK exports are disabled with the reason until a coverage run exists (GeoJSON works for the mission alone); a number field left outside its range snaps to the value actually used and the status bar says so; cellular says "could not load towers" when the services fail instead of "no towers found"; "Placing point" clears when the tool ends; waypoint placement and the path profile no longer arm at the same time; a CloudRF network failure no longer reads as "Key rejected"; copying a coordinate reports failure instead of throwing; the bulk-add box and four power fields have names, and the page has an h1.
 - **National hi-res aerial photos are opt-in.** Esri is the imagery you see by default; the national layers (PDOK, IGN, …) only draw after you tick them in the Imagery flyout, because they could hide what Esri shows, such as water in the Netherlands. A previously stored "on" is ignored once.
 - **Coordinates as people paste them** (review F11, `src/geo/coords.js`): decimal comma (`52,3676 4,9041`, also with `;` or `, `), hemisphere prefixes (`N52.5 E4.5`), brackets, leading `+`, semicolons, unicode minus, `geo:` URIs and Google / OpenStreetMap / Apple Maps links. A bare `52,5` stays a lat,lng pair. Works in search and bulk add. 7 tests.
@@ -27,6 +28,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 ### Added
+
+**Field validation (validation page, part 2)**
+- After importing measurements (Coverage → Calibration), a table shows how each model set-up matched them: P.1812 and FSPL + Deygout, each with and without clutter, with bias, RMSE, share within ±6 dB and share where the map was too optimistic. Predictions use the exact per-cell step the map runs (`src/coverage/cell.js`, now shared by the coverage worker). **Export validation summary** writes statistics only, no coordinates, for the new "Field measurements" section on `/validation/` (`public/validation/field.json`, empty until real datasets are added). 5 tests.
 
 **Per-site antenna pointing (M49 follow-up)**
 - Right-click a fixed site → **Aim antenna…** and click where it should point; each site keeps its own bearing (undo, saved in the mission file, "Use panel pointing" to reset). A translucent wedge on the map shows where each directional antenna points and how wide its beam is. 6 tests.

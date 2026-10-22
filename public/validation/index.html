@@ -75,6 +75,11 @@
   pre { background: var(--raise); padding: 12px 14px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
   footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--hair); color: var(--dim); font-size: 13px; }
   .error { color: var(--warn); }
+  .empty { padding: 16px; color: var(--dim); }
+  .empty ol { margin: 8px 0 0; padding-left: 20px; }
+  .dataset { margin-top: 12px; }
+  .dataset h3 { font: 600 15px var(--disp); margin: 0; padding: 14px 16px 2px; }
+  .dataset p { margin: 0; padding: 0 16px 10px; color: var(--dim); font-size: 13.5px; }
   @media (max-width: 560px) {
     h1 { font-size: 25px; }
   }
@@ -116,8 +121,12 @@
   <p>The engine is a P.1812-6 core whose path geometry (horizon angles, angular distance, multipath distances, smooth-earth correction) and clutter at the antennas follow P.1812-8. That alignment came out of this validation. Before it, diffraction on cluttered paths differed by up to 8 dB, troposcatter by up to 111 dB, and the older separate clutter loss at the antennas added up to 57 dB in urban cases.</p>
   <p>P.1812-8 counts clutter next to an antenna through the terrain profile. The coverage map therefore samples each path densely near both antennas (25 to 400 m), so the trees and buildings around a handheld radio still block it.</p>
 
+  <h2>Field measurements</h2>
+  <p>The ITU comparison proves the calculation. Whether the map predicts real signals is a different question, answered by measurements: each dataset below compares measured signal levels with what the map predicted at the same spots, for four model set-ups. Error is model minus measured; a plus means the map promised more signal than was there.</p>
+  <div id="field"></div>
+
   <h2>What this does and does not show</h2>
-  <p>It shows that GroundLink computes P.1812 the way the ITU reference does, to a thousandth of a dB, and exactly where and why it deliberately departs from it. It does not show how well P.1812 predicts real signals in your terrain. That needs field measurements, which is the next step for this page.</p>
+  <p>The ITU comparison shows that GroundLink computes P.1812 the way the reference does, to a thousandth of a dB, and where it deliberately departs from it. Field datasets show how well the map matches real signals, but only for the places, radios and seasons they were measured in.</p>
 
   <footer>
     Reference: ITU-R P.1812 validation profiles and results, ITU-R Working Party 3M, via the reference implementation by Ivica Stevanovic (OFCOM, Switzerland), <a href="https://github.com/eeveetza/Py1812">github.com/eeveetza/Py1812</a>. Results generated <span id="gen">—</span>.
@@ -183,6 +192,31 @@
     data.cases.map((c) => `<tr><td>${esc(c.id)}</td><td class="n">${c.dKm}</td><td class="n">${c.fMHz}</td><td class="n">${c.p}</td><td>${c.pol.toUpperCase()}</td>` +
       `<td class="n">${Math.round(c.seaFrac * 100)}%</td><td class="n">${fmt(c.dev.Lbfs)}</td><td class="n">${fmt(c.dev.Ld50)}</td><td class="n">${fmt(c.dev.Ldp)}</td>` +
       `<td class="n">${fmt(c.dev.Lbs)}</td><td class="n">${fmt(c.dev.Lb)}</td></tr>`).join('') + '</tbody>';
+
+  // Field datasets (validation part 2): statistics only, from the app's
+  // "Export validation summary".
+  let field = { datasets: [] };
+  try {
+    field = await (await fetch('field.json', { cache: 'no-cache' })).json();
+  } catch (e) { /* no file yet */ }
+  const sets = Array.isArray(field.datasets) ? field.datasets : [];
+  const signed = (v) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
+  $('field').innerHTML = sets.length
+    ? sets.map((d) => {
+      const st = d.setting || {};
+      const km = d.distanceKm ? `${d.distanceKm.min}–${d.distanceKm.max} km (median ${d.distanceKm.median})` : '';
+      const rows = (d.engines || []).map((e) => e.n
+        ? `<tr><td>${esc(e.label)}</td><td class="n">${signed(e.biasDb)}</td><td class="n">${fmt(e.rmseDb, 1)}</td><td class="n">${e.withinPct}%</td><td class="n">${e.optimisticPct}%</td></tr>`
+        : `<tr><td>${esc(e.label)}</td><td class="n" colspan="4">not run</td></tr>`).join('');
+      return `<div class="card dataset"><h3>${esc(d.label || 'Field dataset')}</h3>` +
+        `<p>${d.points} measurements · ${st.freqMHz} MHz · ${st.txCount} transmitter${st.txCount === 1 ? '' : 's'} · ${km} · ${esc(d.generated)}</p>` +
+        `<div class="scroll"><table><thead><tr><th>Model</th><th class="n">Bias (dB)</th><th class="n">RMSE (dB)</th><th class="n">Within ±6 dB</th><th class="n">Too optimistic</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    }).join('')
+    : `<div class="card empty">No field datasets published yet. To add one:<ol>` +
+      `<li>In the planner, set up the mission with your real transmitter and radio.</li>` +
+      `<li>Coverage → Calibration → import your measurements (CSV with lat, lon, dBm).</li>` +
+      `<li>Use <b>Export validation summary</b>. It holds statistics only, no coordinates.</li>` +
+      `<li>Add the file's contents to <code>public/validation/field.json</code> under <code>datasets</code>.</li></ol></div>`;
 })();
 </script>
 </body>

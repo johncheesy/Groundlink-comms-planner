@@ -676,6 +676,16 @@
                   <button class="btn btn--primary" type="button" id="calApplyBtn">Apply offsets</button>
                   <button class="btn" type="button" id="calExportBtn">Export calibration (JSON)</button>
                 </div>
+                <div id="fieldValWrap" hidden>
+                  <span class="field-label">How each model matched your measurements</span>
+                  <p class="help" id="fieldValHelp">Error is model minus measured: a plus means the map promised more signal than you measured.</p>
+                  <div class="teams-table-wrap">
+                    <table class="teams-table" id="fieldValTable" data-numeric></table>
+                  </div>
+                  <div class="input-row">
+                    <button class="btn" type="button" id="fieldValExportBtn" title="Statistics only, no coordinates — can be published on the validation page">Export validation summary</button>
+                  </div>
+                </div>
               </details>
             </div>
           </section>
