@@ -62,6 +62,7 @@ self.onmessage = async (e) => {
   // COGs (File objects clone cleanly into the worker; nothing is uploaded).
   let dem = null;
   let clutter = null;
+  let clutterError = null; // LandcoverError.reason — why clutter is missing
   if (params.useTerrain || params.useClutter) {
     self.postMessage({ type: 'progress', id, done: 0, total: rows, phase: 'data' });
     const [d, lc] = await Promise.all([
@@ -69,7 +70,10 @@ self.onmessage = async (e) => {
         ? buildElevationSampler({ bounds, cog: msg.files?.elevationCog ?? null }).catch(() => null)
         : Promise.resolve(null),
       params.useClutter
-        ? buildClutterSampler({ bounds, cog: msg.files?.clutterCog ?? null }).catch(() => null)
+        ? buildClutterSampler({ bounds, cog: msg.files?.clutterCog ?? null }).catch((e) => {
+            clutterError = e?.reason ?? 'unknown';
+            return null;
+          })
         : Promise.resolve(null),
     ]);
     dem = d;
@@ -192,7 +196,7 @@ self.onmessage = async (e) => {
       servers, marginQ, // M24 best-server data (null unless collected)
       terrain: !!dem, clutter: !!clutter,
       engine: useP1812 ? 'p1812' : 'fallback',
-      elevSource: dem?.id ?? null, clutterSource: clutter?.id ?? null,
+      elevSource: dem?.id ?? null, clutterSource: clutter?.id ?? null, clutterError,
       totalCells: cols * rows,
       inAoi: aoi ? inAoiCount : null,
       coveredInAoi: aoi ? coveredInAoiCount : null,

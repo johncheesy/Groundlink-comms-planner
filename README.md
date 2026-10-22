@@ -66,7 +66,7 @@ For development guidance, open the folder in Claude Code and read `CLAUDE.md` fi
 - Basemaps: Esri (Esri World Imagery, under Esri's terms and never stored offline), national aerial imagery (see `docs/DATA-SOURCES.md`), EOX (Sentinel-2, CC BY-NC-SA), OpenTopoMap (CC-BY-SA), OpenStreetMap contributors (ODbL), CARTO, OpenFreeMap. Intended for research and other non-commercial use.
 - Buildings: Overture Maps Foundation (© OpenStreetMap contributors)
 - Cellular towers: OpenCelliD / Unwired Labs (CC BY 4.0) via Overpass API
-- Land cover: ESA WorldCover (CC BY 4.0), Digital Earth Africa WMS
+- Land cover: ESA WorldCover (CC BY 4.0), via Microsoft Planetary Computer (worldwide; Digital Earth Africa WMS as fallback)
 - Radio specs: FCC OET equipment authorisation database; ETSI
 
 ---

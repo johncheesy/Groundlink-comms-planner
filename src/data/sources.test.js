@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { writeArrayBuffer } from 'geotiff';
 import { clutterDbForHeight, buildElevationSampler, buildClutterSampler } from './sources.js';
 
@@ -51,8 +51,13 @@ describe('buildClutterSampler', () => {
     expect(sampler.dbAt(2, 2)).toBe(0);
   });
 
-  it('degrades to null when no source is reachable (node has no WMS)', async () => {
-    expect(await buildClutterSampler({ bounds: BOUNDS })).toBeNull();
+  it('rejects with the reason when the land-cover service is unreachable', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
+    try {
+      await expect(buildClutterSampler({ bounds: BOUNDS })).rejects.toMatchObject({ reason: 'network' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

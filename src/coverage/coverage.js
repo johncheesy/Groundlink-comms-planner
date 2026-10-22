@@ -90,6 +90,7 @@ export function createCoverageController(
           engine: msg.engine,
           elevSource: msg.elevSource ?? null,
           clutterSource: msg.clutterSource ?? null,
+          clutterError: msg.clutterError ?? null,
         });
         if (pendingResolve) {
           const r = pendingResolve;

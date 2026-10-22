@@ -11,8 +11,8 @@
  *   elevation: local COG file (composed over the network terrain where the file
  *              has no data) → OPFS offline package → network terrain
  *              (Mapterhorn / Copernicus GLO-30, AWS Terrarium fallback per tile).
- *   clutter:   local COG file (canopy/DSM heights) → ESA WorldCover WMS
- *              (Africa) → none.
+ *   clutter:   local COG file (canopy/DSM heights) → ESA WorldCover (global,
+ *              Planetary Computer; DEA WMS fallback in Africa) → none.
  *
  * The local-COG path is the OPSEC-clean runtime entry for the no-CORS public
  * datasets (Copernicus GLO-30, WorldCover COG, Meta canopy — CORS table in
@@ -84,8 +84,9 @@ export async function buildElevationSampler({ bounds, cog = null }) {
 }
 
 /**
- * Clutter sampler for bounds. Priority: local COG (heights) → WorldCover WMS
- * (classes → heights + dB). Returns null when neither is available.
+ * Clutter sampler for bounds. Priority: local COG (heights) → ESA WorldCover
+ * (classes → heights + dB). Throws a LandcoverError (with `.reason`) when the
+ * land-cover service fails, so callers can say why clutter is missing.
  */
 export async function buildClutterSampler({ bounds, cog = null }) {
   if (cog) {
@@ -101,10 +102,9 @@ export async function buildClutterSampler({ bounds, cog = null }) {
       };
     }
   }
-  const lc = await buildLandcover(bounds).catch(() => null);
-  if (!lc) return null;
+  const lc = await buildLandcover(bounds);
   return {
-    id: 'worldcover',
+    id: lc.id,
     heightM: (lng, lat) => clutterHeightForClass(lc.sample(lng, lat)),
     dbAt: (lng, lat) => clutterDbForClass(lc.sample(lng, lat)),
   };

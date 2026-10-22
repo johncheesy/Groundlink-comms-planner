@@ -86,6 +86,7 @@ import { terrainCredit } from './data/terrain-tiles.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
+import { landcoverReasonText } from './workers/worldcover.js';
 import { createMastWizard } from './ui/mast-wizard.js';
 // analysis/calibration.js (M27) loads lazily on the first CSV import /
 // calibration export — see calMod() below.
@@ -1067,7 +1068,7 @@ whenStyleReady(() => {
         if (useClutterInput.checked) {
           bits.push(clutter
             ? (info?.clutterSource === 'cog' ? 'Clutter heights from your local COG.' : 'ESA WorldCover clutter applied.')
-            : 'Clutter unavailable here (Africa-only source — or load a local COG in the Data flyout).');
+            : `No clutter in this run: ${landcoverReasonText(info?.clutterError)}. Run again, or load a local COG in the Data flyout.`);
         }
         bits.push('Planning-grade, not survey-grade.');
         coverageHelp.textContent = bits.join(' ');
@@ -3917,7 +3918,7 @@ const mastWizard = createMastWizard(document.querySelector('.map-wrap'), {
   async buildSamplers(bounds) {
     const dem = await buildElevationSampler({ bounds, cog: dataFiles.elevationCog });
     const clutter = useClutterInput.checked
-      ? await buildClutterSampler({ bounds, cog: dataFiles.clutterCog })
+      ? await buildClutterSampler({ bounds, cog: dataFiles.clutterCog }).catch(() => null)
       : null;
     return { dem, clutter };
   },
