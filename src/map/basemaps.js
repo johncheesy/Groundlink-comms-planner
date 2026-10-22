@@ -21,7 +21,7 @@ export const DEFAULT_BASEMAP = 'imagery';
 
 /**
  * Variants for each basemap category. The first entry in each array is the
- * default. All load without a key (Esri public tiles, OpenTopoMap, OSM, CARTO),
+ * default. All load without a key (Esri public tiles, OpenTopoMap, OSM),
  * but "free to load" is not "free to store or use commercially": Esri keeps its
  * own terms, so its tiles are never cached offline (public/sw.js). See
  * docs/DATA-SOURCES.md. Add more later; only visible layers load tiles.
@@ -117,17 +117,6 @@ export const BASEMAP_VARIANTS = {
       tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxzoom: 19,
-    },
-    {
-      id: 'carto-voyager',
-      label: 'Carto Voyager',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      ],
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxzoom: 19,
     },
     {

@@ -173,7 +173,12 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   }
 
   function applyBasemap(category, variantId) {
-    const newVariant = variantId ?? activeVariantIds[category];
+    // An unknown variant (e.g. a mission file naming a basemap that was later
+    // removed, like Carto Voyager) falls back to the category's first variant
+    // instead of hiding every layer and leaving a black map.
+    const known = (id) => BASEMAP_VARIANTS[category]?.some((v) => v.id === id);
+    const wanted = variantId ?? activeVariantIds[category];
+    const newVariant = known(wanted) ? wanted : BASEMAP_VARIANTS[category][0].id;
 
     // Hide every variant layer across all categories
     for (const cat of BASEMAPS) {
