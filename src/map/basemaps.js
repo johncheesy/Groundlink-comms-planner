@@ -144,6 +144,31 @@ export const BASEMAP_VARIANTS = {
 };
 
 /** Map-layer ID for a given category + variant. */
+/**
+ * Place names, borders and roads drawn over the satellite basemaps (UI test
+ * U3: a photo alone gives no names to orient by). Esri's own reference
+ * layers for its imagery — the "Hybrid" look — keyless, CORS, same Esri
+ * terms and credit as the imagery. Never shown over the topo maps, which
+ * carry their own labels. Roads stay under the coverage raster (it is
+ * translucent, so they show through without hiding the colours); place
+ * names are raised above it at runtime (map.js raiseLabels).
+ */
+export const IMAGERY_LABELS = Object.freeze([
+  {
+    id: 'labels-roads',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}'],
+    maxzoom: 19,
+    opacity: 0.75,
+  },
+  {
+    id: 'labels-places',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
+    maxzoom: 19,
+    raise: true, // names above the coverage raster
+  },
+]);
+const LABELS_ATTRIBUTION = 'Labels &copy; <a href="https://www.esri.com/">Esri</a>';
+
 export function variantLayerId(category, variantId) {
   return `base-${category}-${variantId}`;
 }
@@ -187,7 +212,7 @@ const BUILDING_COLOR = '#3b4250'; // muted neutral surface on the dark map (not 
 export function buildStyle(
   activeCategory = DEFAULT_BASEMAP,
   activeVariantIds = {},
-  { hires = false } = {},
+  { hires = false, labels = true } = {},
 ) {
   const sources = {};
   const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': MAP_BG } }];
@@ -223,6 +248,18 @@ export function buildStyle(
   const hiresParts = hiresStyleParts({ visible: hires && activeCategory === 'imagery' });
   Object.assign(sources, hiresParts.sources);
   layers.push(...hiresParts.layers);
+
+  const showLabels = labels && activeCategory === 'imagery';
+  for (const l of IMAGERY_LABELS) {
+    sources[l.id] = { type: 'raster', tiles: l.tiles, tileSize: 256, maxzoom: l.maxzoom, attribution: LABELS_ATTRIBUTION };
+    layers.push({
+      id: l.id,
+      type: 'raster',
+      source: l.id,
+      layout: { visibility: showLabels ? 'visible' : 'none' },
+      paint: { 'raster-opacity': l.opacity ?? 1 },
+    });
+  }
 
   // DEM source is declared up-front so setTerrain can reference it on demand.
   sources[TERRARIUM_DEM.id] = TERRARIUM_DEM.spec;

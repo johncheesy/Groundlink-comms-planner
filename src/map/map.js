@@ -7,6 +7,7 @@ import {
   TERRARIUM_DEM,
   BUILDINGS_LAYER,
   variantLayerId,
+  IMAGERY_LABELS,
 } from './basemaps.js';
 import { registerHiresProtocol, HIRES_SOURCES, hiresLayerId } from './hires-imagery.js';
 import {
@@ -33,6 +34,7 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   // just replaces the handler.
   registerHiresProtocol(maplibregl, { onResult: onHiresResult });
   let hiresOn = readHiresPref();
+  let labelsOn = readLabelsPref();
 
   // Initial active state
   let activeCategory = DEFAULT_BASEMAP;
@@ -65,7 +67,7 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
 
   const map = new maplibregl.Map({
     container,
-    style: buildStyle(activeCategory, activeVariantIds, { hires: hiresOn }),
+    style: buildStyle(activeCategory, activeVariantIds, { hires: hiresOn, labels: labelsOn }),
     center: [4.9041, 52.3676], // [lng, lat] — Amsterdam (public default; OPSEC-safe)
     zoom: 10,
     pitch: 0,
@@ -190,6 +192,7 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
     activeCategory = category;
     activeVariantIds[category] = newVariant;
     syncHires();
+    syncLabels();
     return { category: activeCategory, variantId: newVariant };
   }
 
@@ -208,6 +211,24 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
     writeHiresPref(hiresOn);
     syncHires();
     return hiresOn;
+  }
+
+  // ---- Place names and roads over the satellite map (UI test U3) ----------
+  function syncLabels() {
+    const show = labelsOn && activeCategory === 'imagery';
+    for (const l of IMAGERY_LABELS) {
+      if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', show ? 'visible' : 'none');
+    }
+  }
+  function setLabels(on) {
+    labelsOn = Boolean(on);
+    writeLabelsPref(labelsOn);
+    syncLabels();
+    return labelsOn;
+  }
+  /** Keep place names on top of rasters added later (coverage, cellular). */
+  function raiseLabels() {
+    for (const l of IMAGERY_LABELS) if (l.raise && map.getLayer(l.id)) map.moveLayer(l.id);
   }
 
   // ---- 3D terrain + globe projection -------------------------------------
@@ -299,6 +320,9 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
     setHires,
     setHiresCredits,
     isHiresOn: () => hiresOn,
+    setLabels,
+    isLabelsOn: () => labelsOn,
+    raiseLabels,
     getBasemap: () => activeCategory,
     getVariant: (cat) => activeVariantIds[cat ?? activeCategory],
     setTerrain,
@@ -319,6 +343,13 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
 const HIRES_PREF_KEY = 'gl.hires.v2';
 function readHiresPref() {
   try { return localStorage.getItem(HIRES_PREF_KEY) === '1'; } catch (_) { return false; } // default off
+}
+const LABELS_PREF_KEY = 'gl.labels.v1';
+function readLabelsPref() {
+  try { return localStorage.getItem(LABELS_PREF_KEY) !== '0'; } catch (_) { return true; } // default on
+}
+function writeLabelsPref(on) {
+  try { localStorage.setItem(LABELS_PREF_KEY, on ? '1' : '0'); } catch (_) { /* private mode */ }
 }
 function writeHiresPref(on) {
   try { localStorage.setItem(HIRES_PREF_KEY, on ? '1' : '0'); } catch (_) { /* private mode */ }

@@ -519,6 +519,18 @@ function renderVariantMenu() {
     text.textContent = 'National aerial photos where available (off: Esri only)';
     row.append(box, text);
     variantMenu.appendChild(row);
+    // UI test U3: names and roads over the photo, on by default.
+    const lrow = document.createElement('label');
+    lrow.className = 'basemap-hires';
+    const lbox = document.createElement('input');
+    lbox.type = 'checkbox';
+    lbox.id = 'labelsToggle';
+    lbox.checked = mapApi.isLabelsOn();
+    lbox.addEventListener('change', () => mapApi.setLabels(lbox.checked));
+    const ltext = document.createElement('span');
+    ltext.textContent = 'Place names and roads';
+    lrow.append(lbox, ltext);
+    variantMenu.appendChild(lrow);
     const now = document.createElement('div');
     now.id = 'hiresNow';
     now.className = 'basemap-hires__now';
@@ -1068,6 +1080,7 @@ whenStyleReady(() => {
     // modes. Analogue degrades gracefully → no cliff overlay.
     onPaint(classes, cols, rows, bounds) {
       lastPaint = { classes, cols, rows, bounds }; // feeds the M20 result card
+      mapApi.raiseLabels?.(); // names stay above the raster (U3)
       const mode = digitalModeSelect?.value ?? 'Analogue';
       updateCliffLayer(map, classes, cols, rows, bounds, mode !== 'Analogue');
     },
