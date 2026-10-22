@@ -3276,6 +3276,7 @@ function runCoverage() {
   const runBuiltin = () => {
     clearCloudRFResult(); // drop any stale CloudRF raster before the built-in paint
     coverage.compute(compBounds, center, params, {
+      detail: coverageDetailValue(),
       aoi: aoiMask,
       txs,
       txNames: txs ? sites.map((s, i) => s.name || `Site ${i + 1}`) : null, // M24 legend
@@ -4223,6 +4224,20 @@ function showResultCard() {
   );
 }
 
+// Grid detail (coverage/grid.js): remembered per browser, standard by default.
+const DETAIL_PREF_KEY = 'gl.coverageDetail.v1';
+const coverageDetailSelect = document.getElementById('coverageDetail');
+try {
+  const saved = localStorage.getItem(DETAIL_PREF_KEY);
+  if (saved && coverageDetailSelect && [...coverageDetailSelect.options].some((o) => o.value === saved)) coverageDetailSelect.value = saved;
+} catch (_) { /* private mode */ }
+coverageDetailSelect?.addEventListener('change', () => {
+  try { localStorage.setItem(DETAIL_PREF_KEY, coverageDetailSelect.value); } catch (_) { /* private mode */ }
+});
+function coverageDetailValue() {
+  return coverageDetailSelect?.value === 'high' ? 'high' : 'standard';
+}
+
 /** What the last coverage run rested on (see analysis/assumptions.js). */
 function currentAssumptions() {
   const st = coverage?.getStats?.() ?? {};
@@ -4238,6 +4253,7 @@ function currentAssumptions() {
     cellM: lastPaint ? cellSizeM(lastPaint.bounds, lastPaint.cols) : null,
     radioApplied: Boolean(radios?.hasActive?.()),
     terrainSource: st.terrain ? terrainCredit(st.elevSource) : null,
+    detail: coverageDetailValue(),
   });
 }
 

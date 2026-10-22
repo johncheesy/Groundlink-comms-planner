@@ -177,6 +177,7 @@ Effort: S under a day, M a few days, L a week or more.
 ### P1 progress (22 Oct 2026)
 
 - **Terrain upgraded** to Copernicus GLO-30 via Mapterhorn (ADR 0007).
+- **F4 coverage resolution:** the cell size now follows the AOI with a compute budget, plus a High detail setting (`src/coverage/grid.js`). A 20 km-radius AOI went from about 545 m to 321 m per cell (185 m on High).
 - **Sharpest open aerial imagery** per country and Esri licence handling shipped (PR #29).
 
 ### P2 — Reach and differentiation (later)
