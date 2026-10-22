@@ -148,7 +148,11 @@ const sourceLabel = (src) => (typeof src === 'string' ? src : `file:${src.name ?
 
 function tiffFor(source) {
   if (typeof source === 'string') {
-    if (!urlTiffCache.has(source)) urlTiffCache.set(source, geotiff().then((g) => g.fromUrl(source)));
+    // 256 KB blocks: a remote COG's IFDs (one per overview) usually sit in the
+    // first block, so opening costs one request instead of one per IFD.
+    if (!urlTiffCache.has(source)) {
+      urlTiffCache.set(source, geotiff().then((g) => g.fromUrl(source, { allowFullFile: false, blockSize: 262144 })));
+    }
     return urlTiffCache.get(source);
   }
   if (!blobTiffCache.has(source)) {

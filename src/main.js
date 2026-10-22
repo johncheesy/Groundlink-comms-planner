@@ -1048,10 +1048,7 @@ whenStyleReady(() => {
         else if (terrain && info?.elevSource) bits.push(`Terrain: ${terrainCredit(info.elevSource)}.`);
         if (useClutterInput.checked) {
           bits.push(clutter
-            ? (info?.clutterSource === 'cog' ? 'Clutter heights from your local COG.'
-              : info?.clutterSource?.includes('chm')
-                ? (info.clutterSource.includes('worldcover') ? 'Clutter from ESA WorldCover land cover with Meta tree heights.' : 'Clutter from Meta tree heights (land cover unavailable).')
-                : 'Clutter from ESA WorldCover land cover (tree heights unavailable for this area, typical heights used).')
+            ? clutterSourceText(info?.clutterSource)
             : `No clutter in this run: ${landcoverReasonText(info?.clutterError)}. Run again, or load a local COG in the Data flyout.`);
         }
         bits.push('Planning-grade, not survey-grade.');
@@ -2131,6 +2128,24 @@ function onMissionChange(s) {
   computeBtn.disabled = !bbox || (s.sites < 1 && !s.hasAoi);
   // Recommend needs demand: an AOI, a route (≥2 vertices), or explicit points.
   recommendBtn.disabled = !bbox || (!s.hasAoi && s.route < 2 && s.points < 1);
+}
+
+/**
+ * Which clutter layers a run used, from the sampler id ("worldcover+chm+ghsl",
+ * "cog", …), and which fell back to typical heights.
+ */
+function clutterSourceText(id = '') {
+  if (id === 'cog') return 'Clutter heights from your local COG.';
+  const has = (k) => id.split('+').some((p) => p.startsWith(k));
+  const used = [];
+  if (has('worldcover')) used.push('ESA WorldCover land cover');
+  if (has('chm')) used.push('Meta tree heights');
+  if (has('ghsl')) used.push('GHSL building heights');
+  const missing = [];
+  if (!has('chm')) missing.push('tree');
+  if (!has('ghsl')) missing.push('building');
+  return `Clutter from ${used.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` +
+    (missing.length ? ` No ${missing.join(' or ')} heights for this area, typical heights used.` : '');
 }
 
 /** Split a bulk line into a coordinate (longest parseable prefix) + name. */

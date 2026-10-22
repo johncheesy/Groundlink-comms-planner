@@ -156,6 +156,7 @@ still renders terrain + coverage for that AOI.
 | ESA WorldCover COG (AWS) | ✓ | ✗ | local-file / staging only |
 | ESA WorldCover via Planetary Computer data API (`item/bbox/…png`) — probed 22 Oct 2026 | n/a | ✓ `*` | **runtime** — global clutter since 22 Oct 2026 |
 | Meta/WRI canopy CHM COG (AWS) | ✓ | ✗ | local-file / staging only |
+| GHSL GHS-BUILT-H ANBH COG (AWS `jrc-ghsl`) — probed 22 Oct 2026 | ✓ | ✓ `*` | **runtime** — building clutter heights |
 | ETH canopy 10 m (share.phys.ethz.ch) | — | — | URL dead (301 → DOI); staging via new host only |
 
 **Consequence:** no public global canopy/DEM **COG** currently ships CORS, so
