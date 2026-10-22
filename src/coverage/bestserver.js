@@ -54,6 +54,8 @@ export const CONTEST_FALLBACK = [0xf4, 0xf4, 0xf5];
  * @param {boolean} [o.interference=false]  paint the contested band
  * @param {number}  [o.thresholdDb=6]       contested when margin ≤ this
  * @param {[number,number,number]} [o.contestColor]
+ * @param {Uint8Array} [o.classes]  coverage classes — when given, only usable
+ *                                   cells (class ≤ 2) are painted and counted
  * @returns {{ data: Uint8ClampedArray, counts: number[], contested: number, covered: number }}
  *   counts[i] = cells won by site i (contested cells still count for their
  *   winner so zone shares stay meaningful); `contested` = cells in the band.
@@ -63,6 +65,7 @@ export function buildServerImage(servers, marginQ, {
   interference = false,
   thresholdDb = DEFAULT_INTERFERENCE_DB,
   contestColor = CONTEST_FALLBACK,
+  classes = null,
 } = {}) {
   const n = servers.length;
   const data = new Uint8ClampedArray(n * 4);
@@ -73,7 +76,7 @@ export function buildServerImage(servers, marginQ, {
   for (let i = 0; i < n; i++) {
     const s = servers[i];
     const o = i * 4;
-    if (s === NO_SERVER) {
+    if (s === NO_SERVER || (classes && classes[i] > 2)) {
       data[o + 3] = 0;
       continue;
     }

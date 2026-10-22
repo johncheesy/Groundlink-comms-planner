@@ -987,6 +987,7 @@ whenStyleReady(() => {
       updateIntelChip('running'); // Maven intel chip
       if (frac >= 1) {
         opacityRow.hidden = false;
+        if (showNoneRow) showNoneRow.hidden = false;
         setTimeout(() => {
           progress.hidden = true;
           progressBar.style.width = '0%';
@@ -1016,6 +1017,7 @@ whenStyleReady(() => {
         updateIntelChip('ok'); // Maven intel chip
       }
       if (state === 'cleared' || state === 'done') refreshServerViewUi(); // M24
+      if (state === 'done') updateSignalLegend(); // 'none · not painted' follows the toggle (U1)
       if (state === 'cleared' || state === 'done') refreshWorkflowUi();
       if (state === 'error') {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
@@ -1119,6 +1121,7 @@ whenStyleReady(() => {
       layer: `cellular-${type}-layer`,
       before: 'coverage-layer',
       opacity: 0.55,
+      showNone: true, // cellular layers keep their single-tint look
       onStatus(state, info) {
         if (state === 'error') {
           const why = info?.message ? ` (${info.message})` : '';
@@ -1254,6 +1257,7 @@ whenStyleReady(() => {
     clearCloudRFResult();
     clearCliffLayer(map);
     opacityRow.hidden = true;
+    if (showNoneRow) showNoneRow.hidden = true;
     progress.hidden = true;
     progressBar.style.width = '0%';
     coverageHelp.textContent = 'Draw an AOI, then compute. The transmitter defaults to the AOI centre. Terrain uses AWS elevation tiles — no token needed.';
@@ -1313,6 +1317,7 @@ whenStyleReady(() => {
     coverage.clear();
     clearCliffLayer(map);
     opacityRow.hidden = true;
+    if (showNoneRow) showNoneRow.hidden = true;
   });
 
   // Flight / link envelope (M2.1 B)
@@ -1357,6 +1362,7 @@ whenStyleReady(() => {
         siteList.innerHTML = '';
         // The combined raster was removed with the sites — drop its opacity row.
         opacityRow.hidden = true;
+        if (showNoneRow) showNoneRow.hidden = true;
         progress.hidden = true;
         progressBar.style.width = '0%';
         return;
@@ -1963,6 +1969,8 @@ const antennaFb = $('#antennaFb');
 const rxGainInput = $('#rxGain');
 const opacityInput = $('#opacityInput');
 const opacityRow = $('#opacityRow');
+const showNoneRow = $('#showNoneRow');
+$('#showNoneChk')?.addEventListener('change', (e) => { coverage?.setShowNone(e.target.checked); updateSignalLegend(); });
 const clearCoverageBtn = $('#clearCoverage');
 const progress = $('#coverageProgress');
 const progressBar = $('#coverageProgressBar');
@@ -3309,7 +3317,7 @@ function updateSignalLegend() {
   set('legendValExcellent', `≥ ${v(thExcellent, -85)} dBm`);
   set('legendValGood', `≥ ${v(thGood, -95)} dBm`);
   set('legendValMarginal', `≥ ${v(thMarginal, -103)} dBm`);
-  set('legendValNone', `< ${v(thNone, -110)} dBm`);
+  set('legendValNone', `< ${v(thNone, -110)} dBm${coverage?.getShowNone?.() ? '' : ' · not painted'}`);
 }
 
 /**
@@ -3739,6 +3747,7 @@ function applyMissionState(m) {
     clearCloudRFResult();
     clearCliffLayer(map);
     opacityRow.hidden = true;
+    if (showNoneRow) showNoneRow.hidden = true;
     for (const wp of waypoints?.getAll?.() ?? []) waypoints.remove(wp.id);
     mission?.clearAll?.();
     aoi?.clear?.();

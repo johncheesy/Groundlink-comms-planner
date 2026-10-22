@@ -127,3 +127,16 @@ describe('interference (C/I) view', () => {
     expect([...res.data.slice(20, 24)]).toEqual([5, 0, 0, 255]); // interferer wins
   });
 });
+
+describe('best-server zones only where the signal is usable (UI test U8)', () => {
+  it('skips cells whose class is poor or none, and does not count them', () => {
+    const servers = new Uint8Array([0, 0, 1, 1]);
+    const marginQ = new Uint8Array([MARGIN_SINGLE, MARGIN_SINGLE, MARGIN_SINGLE, MARGIN_SINGLE]);
+    const classes = new Uint8Array([0, 3, 2, 4]);
+    const res = buildServerImage(servers, marginQ, { classes });
+    expect(res.covered).toBe(2);
+    expect(res.counts).toEqual([1, 1]);
+    expect(res.data[1 * 4 + 3]).toBe(0);
+    expect(res.data[3 * 4 + 3]).toBe(0);
+  });
+});

@@ -34,7 +34,7 @@ function hexToRgb(hex, fallback = [255, 255, 255]) {
 
 export function createCoverageController(
   map,
-  { onProgress, onStatus, onPaint, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.7, tint = null } = {},
+  { onProgress, onStatus, onPaint, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.55, tint = null, showNone: initialShowNone = false } = {},
 ) {
   // When `tint` is set (a hex colour), every covered cell paints that one colour
   // — used by the cellular layers (one flat colour per network type). Otherwise
@@ -56,6 +56,10 @@ export function createCoverageController(
   let worker = null;
   let jobId = 0;
   let opacity = initialOpacity;
+  // UI test U1: the "none" band (below the last threshold, above the floor)
+  // stays unpainted by default — painting it in the strongest colour hid the
+  // map under the area that has no signal. A toggle shows it.
+  let showNone = initialShowNone;
   let txMarker = null;
   let hasLayer = false;
   let currentBounds = null; // bbox of the in-flight / last job (worker omits it)
@@ -165,6 +169,7 @@ export function createCoverageController(
     let img;
     if (view === 'server' && servers) {
       const res = buildServerImage(servers, marginQ, {
+        classes, // zones only where the winning signal is usable (U8)
         palette: serverPalette,
         interference,
         thresholdDb: interferenceDb,
@@ -187,6 +192,7 @@ export function createCoverageController(
         const cls = classes[i];
         const o = i * 4;
         if (cls === COVERAGE_CLASS.TRANSPARENT || cls > 4) continue;
+        if (cls === COVERAGE_CLASS.NONE && !showNone) continue;
         const [r, g, b] = tintRgb || palette[cls];
         data[o] = r;
         data[o + 1] = g;
@@ -354,6 +360,12 @@ export function createCoverageController(
       if (lastRaw) renderRaster();
       return view;
     },
+    /** Show or hide the no-coverage band in the quality view (re-renders, no recompute). */
+    setShowNone(on) {
+      showNone = !!on;
+      if (lastRaw && view === 'quality') renderRaster();
+    },
+    getShowNone: () => showNone,
     /** Toggle the contested-overlap band (and optionally its dB threshold). */
     setInterference(on, thresholdDb) {
       interference = !!on;
