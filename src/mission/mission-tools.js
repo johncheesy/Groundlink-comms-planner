@@ -138,7 +138,9 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       name: site.name || undefined,
       lngLat: [site.lng, site.lat],
       marker: m,
+      settings: { azimuthDeg: site.azimuthDeg ?? null },
       apply: {
+        settings: (s) => mission.setSiteAzimuth(site.id, s.azimuthDeg ?? null), // M49 per-site pointing
         move: ([lng, lat]) => { mission.moveSite(site.id, lat, lng); m.setLngLat([lng, lat]); },
         rename: (v) => { mission.renameSite(site.id, v); el.title = v; },
         remove: () => { mission.removeSite(site.id); refresh(); },

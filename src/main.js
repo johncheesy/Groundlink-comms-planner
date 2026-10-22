@@ -81,7 +81,8 @@ import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
 import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
-import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText } from './coverage/antenna.js';
+import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg } from './coverage/antenna.js';
+import { updateAntennaBeams } from './map/antenna-beams.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { terrainCredit } from './data/terrain-tiles.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
@@ -1991,16 +1992,23 @@ function writeAntenna(a) {
 }
 /** Peak transmit antenna gain (dBi) — the EIRP term. */
 const txGainDbi = () => readAntenna().gainDbi;
+/** M49: beam wedges for directional antennas, one per fixed site. */
+function refreshBeams() {
+  if (mission) updateAntennaBeams(map, mission.getSites(), readAntenna());
+}
 antennaPreset?.addEventListener('change', () => {
   const p = ANTENNA_PRESETS[antennaPreset.value];
   writeAntenna(p ? { ...p, preset: antennaPreset.value, azimuthDeg: antennaAzimuth?.value } : readAntenna());
+  refreshBeams();
 });
 for (const el of [antennaGain, antennaBeam, antennaFb]) {
   el?.addEventListener('input', () => {
     if (antennaPreset) antennaPreset.value = 'custom';
     if (antennaAzimuth) antennaAzimuth.disabled = isOmni(readAntenna());
+    refreshBeams();
   });
 }
+antennaAzimuth?.addEventListener('input', refreshBeams);
 
 // Manual threshold edits should move the Signal legend too (B8).
 for (const el of [thExcellent, thGood, thMarginal, thNone]) {
@@ -2115,6 +2123,7 @@ function refreshSatcom() {
 function onMissionChange(s) {
   markDirty(); // any mission edit is unsaved work (M21 §A)
   refreshExportPanel();
+  refreshBeams();
   refreshSatcom();
   hfPanel?.refresh();
   if (!missionElements) return;
@@ -2883,7 +2892,7 @@ async function importCalText(text) {
   const area = aoi?.getAoi?.();
   const txHeightM = clampNum(txHeightInput.value, 1, 300, 10);
   let txs;
-  if (sites.length) txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM }));
+  if (sites.length) txs = sites.map((s) => siteTx(s, txHeightM, coverageParams().antenna));
   else if (area) txs = [{ lat: area.center.lat, lng: area.center.lng, txHeightM }];
   else {
     calReadout.textContent = 'Set up the mission first — prediction needs your transmitter (fixed site or AOI centre).';
@@ -3272,6 +3281,16 @@ function omniParams(params) {
   return { ...params, eirpDbm: params.eirpDbm - params.antenna.gainDbi + omni.gainDbi, antenna: omni };
 }
 
+/**
+ * One fixed site as a coverage transmitter. A site aimed on its own (M49)
+ * carries the panel's antenna with its own pointing; others use the panel's.
+ */
+function siteTx(s, txHeightM, antenna) {
+  const tx = { lat: s.lat, lng: s.lng, txHeightM };
+  if (s.azimuthDeg != null && antenna && !isOmni(antenna)) tx.antenna = { ...antenna, azimuthDeg: s.azimuthDeg };
+  return tx;
+}
+
 /** Shared link/engine params (everything except bounds/tx/txHeightM). */
 function coverageParams() {
   const freqMHz = clampNum(freqInput.value, 30, 6000, 150);
@@ -3373,7 +3392,7 @@ function runCoverage() {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM: params.txHeightM }));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3567,7 +3586,7 @@ async function runTeamCoverage(team) {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM: params.txHeightM }));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3606,7 +3625,7 @@ function gatherMissionState() {
         ? { type: 'radius', center: area.center, radiusM: area.radiusM }
         : { type: 'polygon', ring: area.ring }
       : null,
-    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
+    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name, azimuthDeg }) => ({ lat, lng, name, ...(azimuthDeg != null ? { azimuthDeg } : {}) })),
     points: (mission?.getPoints?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
     route: mission?.getRoute?.() ?? [],
     waypoints: (waypoints?.getAll?.() ?? []).map(({ lat, lng, name, icon }) => ({ lat, lng, name, icon })),
@@ -3668,7 +3687,10 @@ function applyMissionState(m) {
     if (m.aoi?.type === 'radius') aoi.setRadius([m.aoi.center.lng, m.aoi.center.lat], m.aoi.radiusM);
     else if (m.aoi?.type === 'polygon') aoi.setPolygon(m.aoi.ring);
 
-    for (const s of m.sites) mission.addSite(s.lat, s.lng, s.name);
+    for (const s of m.sites) {
+      const added = mission.addSite(s.lat, s.lng, s.name);
+      if (added && s.azimuthDeg != null) mission.setSiteAzimuth(added.id, s.azimuthDeg);
+    }
     for (const p of m.points) mission.addPoint(p.lat, p.lng, p.name);
     if (m.route.length) mission.setRoute(m.route);
     missionTools?.refresh?.();
@@ -3992,8 +4014,52 @@ const ctxMenu = createContextMenu({
     if (action === 'settings') jumpToAnchor(anchorForEntry(entry));
     else if (action === 'move') dragMove.armMove(entry.id);
     else if (action === 'optimise') mastWizard.openFor(entry.id); // M35
+    else if (action === 'aim') startAim(entry); // M49
+    else if (action === 'aimReset') setSiteAim(entry.id, null);
   },
 });
+
+// ---- M49: aim one site's antenna by clicking where it should point ---------
+function setSiteAim(id, deg) {
+  const e = registry.get(id);
+  if (!e) return;
+  const from = e.settings?.azimuthDeg ?? null;
+  const apply = (v) => registry.update(id, { settings: { azimuthDeg: v } });
+  apply(deg);
+  undoStack.push({
+    label: deg == null ? `${e.name} pointing reset` : `${e.name} aimed ${deg}°`,
+    undo: () => apply(from),
+    redo: () => apply(deg),
+  });
+  statusMode.textContent = deg == null
+    ? `${e.name} follows the panel pointing again`
+    : `${e.name} points ${deg}°${isOmni(readAntenna()) ? ' — pick a directional antenna in Coverage to use it' : ''}`;
+}
+
+function startAim(entry) {
+  const canvas = map.getCanvas();
+  const finish = () => {
+    canvas.style.cursor = '';
+    map.off('click', onClick);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    finish();
+    statusMode.textContent = 'Aiming cancelled';
+  };
+  const onClick = (ev) => {
+    finish();
+    const cur = registry.get(entry.id);
+    if (!cur) return;
+    const [lng, lat] = cur.lngLat;
+    setSiteAim(entry.id, Math.round(bearingDeg(lat, lng, ev.lngLat.lat, ev.lngLat.lng)));
+  };
+  canvas.style.cursor = 'crosshair';
+  map.on('click', onClick);
+  document.addEventListener('keydown', onKey, true);
+  statusMode.textContent = `Click where ${entry.name} should point — Esc cancels`;
+}
 
 // ---- Mast-height wizard (M35) — advisory minimum clearing height -----------
 // Applying routes through the normal flows: drone altitude via registry.sync

@@ -33,6 +33,11 @@ export function buildMenuModel(entry) {
     items.push({ id: 'settings', label: 'Settings…' });
     items.push({ id: 'optimise', label: 'Optimise height…' }); // M35 wizard
   }
+  // M49: a fixed site can point its own antenna (click the map to aim).
+  if (entry.kind === 'mast' && entry.owner === 'mission') {
+    items.push({ id: 'aim', label: 'Aim antenna…' });
+    if (entry.settings?.azimuthDeg != null) items.push({ id: 'aimReset', label: 'Use panel pointing' });
+  }
   items.push(entry.locked ? { id: 'unlock', label: 'Unlock' } : { id: 'move', label: 'Move' });
   items.push({ id: 'delete', label: 'Delete' });
   return {

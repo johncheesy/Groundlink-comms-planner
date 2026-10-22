@@ -70,6 +70,17 @@ export function createMission({ onChange } = {}) {
     const s = state.sites.find((x) => x.id === id);
     if (s) { s.name = clipName(name); emit(); }
   }
+  /**
+   * Point this site's antenna (compass degrees), or null to follow the
+   * Coverage panel's pointing. The antenna type stays one setting for all.
+   */
+  function setSiteAzimuth(id, deg) {
+    const s = state.sites.find((x) => x.id === id);
+    if (!s) return;
+    if (deg == null || !Number.isFinite(Number(deg))) delete s.azimuthDeg;
+    else s.azimuthDeg = ((Number(deg) % 360) + 360) % 360;
+    emit();
+  }
   function removeSite(id) {
     state.sites = state.sites.filter((x) => x.id !== id);
     emit();
@@ -180,7 +191,7 @@ export function createMission({ onChange } = {}) {
     summary,
     capacity,
     setAoi,
-    addSite, moveSite, renameSite, removeSite, clearSites,
+    addSite, moveSite, renameSite, setSiteAzimuth, removeSite, clearSites,
     addPoint, movePoint, renamePoint, removePoint, clearPoints,
     setRoute, addRouteVertex, updateRouteVertex, removeRouteVertex, clearRoute,
     demandPoints,

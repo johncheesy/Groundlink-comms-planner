@@ -32,6 +32,14 @@ function namedPoint(p) {
   return { lat, lng, name: clipName(p.name) };
 }
 
+/** A site: a named point plus its own antenna pointing when set (M49). */
+function site(p) {
+  const out = namedPoint(p);
+  const az = num(p?.azimuthDeg);
+  if (out && az != null) out.azimuthDeg = ((az % 360) + 360) % 360;
+  return out;
+}
+
 function vertex(p) {
   const lat = num(p?.lat);
   const lng = num(p?.lng);
@@ -147,7 +155,7 @@ function cleanMission(m, report) {
   }
   return {
     aoi,
-    sites: cleanListReport(src.sites, namedPoint, 'sites', LIMITS.sites, report),
+    sites: cleanListReport(src.sites, site, 'sites', LIMITS.sites, report),
     points: cleanListReport(src.points, namedPoint, 'points', LIMITS.points, report),
     route: cleanListReport(src.route, vertex, 'route vertices', LIMITS.routeVertices, report),
     waypoints: cleanListReport(src.waypoints, waypoint, 'waypoints', LIMITS.waypoints, report),

@@ -74,3 +74,16 @@ describe('context-menu model — per-kind items', () => {
     }
   });
 });
+
+describe('context-menu model — antenna aiming (M49)', () => {
+  it('fixed sites can be aimed; reset appears once they point on their own', () => {
+    expect(itemIds(buildMenuModel(entry({ owner: 'mission' })))).toContain('aim');
+    expect(itemIds(buildMenuModel(entry({ owner: 'mission' })))).not.toContain('aimReset');
+    expect(itemIds(buildMenuModel(entry({ owner: 'mission', settings: { azimuthDeg: 90 } })))).toContain('aimReset');
+  });
+
+  it('recommended masts and other kinds cannot be aimed', () => {
+    expect(itemIds(buildMenuModel(entry({ owner: 'recommend' })))).not.toContain('aim');
+    expect(itemIds(buildMenuModel(entry({ kind: 'drone', owner: 'mission' })))).not.toContain('aim');
+  });
+});

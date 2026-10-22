@@ -27,6 +27,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+**Per-site antenna pointing (M49 follow-up)**
+- Right-click a fixed site → **Aim antenna…** and click where it should point; each site keeps its own bearing (undo, saved in the mission file, "Use panel pointing" to reset). A translucent wedge on the map shows where each directional antenna points and how wide its beam is. 6 tests.
+
 **P.1812 validation page** (`/validation/`, `docs/validation-p1812.md`)
 - The in-browser P.1812 engine is checked against the official ITU-R Working Party 3M validation set (63 cases, 1–235 km, 30 MHz–6 GHz). Every calculation step (free space, multipath, diffraction, troposcatter) now matches the reference to within 0.001 dB in all cases. The final loss differs in 16 cases, always as more loss, from two deliberate choices: the terminal clutter loss we keep from P.1812-6, and no ducting. The page shows the deviations only; the ITU profiles stay outside the repo (`scripts/validate-p1812.mjs` reproduces it). Linked from the P.1812 settings.
 - Fixed on the way, following P.1812-8: horizon angles, angular distance and the smooth-earth correction now use bare terrain (clutter only enters the diffraction profile), LoS multipath distances meet at the strongest Fresnel point, and β0 accepts land-stretch lengths. Before, diffraction on cluttered paths was up to 8 dB off and troposcatter up to 111 dB. 3 tests.
