@@ -32,7 +32,7 @@
 
 .section__hint {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--faint);
   min-width: 0;
   text-align: right;
@@ -49,14 +49,14 @@
 }
 
 .field-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--dim);
   letter-spacing: 0.01em;
 }
 
 .help {
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--dim);
 }
@@ -431,7 +431,7 @@
   gap: 6px;
 }
 .caveat {
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--dim);
   padding: 7px 9px;
@@ -525,7 +525,7 @@
 .site-list__new,
 .site-list__cum {
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .site-list__cum {
@@ -537,7 +537,7 @@
 
 .btn--sm {
   padding: 3px 10px;
-  font-size: 11.5px;
+  font-size: 12px;
   border-radius: var(--r-sm);
 }
 
@@ -666,14 +666,14 @@
 .mission-popup__coord {
   grid-column: 1;
   color: var(--dim);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 .mission-popup__copy,
 .coord-popup__copy {
   border: 1px solid var(--hair);
   background: var(--raise);
   color: var(--ink);
-  font-size: 11px;
+  font-size: 12px;
   border-radius: 6px;
   padding: 2px 8px;
   cursor: pointer;
@@ -902,13 +902,13 @@ input.wp-popup-name:focus {
 }
 .radio-slot__clear:hover { color: var(--ink); background: var(--raise); }
 .radio-slot__role {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   flex: 0 0 92px;
 }
 .radio-slot__label { font-size: 12.5px; display: inline-flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
 .radio-slot__name { color: var(--ink); font-weight: 600; }
-.radio-slot__band { color: var(--dim); font-size: 11px; }
+.radio-slot__band { color: var(--dim); font-size: 12px; }
 .radio-slot__empty { color: var(--faint); }
 
 .radio-results {
@@ -933,7 +933,7 @@ input.wp-popup-name:focus {
 .radio-result--empty { color: var(--faint); justify-content: center; }
 .radio-result__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .radio-result__name { color: var(--ink); font-size: 12.5px; font-weight: 600; }
-.radio-result__meta { color: var(--dim); font-size: 11px; }
+.radio-result__meta { color: var(--dim); font-size: 12px; }
 .radio-result__btns { display: flex; gap: 4px; flex: 0 0 auto; }
 
 /* Search-results multi-select bar (Fix 4) */
@@ -941,10 +941,10 @@ input.wp-popup-name:focus {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; margin-top: var(--sp-2);
 }
-.radio-results__count { color: var(--dim); font-size: 11px; }
+.radio-results__count { color: var(--dim); font-size: 12px; }
 .linklike {
   border: 0; background: transparent; padding: 0; cursor: pointer;
-  color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 600;
+  color: var(--accent); font: inherit; font-size: 12px; font-weight: 600;
   text-decoration: underline; text-underline-offset: 2px;
 }
 .linklike:hover { color: color-mix(in srgb, var(--accent) 80%, var(--ink)); }
@@ -964,7 +964,7 @@ input.wp-popup-name:focus {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 .bestnet__label {
-  font-size: 11px; font-weight: 500; color: var(--dim); white-space: nowrap;
+  font-size: 12px; font-weight: 500; color: var(--dim); white-space: nowrap;
 }
 .bestnet__value {
   flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--ink);
@@ -1008,8 +1008,8 @@ input.wp-popup-name:focus {
   color: var(--ink);
   flex: 0 0 70px;
 }
-.radio-mix__pace { font-size: 11px; flex: 0 0 auto; }
-.radio-mix__why { font-size: 11.5px; color: var(--dim); flex: 1 1 100%; line-height: 1.4; }
+.radio-mix__pace { font-size: 12px; flex: 0 0 auto; }
+.radio-mix__why { font-size: 12px; color: var(--dim); flex: 1 1 100%; line-height: 1.4; }
 
 /* ---- Comms plan (PACE) + report export (M6) --------------------------- */
 
@@ -1038,7 +1038,7 @@ input.wp-popup-name:focus {
   flex: 1 1 auto;
 }
 .pace-tag { font-weight: 500; color: var(--dim); font-size: 11px; }
-.pace-why { font-size: 11.5px; color: var(--dim); flex: 1 1 100%; line-height: 1.4; }
+.pace-why { font-size: 12px; color: var(--dim); flex: 1 1 100%; line-height: 1.4; }
 
 .pace-structure {
   margin: var(--sp-2) 0 0;
@@ -1091,7 +1091,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .power-row__badge { flex: 0 0 auto; }
 .power-row__metrics {
   flex: 1 1 100%;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
   line-height: 1.45;
@@ -1104,7 +1104,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border: 1px solid var(--hair);
   border-radius: var(--r-sm);
   background: var(--surface2);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--dim);
   line-height: 1.45;
 }
@@ -1112,7 +1112,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 
 .power-bom { margin-top: var(--sp-3); }
 .power-bom__title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--dim);
   letter-spacing: 0.01em;
@@ -1121,14 +1121,14 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .power-bom table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .power-bom th {
   text-align: left;
   font-weight: 500;
   color: var(--faint);
-  font-size: 10.5px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 3px 6px;
@@ -1141,7 +1141,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   vertical-align: top;
 }
 .power-bom td.power-bom__qty { font-weight: 600; white-space: nowrap; }
-.power-bom td.power-bom__why { color: var(--dim); font-size: 11px; }
+.power-bom td.power-bom__why { color: var(--dim); font-size: 12px; }
 
 /* ---- Teams & operators (M13) ------------------------------------------ */
 
@@ -1176,14 +1176,14 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .teams-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .teams-table th {
   text-align: left;
   font-weight: 500;
   color: var(--faint);
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 3px 5px;
@@ -1228,7 +1228,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   gap: 6px 12px;
 }
 .dmr-result__metric {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
@@ -1256,10 +1256,10 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: var(--surface2);
   border: 1px solid var(--hair);
   border-radius: var(--r-sm);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 .structure-item__name { font-weight: 600; flex-shrink: 0; color: var(--accent); }
-.structure-item__radios { color: var(--dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.structure-item__radios { color: var(--dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .structure-item__remove {
   flex-shrink: 0;
   background: transparent;
@@ -1281,7 +1281,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .arsenal { margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px solid var(--hair); }
 .arsenal__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .arsenal__list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.arsenal__empty { color: var(--faint); font-size: 11.5px; padding: 2px 0; }
+.arsenal__empty { color: var(--faint); font-size: 12px; padding: 2px 0; }
 .arsenal__row {
   display: flex;
   align-items: baseline;
@@ -1292,7 +1292,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: var(--surface2);
 }
 .arsenal__name { font-weight: 600; color: var(--ink); font-size: 12px; flex: 0 0 auto; cursor: pointer; }
-.arsenal__meta { color: var(--dim); font-size: 11px; flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.arsenal__meta { color: var(--dim); font-size: 12px; flex: 1 1 auto; min-width: 0; cursor: pointer; }
 .arsenal__toggle {
   border: 0; background: transparent; color: var(--accent);
   font-size: 13px; line-height: 1; cursor: pointer; padding: 0 1px; flex: 0 0 auto;
@@ -1322,7 +1322,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .role-row__name { font-family: var(--disp); font-weight: 700; color: var(--ink); flex: 0 0 auto; }
 .role-row__radio { color: var(--ink); font-size: 12px; flex: 1 1 auto; text-align: right; }
 .role-row__h { color: var(--dim); font-weight: 400; }
-.role-row__why { color: var(--dim); font-size: 11.5px; flex: 1 1 100%; line-height: 1.4; }
+.role-row__why { color: var(--dim); font-size: 12px; flex: 1 1 100%; line-height: 1.4; }
 
 /* ---- Legend (coverage spectrum + typed features) ----------------------- */
 
@@ -1349,7 +1349,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 
 .legend__val {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--faint);
 }
@@ -1417,7 +1417,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .mode-toggle__label {
   font-family: var(--ui);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
@@ -1435,7 +1435,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   gap: var(--sp-4);
   height: 100%;
   padding: 0 var(--sp-4);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--dim);
 }
 
@@ -1562,7 +1562,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .map-flyout__title {
   font-family: var(--disp);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--faint);
@@ -1610,7 +1610,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-radius: var(--r-sm);
   color: var(--ink);
   font-family: var(--ui);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   padding: 5px 7px;
   cursor: pointer;
@@ -1647,7 +1647,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 
 .view-slider > label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--dim);
   width: 44px;
@@ -1655,7 +1655,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 
 .view-slider__val {
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   width: 46px;
@@ -1681,7 +1681,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: transparent;
   color: var(--dim);
   font-family: var(--ui);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   height: 26px;
   padding: 0 10px;
@@ -1731,7 +1731,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .maplibregl-ctrl-attrib {
   background: rgba(11, 16, 24, 0.66) !important;
   color: var(--mapink) !important;
-  font-size: 10px !important;
+  font-size: 11px !important;
   backdrop-filter: blur(2px);
   border-radius: 6px 0 0 0;
 }
@@ -1775,7 +1775,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border: 1px solid var(--hair2);
   border-radius: 8px;
   padding: 4px 9px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   box-shadow: var(--shadow);
@@ -1877,7 +1877,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .palette__kbd {
   flex: 0 0 auto;
   font-family: var(--ui);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--faint);
   border: 1px solid var(--hair);
@@ -1895,7 +1895,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .palette__section {
   padding: 7px 9px 3px;
   font-family: var(--disp);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--faint);
@@ -1923,7 +1923,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .palette__item-hint {
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--faint);
 }
 .palette__empty {
@@ -2057,7 +2057,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 
 .basemap-variant-menu__item.is-active::before {
   content: '✓';
-  font-size: 11px;
+  font-size: 12px;
   flex: 0 0 auto;
 }
 
@@ -2068,7 +2068,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 
 .basemap-variant-menu__label {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--faint);
   letter-spacing: 0.05em;
@@ -2310,7 +2310,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 /* Build stamp at the right end of the status bar. */
 .statusbar__item--build { gap: 6px; }
 .statusbar__alpha {
-  font-size: 9px;
+  font-size: 11px;
   padding: 1px 5px;
 }
 .statusbar__item--build .v { color: var(--dim); }
@@ -2450,7 +2450,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .hf-band-dot--marginal { background: var(--warn); }
 .hf-band-dot--no { background: var(--bad); }
 .hf-band-name { flex: 0 0 auto; font-variant-numeric: tabular-nums; min-width: 92px; }
-.hf-band-reason { color: var(--dim); font-size: 11px; margin-left: auto; text-align: right; }
+.hf-band-reason { color: var(--dim); font-size: 12px; margin-left: auto; text-align: right; }
 
 /* ============================================================
    Path profile (M14) — two-click terrain cross-section drawer
@@ -2615,7 +2615,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .statusbar__item--offline[hidden] { display: none; }
 .status-offline {
   color: var(--warn);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -2635,7 +2635,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .backend-key-row .input { flex: 1; }
 .backend-test-status {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   color: var(--dim);
@@ -2831,7 +2831,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .objrow__ref {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   white-space: nowrap;
   flex: 0 0 auto;
@@ -2869,14 +2869,14 @@ select.input--sm { text-align: left; padding-right: 6px; }
   font-size: 13px;
 }
 .objdetail__kind {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
 }
 .objdetail__coord {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 .objdetail__coord span {
   flex: 1 1 auto;
@@ -2890,7 +2890,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border: 1px solid var(--hair);
   background: var(--surface);
   color: var(--dim);
-  font-size: 10.5px;
+  font-size: 12px;
   border-radius: var(--r-sm);
   padding: 1px 7px;
   cursor: pointer;
@@ -2900,7 +2900,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-color: var(--hair2);
 }
 .objdetail__rf {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--dim);
 }
 .objdetail__edit {
@@ -2937,7 +2937,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   text-overflow: ellipsis;
 }
 .objmenu__kind {
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--dim);
   flex: 0 0 auto;
 }
@@ -2951,7 +2951,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-radius: var(--r-sm);
   cursor: pointer;
   text-align: left;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--ink);
 }
 .objmenu__coord:hover,
@@ -3047,7 +3047,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   height: 28px;
 }
 .toolbar__group-label {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   font-weight: 500;
   color: var(--faint);
@@ -3078,7 +3078,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: transparent;
   color: var(--faint);
   font-family: var(--ui);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   padding: 3px 7px;
   border-radius: 999px;
@@ -3106,7 +3106,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 9.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
 }
@@ -3136,7 +3136,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-left: var(--sp-3);
   border-radius: 5px;
   background: var(--accent);
-  color: var(--on-accent, #fff);
+  color: var(--accent-ink);
   border: none;
   cursor: pointer;
   font-size: 12px;
@@ -3220,7 +3220,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: var(--bg2);
   color: var(--dim);
   font-family: var(--disp);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: pointer;
@@ -3306,7 +3306,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   min-width: 14px;
   height: 13px;
   padding: 0 3px;
-  font-size: 9px;
+  font-size: 11px;
 }
 .gl-badge--strip.gl-badge--dot {
   min-width: 8px;
@@ -3373,7 +3373,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   white-space: nowrap;
 }
 .result-card__cap {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
 }
 .result-card__zones {
@@ -3395,7 +3395,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: transparent;
   color: var(--dim);
   font-family: var(--ui);
-  font-size: 11.5px;
+  font-size: 12px;
   cursor: pointer;
   text-align: left;
 }
@@ -3782,7 +3782,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: var(--surface);
 }
 .powdash__metric-label {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--faint);
@@ -4151,7 +4151,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .dash-ops__section-title {
   font-family: var(--disp);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -4159,7 +4159,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   flex: 1;
 }
 .dash-ops__pill {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 10px;
@@ -4188,20 +4188,20 @@ select.input--sm { text-align: left; padding-right: 6px; }
   min-height: 20px;
 }
 .dash-ops__row-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   flex: 1;
   white-space: nowrap;
 }
 .dash-ops__row-value {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .dash-ops__placeholder {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   margin-top: 2px;
 }
@@ -4209,7 +4209,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-top: 4px;
 }
 .dash-ops__gap {
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--warn);
   margin-top: 2px;
 }
@@ -4241,7 +4241,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-bottom: var(--sp-2);
 }
 .deco-badge {
-  font-size: 10.5px;
+  font-size: 11px;
 }
 .deco-list {
   display: flex;
@@ -4252,7 +4252,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   padding: 5px 8px;
   border-radius: 6px;
   border-left: 3px solid transparent;
@@ -4266,7 +4266,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-left-color: var(--warn);
 }
 .deco-item__ico {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
   margin-top: 1px;
@@ -4287,7 +4287,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   gap: var(--sp-3);
 }
 .satcom-placeholder__text {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--dim);
   margin: 0;
 }
@@ -4299,7 +4299,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-bottom: var(--sp-3);
 }
 .satcom-summary__label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -4321,19 +4321,19 @@ select.input--sm { text-align: left; padding-right: 6px; }
   color: var(--sat-color, var(--accent));
 }
 .satcom-summary__az {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
 }
 .satcom-summary__best--none {
   color: var(--bad);
-  font-size: 11.5px;
+  font-size: 12px;
   font-style: italic;
 }
 
 /* Section headers */
 .satcom-section-hd {
   font-family: var(--disp);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -4363,7 +4363,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .satcom-row__name {
   display: block;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--ink);
   white-space: nowrap;
@@ -4372,7 +4372,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .satcom-row__net {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
 }
 .satcom-row__nums {
@@ -4389,7 +4389,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .satcom-el--bad   { color: var(--bad); }
 .satcom-el--faint { color: var(--faint); }
 .satcom-row__az {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
 }
 
@@ -4407,17 +4407,17 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .satcom-leo-row:last-child { border-bottom: none; }
 .satcom-leo-badge {
-  font-size: 10px;
+  font-size: 11px;
   flex-shrink: 0;
 }
 .satcom-leo-net {
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--dim);
   flex: 1;
 }
 .satcom-leo-note {
   width: 100%;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
   padding-left: 0;
   padding-top: 2px;
@@ -4425,13 +4425,13 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 
 .satcom-empty {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   font-style: italic;
   padding: var(--sp-2) 0;
 }
 .satcom-footer {
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--faint);
   margin: var(--sp-2) 0 0;
   line-height: 1.4;
@@ -4461,7 +4461,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-radius: 20px;
   background: var(--raise);
   border: 1px solid var(--hair);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   white-space: nowrap;
   margin: 0 var(--sp-2);
@@ -4493,7 +4493,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .toolbar__intel__model {
   color: var(--dim);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 @media (max-width: 600px) {
@@ -4662,7 +4662,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   font-variant-numeric: tabular-nums;
 }
 .drone-opt-progress {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   text-align: center;
   padding: var(--sp-2) 0;
@@ -4678,14 +4678,14 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-radius: 4px;
   background: var(--surface2);
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .satcom-fade--ok   { border-left: 3px solid var(--ok); }
 .satcom-fade--warn { border-left: 3px solid var(--warn); }
 .satcom-fade--bad  { border-left: 3px solid var(--bad); }
 .satcom-fade__label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--dim);
   white-space: nowrap;
   flex-shrink: 0;
@@ -4698,7 +4698,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .satcom-fade__vals span { color: var(--text); }
 .satcom-fade__vals b    { font-variant-numeric: tabular-nums; }
 .satcom-fade-note {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
   margin-top: var(--sp-1);
   line-height: 1.4;
@@ -4754,7 +4754,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border: 1px solid var(--hair);
   border-radius: 4px;
   padding: 4px 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text);
   white-space: nowrap;
   pointer-events: none;
@@ -4763,7 +4763,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .topo-svg-wrap { position: relative; }
 .topo-unplaced-note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   text-align: center;
   padding: var(--sp-2);
@@ -4775,7 +4775,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   margin-bottom: var(--sp-3);
 }
 .radio-suggest__node-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--dim);
   text-transform: uppercase;
@@ -4811,7 +4811,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   transition: width 0.3s;
 }
 .radio-suggest__score-num {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
   min-width: 22px;
@@ -4832,12 +4832,12 @@ select.input--sm { text-align: left; padding-right: 6px; }
   text-overflow: ellipsis;
 }
 .radio-suggest__radio-meta {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--dim);
 }
 .radio-suggest__apply {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
 }
 
@@ -4886,7 +4886,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   align-items: center;
 }
 .readiness-dim__label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--dim);
   white-space: nowrap;
   overflow: hidden;
@@ -4904,7 +4904,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   transition: width 0.4s;
 }
 .readiness-dim__val {
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -4923,7 +4923,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   background: var(--surface2);
   border: 1px solid var(--hair);
   cursor: default;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -4935,7 +4935,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 /* ── M48: live LEO/MEO pass window (satcom panel) ─────────────────────── */
 .satcom-leo-live {
   width: 100%;
-  font-size: 10.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -4948,7 +4948,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .satcom-leo-live--gap     { color: var(--warn); }
 .satcom-leo-live__meta {
   display: block;
-  font-size: 9.5px;
+  font-size: 12px;
   color: var(--faint);
 }
 
@@ -4996,12 +4996,12 @@ select.input--sm { text-align: left; padding-right: 6px; }
 
 .readiness-basis {
   margin: 0 0 var(--sp-2);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
   color: var(--dim);
 }
 
-.result-card__assump { margin-top: var(--sp-2); font-size: 11px; line-height: 1.4; color: var(--dim); }
+.result-card__assump { margin-top: var(--sp-2); font-size: 12px; line-height: 1.4; color: var(--dim); }
 .result-card__assump-line { display: block; color: var(--ink); }
 .result-card__assump-warn { margin: 4px 0 0; padding: 0; list-style: none; }
 .result-card__assump-warn li { position: relative; padding-left: 12px; margin-top: 2px; }
@@ -5013,8 +5013,8 @@ select.input--sm { text-align: left; padding-right: 6px; }
 
 .basemap-hires { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 2px; font-size: 12.5px; cursor: pointer; }
 .basemap-hires input { accent-color: var(--accent); }
-.basemap-hires__now { font-size: 11px; color: var(--ink); min-height: 1.2em; padding: 0 2px; }
-.basemap-hires__cov { font-size: 10.5px; line-height: 1.4; color: var(--dim); padding: 2px 2px 8px; }
+.basemap-hires__now { font-size: 12px; color: var(--ink); min-height: 1.2em; padding: 0 2px; }
+.basemap-hires__cov { font-size: 12px; line-height: 1.4; color: var(--dim); padding: 2px 2px 8px; }
 
 /* Screen-reader-only text (review F26: the page needs an h1 without showing one). */
 .sr-only {
