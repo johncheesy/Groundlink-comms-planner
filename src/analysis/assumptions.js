@@ -32,6 +32,7 @@ export function cellSizeM(bounds, cols) {
  * @param {boolean} p.clutterUsed      clutter data actually applied (stats.clutter)
  * @param {number|null} p.cellM
  * @param {boolean} p.radioApplied     a radio from the arsenal is active
+ * @param {string|null} [p.terrainSource] credit for the elevation data used
  * @returns {{ summary:string, source:'radio'|'defaults'|'manual', warnings:string[] }}
  */
 export function describeAssumptions(p) {
@@ -43,6 +44,7 @@ export function describeAssumptions(p) {
     `rx ${fmt(p.rxHeightM)} m`,
   ];
   if (p.cellM != null) parts.push(`cell ≈ ${p.cellM >= 1000 ? `${(p.cellM / 1000).toFixed(1)} km` : `${Math.round(p.cellM)} m`}`);
+  if (p.terrainSource) parts.push(`terrain: ${p.terrainSource}`);
 
   const source = p.radioApplied
     ? 'radio'

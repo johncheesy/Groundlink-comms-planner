@@ -57,6 +57,7 @@ const TILE_HOST_PATTERNS = [
   /(^|\.)openfreemap\.org$/,
   /(^|\.)openmaptiles\.org$/,
   /tiles\.maps\.eox\.at$/,
+  /^tiles\.mapterhorn\.com$/, // terrain (Copernicus GLO-30); CC BY-type terms allow caching
   // National aerial imagery (hires-imagery.js)
   /^service\.pdok\.nl$/,
   /^data\.geopf\.fr$/,

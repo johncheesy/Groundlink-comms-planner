@@ -52,3 +52,9 @@ describe('describeAssumptions', () => {
     expect(describeAssumptions({ ...base, cellM: null }).summary).not.toMatch(/cell/);
   });
 });
+
+describe('terrain source in the summary', () => {
+  it('names the elevation data when given', () => {
+    expect(describeAssumptions({ ...base, terrainSource: 'Copernicus GLO-30 via Mapterhorn' }).summary).toMatch(/terrain: Copernicus GLO-30 via Mapterhorn$/);
+  });
+});

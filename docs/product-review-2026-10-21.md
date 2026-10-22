@@ -174,6 +174,11 @@ Effort: S under a day, M a few days, L a week or more.
 | Satcom and HF | Follow route and point missions, not only the AOI. Fix the N/E sign. Include the LEO window in the readiness score. | S–M (F15, F17) |
 | Site recommendation | Optional accessibility layer (roads, slope, elevation ceiling) and a "must be within X km of a road" filter. | M (F16) |
 
+### P1 progress (22 Oct 2026)
+
+- **Terrain upgraded** to Copernicus GLO-30 via Mapterhorn (ADR 0007).
+- **Sharpest open aerial imagery** per country and Esri licence handling shipped (PR #29).
+
 ### P2 — Reach and differentiation (later)
 
 | Component | Change | Effort |
