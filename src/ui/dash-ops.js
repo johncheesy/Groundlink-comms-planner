@@ -25,6 +25,15 @@
  *   }
  */
 
+import { legFilled } from '../pace/pace.js';
+
+/** A leg's bearer for the dashboard: band and the radios on it, or why not. */
+const legLabel = (l) => (l.status === 'gap'
+  ? '—'
+  : l.status === 'recommend'
+    ? `${l.band} (not carried)`
+    : [l.band || l.asset, l.radios?.[0]].filter(Boolean).join(' · '));
+
 import { READINESS_DIMS, MIN_ASSESSED } from '../analysis/readiness.js';
 
 const e = (tag, cls, ...children) => {
@@ -281,14 +290,14 @@ export function createOpsDashboard(host, { onRunCoverage, onOpenPace, onOpenTeam
     // 4 ── PACE Plan ───────────────────────────────────────────────────────
     const pace = snap.pace;
     if (pace && pace.legs) {
-      const filled = pace.legs.filter((l) => l.primary || l.assets?.length).length;
+      const filled = pace.legs.filter(legFilled).length;
       const total = pace.legs.length;
       const ok = filled >= total;
       host.append(section(
         'PACE Plan',
         pill(`${filled}/${total} tiers`, ok ? 'teal' : 'amber'),
         ...pace.legs.map((l) =>
-          row(l.tier?.[0] ?? '?', l.primary ?? '—', l.tier),
+          row(l.tier?.[0] ?? '?', legLabel(l), l.tier),
         ),
       ));
       if (pace.gaps?.length) {

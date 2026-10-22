@@ -9,6 +9,22 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Fixed
+- **Bugs from a GUI-only planning run of a real multi-site network:**
+  - Right-clicking a site armed a map drag that the context menu never released, so the next move over the map dragged the site away, for example while picking the far end of a radio link.
+  - Saved structures from a mission file showed "— none —": radio lookup ignored the file's own equipment. The equipment is now searchable and editable like the library (an edit updates the carried radio too), and a structure has a **Use** button that applies it.
+  - **Edit** on a radio opened the editor inside a collapsed section; it now opens in view. Its seven number fields wrap instead of clipping Price.
+  - Applying a radio set overwrote the frequency, mast and rx heights and thresholds the planner had set or loaded. Those are now kept (power, antenna and loss still come from the radio), with **Use radio values** to override.
+  - Opening a second mission was silently cancelled in embedded browsers (native confirm). It now uses an in-app dialog.
+  - Link checks kept showing an old margin after the frequency, power, mast height, antenna, loss or threshold changed. They now show "not checked" until re-run.
+  - The previous mission's path profile stayed open after loading another one.
+  - Link wording now agrees everywhere: a partly blocked Fresnel zone with margin is an amber caution, not a red "✗ obstructed". Link names in the Mission list are no longer cut off.
+  - The path-profile chart was a stretched fixed drawing that squashed its labels. It is now drawn at the panel's real size, with readable axes and units.
+- **PACE plan:**
+  - It now uses the radios actually carried. Each leg names its radios, and a band the mix suggests but nobody carries shows as "not carried — acquire" instead of looking filled.
+  - With base or vehicle sets on the Primary band, the Alternate becomes talk-around (simplex, no repeater) instead of a gap.
+  - 136–174 MHz radios counted as UHF, and the frequency plan named HF and satcom bands differently from PACE. Both now use one band rule. Microwave PTP kit is listed as backhaul, not a voice leg.
+  - The ops dashboard, readiness score and mission brief read fields PACE legs never had, so PACE always showed 0 of 4 tiers. Fixed.
+  - "Telemetry overlay" now reads "Also", since it also holds cellular notes.
 - **Bugs found in a full app run-through and code check:**
   - The satellite place names and roads come from Esri, so they disappeared whenever Esri is unreachable (it answers 403 on some networks). OpenFreeMap place names now stand in automatically. The CARTO label tiles first tried for this turned out to need an API key and only return an "API KEY REQUIRED" watermark.
   - The existing **Carto Voyager** topo basemap showed only that watermark for everyone; it is removed. A mission file that names it opens on OpenTopoMap instead of a black map (any unknown basemap variant now falls back).

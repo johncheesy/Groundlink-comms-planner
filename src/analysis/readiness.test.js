@@ -62,7 +62,7 @@ describe('dimension helpers', () => {
   it('pace: share of legs with something assigned', () => {
     expect(dimPace(null)).toBeNull();
     expect(dimPace({ legs: [] })).toBeNull();
-    expect(dimPace({ legs: [{ primary: 'x' }, { assets: [1] }, {}, {}] })).toBe(50);
+    expect(dimPace({ legs: [{ status: 'ok' }, { status: 'asset' }, { status: 'gap' }, { status: 'recommend' }] })).toBe(50);
   });
   it('deconfliction: none = 100, errors weigh more than warnings, floor 0', () => {
     expect(dimDeconfliction(null)).toBeNull();

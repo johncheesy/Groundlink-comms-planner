@@ -60,6 +60,14 @@ export function initDragMove(map, registry, { onLiveCoord, onDrop, onStatus } = 
     if (!m || m.__glDragWired) return;
     m.__glDragWired = true;
     m.setDraggable?.(!entry.locked);
+    // MapLibre arms a marker drag on any mouse button. A right-click (or
+    // ctrl-click) opens the context menu, which takes the mouseup, so the drag
+    // stayed armed and the next move over the map dragged the site away — e.g.
+    // while picking the far end of a radio link. Keep those presses from the
+    // map's drag handler; the contextmenu event itself is unaffected.
+    m.getElement()?.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.ctrlKey) e.stopPropagation();
+    });
 
     m.on('dragstart', () => {
       const e = registry.get(entry.id);

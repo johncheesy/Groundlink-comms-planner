@@ -9,6 +9,8 @@
  * No external dependencies. Same blob-URL pattern as brief.js (M37).
  */
 
+import { radioBand } from '../pace/pace.js';
+
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -36,9 +38,9 @@ function roleLabel(role) {
 function paceTier(radio, paceLegs = []) {
   if (!paceLegs?.length) return '—';
   // Match by band label
-  const band = bandFromFreq(radio.defaultFreqMHz ?? radio.freqRangeMHz?.[0]);
-  const leg = paceLegs.find((l) => l.band === band);
-  return leg?.tier ?? '—';
+  const band = radioBand(radio);
+  const legs = paceLegs.filter((l) => l.band === band && l.status !== 'recommend');
+  return legs.length ? legs.map((l) => l.tier).join(' / ') : '—';
 }
 
 function bandFromFreq(mhz) {

@@ -7,14 +7,14 @@
  */
 
 import { haversineM } from '../coverage/model.js';
+import { linkVerdict, LINK_FADE_MARGIN_DB } from '../analysis/path-profile.js';
+
+export { LINK_FADE_MARGIN_DB };
 
 const SRC = 'gl-radio-links';
 const LAYER = 'gl-radio-links';
 const LAYER_CASE = 'gl-radio-links-case';
 const LAYER_DASH = 'gl-radio-links-dash';
-
-/** Margin (dB) a link needs to count as solid — room for fading. */
-export const LINK_FADE_MARGIN_DB = 10;
 
 /**
  * Status of a checked link from its path-profile result.
@@ -22,11 +22,7 @@ export const LINK_FADE_MARGIN_DB = 10;
  * @returns {'unknown'|'ok'|'warn'|'bad'}
  */
 export function linkStatus(check) {
-  if (!check?.budget || !Number.isFinite(check.budget.marginDb)) return 'unknown';
-  const m = check.budget.marginDb;
-  if (m < 0) return 'bad';
-  if (m < LINK_FADE_MARGIN_DB || check.obstructed) return 'warn';
-  return 'ok';
+  return linkVerdict(check).status;
 }
 
 /**

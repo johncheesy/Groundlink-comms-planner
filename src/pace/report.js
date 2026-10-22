@@ -289,12 +289,14 @@ function paceTable(plan) {
   const rows = plan.legs
     .map((l) => {
       const col = TIER_COLOR[l.tier] || '#888';
-      const gap = l.status === 'gap' ? ' gap' : '';
+      const gap = l.status === 'gap' || l.status === 'recommend' ? ' gap' : '';
       const tag = l.status === 'separate' ? ' <span class="sub">(separate module)</span>'
-        : l.status === 'asset' ? ' <span class="sub">(asset — no raster)</span>' : '';
+        : l.status === 'asset' ? ' <span class="sub">(asset — no raster)</span>'
+          : l.status === 'recommend' ? ' <span class="sub">(not in your equipment — acquire)</span>' : '';
+      const kit = l.radios?.length && l.status !== 'recommend' ? `<br><span class="sub">${esc(l.radios.join(', '))}</span>` : '';
       return `<tr class="${gap.trim()}"><td class="tier" style="border-left-color:${col}">` +
         `<span class="chip" style="background:${col}">${esc(l.tier)}</span></td>` +
-        `<td class="bearer">${esc(bearer(l))}${tag}</td>` +
+        `<td class="bearer">${esc(bearer(l))}${tag}${kit}</td>` +
         `<td>${esc(l.role)}</td><td class="why">${esc(l.why)}</td></tr>`;
     })
     .join('');

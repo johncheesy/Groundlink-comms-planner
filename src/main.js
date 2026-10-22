@@ -2,6 +2,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import '../styles/index.css';
 import { esc as htmlEsc } from './util/esc.js';
+import { confirmDialog } from './ui/confirm.js';
 
 import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
@@ -85,6 +86,7 @@ import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
 import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg, withGain } from './coverage/antenna.js';
 import { updateAntennaBeams } from './map/antenna-beams.js';
 import { linkFeatures, linkStatus, updateRadioLinks, RADIO_LINK_LAYERS, LINK_FADE_MARGIN_DB } from './map/radio-links.js';
+import { linkVerdict } from './analysis/path-profile.js';
 import { createMapKey } from './ui/map-key.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { terrainCredit } from './data/terrain-tiles.js';
@@ -841,6 +843,11 @@ let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
 // The radio set's antenna gain + feeder loss land in the antenna controls,
 // which are looked up further down: a set restored at start-up waits for them.
 let pendingRadioRf = null;
+// Coverage fields the planner set by hand or loaded from a mission file
+// ('freq' | 'txHeight' | 'rxHeight' | 'thresholds'). Applying a radio set keeps
+// them: a talk-in-corrected threshold or a site's real mast height is not the
+// radio's default to overwrite.
+const plannerSet = new Set();
 let antennaUiReady = false;
 // M50: last path-profile check per radio link: id → { key, data }. A check
 // only counts while its inputs (ends, heights, power, band) are unchanged.
@@ -1474,24 +1481,8 @@ whenStyleReady(() => {
 
   // ---- Radios (M5): active set, picker, FCC/manual, mix ----------------
   radios = createRadios(radioEls(), {
-    onApply(vals) {
-      freqInput.value = String(Math.round(vals.freqMHz));
-      powerInput.value = String(vals.powerW);
-      txHeightInput.value = String(vals.txHeightM);
-      rxHeightInput.value = String(vals.rxHeightM);
-      thExcellent.value = String(vals.thresholds.excellent);
-      thGood.value = String(vals.thresholds.good);
-      thMarginal.value = String(vals.thresholds.marginal);
-      thNone.value = String(vals.thresholds.none);
-      pendingRadioRf = vals;
-      if (antennaUiReady) applyRadioRf();
-      updateSignalLegend();
-      coverageHelp.textContent = vals.rasterMeaningful
-        ? `Coverage controls set from the active radio set — talk-in at ${vals.rxHeightM} m, ` +
-          `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`
-        : `Active tx is ${vals.txRole.toUpperCase()} — a PACE asset, not a terrestrial line-of-sight band. ` +
-          `The FSPL raster won't represent ${vals.txRole === 'hf' ? 'HF (NVIS/ALE — a separate module)' : 'satcom'}; ` +
-          `use the radio mix for the PACE plan. Controls are set for VHF/UHF comparison only.`;
+    onApply(vals, { infra } = {}) {
+      applyRadioVals(vals, { txRange: infra?.freqRangeMHz });
     },
     onStatus(msg) { statusMode.textContent = msg; },
     onArsenalChange() {
@@ -1847,7 +1838,7 @@ whenStyleReady(() => {
     let byType = null;
     for (const file of files) {
       if (looksLikeMissionFile(file.name)) {
-        loadMissionFromText(await file.text(), file.name);
+        await loadMissionFromText(await file.text(), file.name);
         continue;
       }
       if (/\.json$/i.test(file.name)) {
@@ -1855,7 +1846,7 @@ whenStyleReady(() => {
         try {
           text = await file.text();
           if (isMissionData(JSON.parse(text))) {
-            loadMissionFromText(text, file.name);
+            await loadMissionFromText(text, file.name);
             continue;
           }
         } catch {
@@ -2097,6 +2088,70 @@ function applyRadioRf() {
   refreshEirpReadout();
   refreshBeams();
 }
+/**
+ * Radio set → coverage controls. Power, antenna gain and feeder loss always
+ * come from the radio; frequency, heights and thresholds only where the
+ * planner has not set them (a kept frequency must lie in the tx radio's range).
+ * `force` takes every value from the radio.
+ */
+function applyRadioVals(vals, { txRange = null, force = false } = {}) {
+  if (force) plannerSet.clear();
+  const kept = [];
+  const freqNow = Number(freqInput.value);
+  const freqFits = !txRange || (freqNow >= txRange[0] && freqNow <= txRange[1]);
+  if (plannerSet.has('freq') && freqFits) kept.push('frequency');
+  else { freqInput.value = String(Math.round(vals.freqMHz)); plannerSet.delete('freq'); }
+  powerInput.value = String(vals.powerW);
+  if (plannerSet.has('txHeight')) kept.push('mast height');
+  else txHeightInput.value = String(vals.txHeightM);
+  if (plannerSet.has('rxHeight')) kept.push('rx height');
+  else rxHeightInput.value = String(vals.rxHeightM);
+  if (plannerSet.has('thresholds')) kept.push('thresholds');
+  else {
+    thExcellent.value = String(vals.thresholds.excellent);
+    thGood.value = String(vals.thresholds.good);
+    thMarginal.value = String(vals.thresholds.marginal);
+    thNone.value = String(vals.thresholds.none);
+  }
+  pendingRadioRf = vals;
+  if (antennaUiReady) applyRadioRf();
+  updateSignalLegend();
+  refreshLinks();
+  if (!vals.rasterMeaningful) {
+    coverageHelp.textContent =
+      `Active tx is ${vals.txRole.toUpperCase()} — a PACE asset, not a terrestrial line-of-sight band. ` +
+      `The FSPL raster won't represent ${vals.txRole === 'hf' ? 'HF (NVIS/ALE — a separate module)' : 'satcom'}; ` +
+      `use the radio mix for the PACE plan. Controls are set for VHF/UHF comparison only.`;
+    return;
+  }
+  coverageHelp.textContent = kept.length
+    ? `Power, antenna and loss set from the radio set; kept your ${listWords(kept)}. Compute to plot. `
+    : `Coverage controls set from the active radio set — talk-in at ${rxHeightInput.value} m, ` +
+      `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`;
+  if (kept.length) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn--ghost btn--sm';
+    btn.textContent = 'Use radio values';
+    btn.addEventListener('click', () => applyRadioVals(vals, { txRange, force: true }));
+    coverageHelp.append(btn);
+  }
+}
+const listWords = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+
+// A planner's own edit marks the field as theirs (see plannerSet).
+freqInput.addEventListener('input', () => plannerSet.add('freq'));
+txHeightInput.addEventListener('input', () => plannerSet.add('txHeight'));
+rxHeightInput.addEventListener('input', () => plannerSet.add('rxHeight'));
+for (const el of [thExcellent, thGood, thMarginal, thNone]) el?.addEventListener('input', () => plannerSet.add('thresholds'));
+
+// A link check is valid only for the inputs it ran with (linkKey): redraw the
+// list and lines when any of them changes, so an old margin shows as unchecked.
+for (const el of [freqInput, powerInput, txHeightInput, antennaPreset, antennaGain, txLossInput, thNone]) {
+  el?.addEventListener('input', () => refreshLinks());
+  el?.addEventListener('change', () => refreshLinks());
+}
+
 antennaUiReady = true;
 applyRadioRf();
 refreshEirpReadout();
@@ -2501,6 +2556,8 @@ function gatherPaceContext() {
   return {
     mix,
     structures: radios?.getStructures?.() ?? [],
+    arsenal: radios?.getArsenal?.() ?? [],
+    links: mission.getLinks?.().length ?? 0,
     ewThreat: $('#ewThreat')?.value ?? 'medium',
     cellForPace: $('#cellForPace')?.value ?? 'none',
     sites: {
@@ -2540,11 +2597,17 @@ function renderPace(plan) {
   pacePlan.innerHTML = plan.legs
     .map((l) => {
       const bearer = l.status === 'gap' ? '— not filled —' : htmlEsc(l.band || l.asset || '');
-      const tag = l.status === 'separate' ? ' · separate module' : l.status === 'asset' ? ' · asset' : '';
+      const tag = l.status === 'separate' ? ' · separate module'
+        : l.status === 'asset' ? ' · asset'
+          : l.status === 'recommend' ? ' · not carried' : '';
+      const kit = l.radios?.length && l.status !== 'recommend'
+        ? `<span class="pace-kit" title="${htmlEsc(l.radios.join('\n'))}">${htmlEsc(l.radios.slice(0, 2).join(' · '))}` +
+          `${l.radios.length > 2 ? ` · +${l.radios.length - 2} more` : ''}</span>` : '';
+      const off = l.status === 'gap' || l.status === 'recommend';
       return (
-        `<div class="pace-row${l.status === 'gap' ? ' pace-row--gap' : ''}">` +
+        `<div class="pace-row${off ? ' pace-row--gap' : ''}">` +
         `<span class="pace-tier badge ${PACE_BADGE[l.tier] || 'badge--ref'}">${htmlEsc(l.tier)}</span>` +
-        `<span class="pace-bearer">${bearer}<span class="pace-tag">${htmlEsc(tag)}</span></span>` +
+        `<span class="pace-bearer">${bearer}<span class="pace-tag">${htmlEsc(tag)}</span>${kit}</span>` +
         `<span class="pace-why">${htmlEsc(l.role)} — ${htmlEsc(l.why)}</span>` +
         `</div>`
       );
@@ -3851,6 +3914,8 @@ function applyMissionState(m) {
     coverage?.clear?.();
     clearCloudRFResult();
     clearCliffLayer(map);
+    profilePanel.hide(); // the old mission's path profile
+    linkChecks.clear();
     opacityRow.hidden = true;
     if (showNoneRow) showNoneRow.hidden = true;
     for (const wp of waypoints?.getAll?.() ?? []) waypoints.remove(wp.id);
@@ -3896,7 +3961,12 @@ function applyMissionState(m) {
     }
 
     const c = m.coverage;
+    plannerSet.clear();
     if (c) {
+      if (c.freqMHz != null) plannerSet.add('freq');
+      if (c.txHeightM != null) plannerSet.add('txHeight');
+      if (c.rxHeightM != null) plannerSet.add('rxHeight');
+      if (c.thresholds) plannerSet.add('thresholds');
       if (c.freqMHz != null) freqInput.value = String(c.freqMHz);
       if (c.powerW != null) powerInput.value = String(c.powerW);
       if (c.txHeightM != null) txHeightInput.value = String(c.txHeightM);
@@ -3962,14 +4032,18 @@ function applyMissionState(m) {
   setDirty(false);
 }
 
-/** Parse + confirm + apply mission-file text. Returns true when loaded. */
-function loadMissionFromText(text, name) {
+/** Parse + confirm + apply mission-file text. Resolves true when loaded. */
+async function loadMissionFromText(text, name) {
   const r = parseMission(text);
   if (!r.ok) {
     statusMode.textContent = r.error;
     return false;
   }
-  if (missionDirty && !window.confirm('Replace the current mission? Unsaved changes will be lost.')) {
+  if (missionDirty && !(await confirmDialog({
+    title: 'Replace the current mission?',
+    message: `Opening ${name} replaces what is on the map. Unsaved changes are lost — save first if you need them.`,
+    confirmLabel: 'Replace mission',
+  }))) {
     statusMode.textContent = 'Mission load cancelled';
     return false;
   }
@@ -4284,13 +4358,15 @@ function refreshLinks() {
     const data = checks.get(id);
     const li = document.createElement('li');
     li.className = 'link-row';
+    const v = linkVerdict(data);
     const badge = status === 'unknown'
       ? '<span class="badge">not checked</span>'
-      : `<span class="badge badge--${status}" data-numeric title="${data.obstructed ? 'Fresnel zone blocked: raise a mast or move a site' : 'Margin over the receiver sensitivity'}">` +
-        `${data.budget.marginDb >= 0 ? '+' : ''}${data.budget.marginDb.toFixed(0)} dB${data.obstructed ? ', blocked' : ''}</span>`;
+      : `<span class="badge badge--${status}" data-numeric title="Margin over the receiver sensitivity: ${htmlEsc(v.text)}">` +
+        `${data.budget.marginDb >= 0 ? '+' : ''}${data.budget.marginDb.toFixed(0)} dB${v.short ? ` · ${v.short}` : ''}</span>`;
     li.innerHTML =
-      `<span class="link-row__name"></span><span class="link-row__km" data-numeric>${km} km</span>${badge}` +
-      `<span><button class="btn btn--sm" type="button" data-act="check">Profile</button>` +
+      `<span class="link-row__name"></span>` +
+      `<span class="link-row__meta"><span class="link-row__km" data-numeric>${km} km</span>${badge}</span>` +
+      `<span class="link-row__acts"><button class="btn btn--sm" type="button" data-act="check">Profile</button>` +
       `<button class="link-row__del" type="button" data-act="del" aria-label="Remove link">×</button></span>`;
     li.querySelector('.link-row__name').textContent = label;
     li.title = label;
@@ -4326,13 +4402,12 @@ async function checkLink(id, { show = true } = {}) {
   if (!data) return null;
   linkChecks.set(id, { key, data });
   refreshLinks();
-  const st = linkStatus(data);
+  const verdict = linkVerdict(data);
   const name = l.label || `${a.name || 'Site'} – ${b.name || 'Site'}`;
-  statusMode.textContent = st === 'ok'
-    ? `${name}: link closes with ${data.budget.marginDb.toFixed(0)} dB margin`
-    : st === 'warn'
-      ? `${name}: link is tight (${data.budget.marginDb.toFixed(0)} dB${data.obstructed ? ', Fresnel zone blocked' : ''}; aim for ≥ ${LINK_FADE_MARGIN_DB} dB)`
-      : `${name}: link does not close (${data.budget.marginDb.toFixed(0)} dB)`;
+  const margin = `${data.budget.marginDb >= 0 ? '+' : ''}${data.budget.marginDb.toFixed(0)} dB`;
+  statusMode.textContent = verdict.status === 'ok'
+    ? `${name}: link closes with ${margin} margin`
+    : `${name}: ${margin}, ${verdict.text}`;
   return data;
 }
 
@@ -4346,7 +4421,7 @@ $('#checkLinksBtn')?.addEventListener('click', async () => {
   const byId = new Map(mission.getSites().map((s) => [s.id, s]));
   const bad = links.filter((l) => linkStatus(currentCheck(l, byId)) === 'bad').length;
   const warn = links.filter((l) => linkStatus(currentCheck(l, byId)) === 'warn').length;
-  statusMode.textContent = `${links.length} link${links.length === 1 ? '' : 's'} checked — ${bad} do not close, ${warn} need attention (margin under ${LINK_FADE_MARGIN_DB} dB or Fresnel zone blocked)`;
+  statusMode.textContent = `${links.length} link${links.length === 1 ? '' : 's'} checked — ${bad} do not close, ${warn} to watch (margin under ${LINK_FADE_MARGIN_DB} dB or Fresnel zone partly blocked)`;
 });
 
 function addLinkUndoable(a, b) {

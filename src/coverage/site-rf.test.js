@@ -6,6 +6,7 @@ import { describeAssumptions } from '../analysis/assumptions.js';
 import { predictDbm } from '../analysis/calibration.js';
 import { linkBudget } from '../analysis/path-profile.js';
 import { linkStatus, linkFeatures } from '../map/radio-links.js';
+import { linkVerdict } from '../analysis/path-profile.js';
 import { parseSiteRf } from '../ui/site-rf-popup.js';
 
 describe('antenna gain from the radio set (M50)', () => {
@@ -87,5 +88,15 @@ describe('site RF popover parsing (M50)', () => {
     expect(parseSiteRf('25', '2,5')).toEqual({ txHeightM: 25, powerW: 2.5 });
     expect(parseSiteRf('0', '500')).toEqual({ txHeightM: 1, powerW: 100 });
     expect(parseSiteRf('abc', '')).toEqual({ error: 'Mast height is not a number' });
+  });
+});
+
+describe('linkVerdict — one wording for list, line, profile and status bar', () => {
+  it('treats a blocked Fresnel zone with margin as a caution, not a failure', () => {
+    expect(linkVerdict(null)).toMatchObject({ status: 'unknown' });
+    expect(linkVerdict({ budget: { marginDb: -2 }, obstructed: true })).toMatchObject({ status: 'bad', text: 'does not close' });
+    expect(linkVerdict({ budget: { marginDb: 52 }, obstructed: true })).toMatchObject({ status: 'warn', text: 'Fresnel zone partly blocked' });
+    expect(linkVerdict({ budget: { marginDb: 6 }, obstructed: false })).toMatchObject({ status: 'warn', short: 'tight' });
+    expect(linkVerdict({ budget: { marginDb: 30 }, obstructed: false })).toMatchObject({ status: 'ok', text: 'clear' });
   });
 });

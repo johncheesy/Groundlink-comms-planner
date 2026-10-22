@@ -910,9 +910,9 @@ input.wp-popup-name:focus {
 }
 .link-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
   padding: 4px 6px 4px 9px;
   border: 1px solid var(--hair);
   border-radius: 8px;
@@ -921,10 +921,14 @@ input.wp-popup-name:focus {
   color: var(--ink);
 }
 .link-row__name {
+  grid-column: 1 / -1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
+.link-row__meta { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.link-row__acts { display: flex; align-items: center; gap: 2px; }
 .link-row__km { color: var(--dim); }
 .link-row__del {
   border: 0;
@@ -1066,6 +1070,13 @@ input.wp-popup-name:focus {
 }
 
 .radio-editor { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 6px; }
+/* Seven numeric fields wrap instead of clipping the last ones off the panel. */
+.radio-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+}
+.radio-editor__grid .input { width: 100%; }
 .fcc-fallback { margin-top: var(--sp-2); }
 
 .radio-mix {
@@ -1119,7 +1130,14 @@ input.wp-popup-name:focus {
   color: var(--ink);
   flex: 1 1 auto;
 }
-.pace-tag { font-weight: 500; color: var(--dim); font-size: 11px; }
+.pace-tag { font-weight: 500; color: var(--dim); font-size: 12px; }
+.pace-kit {
+  display: block;
+  font-family: var(--ui);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink);
+}
 .pace-why { font-size: 12px; color: var(--dim); flex: 1 1 100%; line-height: 1.4; }
 
 .pace-structure {
@@ -1340,7 +1358,17 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-radius: var(--r-sm);
   font-size: 12px;
 }
-.structure-item__name { font-weight: 600; flex-shrink: 0; color: var(--accent); }
+.structure-item__name {
+  font-weight: 600;
+  flex: 0 1 auto;
+  max-width: 55%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+}
+.structure-item__use { flex-shrink: 0; }
 .structure-item__radios { color: var(--dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .structure-item__remove {
   flex-shrink: 0;
@@ -2614,60 +2642,66 @@ select.input--sm { text-align: left; padding-right: 6px; }
   min-height: 0;
 }
 
-/* Chart fills the available width; budget table sits beside it (stacks narrow). */
-.profile-chart__svg {
-  display: block;
-  width: 100%;
-  height: 100%;
+/* Chart fills the available width; budget table sits beside it (stacks narrow).
+   The SVG is drawn at the plot's real pixel size (profile-chart.js), so text
+   is never stretched. */
+.profile-chart__plot {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   border: 1px solid var(--hair);
   border-radius: var(--r-sm);
   background: var(--bg);
 }
+.profile-chart__svg { display: block; }
 
 .profile-chart__ground { fill: var(--surface2); stroke: var(--dim); stroke-width: 1; }
-.profile-chart__grid { stroke: var(--hair); stroke-width: 0.5; }
+.profile-chart__grid { stroke: var(--hair); stroke-width: 1; }
 .profile-chart__tick {
   fill: var(--dim);
-  font-size: 9px;
+  font-size: 11px;
   font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
 }
 .profile-chart__los {
   stroke: var(--accent);
-  stroke-width: 1.4;
+  stroke-width: 1.5;
   stroke-dasharray: 5 3;
   fill: none;
 }
-.profile-chart__fresnel { fill: none; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.profile-chart__fresnel { fill: none; stroke-width: 1.25; }
 .profile-chart__fresnel--clear { stroke: var(--s1); }
-.profile-chart__fresnel--blocked { stroke: var(--bad); }
-.profile-chart__node { fill: var(--accent); stroke: #fff; stroke-width: 1; }
+.profile-chart__fresnel--blocked { stroke: var(--warn); }
+.profile-chart__node { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
 .profile-chart__end {
   fill: var(--ink);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   font-family: var(--ui);
 }
-.profile-chart__obstruction { fill: var(--bad); stroke: #fff; stroke-width: 1; }
+.profile-chart__obstruction { fill: var(--warn); stroke: var(--surface); stroke-width: 1.5; }
 .profile-chart__obstruction-label {
-  fill: var(--bad);
-  font-size: 9px;
+  fill: var(--warn);
+  font-size: 11px;
   font-weight: 600;
   font-family: var(--ui);
 }
 
 /* Link-budget table beside the chart. */
 .profile-budget-table {
-  flex: 0 0 200px;
+  flex: 0 0 236px;
   align-self: flex-start;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.35;
 }
 .profile-budget-table th,
 .profile-budget-table td {
-  padding: 3px 6px;
+  padding: 4px 6px;
   text-align: left;
+  vertical-align: baseline;
   border-bottom: 1px solid var(--hair);
 }
 .profile-budget-table th {
@@ -2679,13 +2713,19 @@ select.input--sm { text-align: left; padding-right: 6px; }
   color: var(--ink);
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+.profile-budget-table tr:last-child th,
+.profile-budget-table tr:last-child td { border-bottom: 0; }
+.profile-budget-table tr:last-child td { white-space: normal; }
 .profile-budget__status { font-weight: 600; }
 .profile-budget__status--ok { color: var(--ok); }
+.profile-budget__status--warn { color: var(--warn); }
 .profile-budget__status--bad { color: var(--bad); }
 
 @media (max-width: 640px) {
   .profile-panel__body { flex-direction: column; }
+  .profile-chart__plot { flex: 1 1 140px; height: auto; }
   .profile-budget-table { flex: 0 0 auto; align-self: stretch; }
 }
 

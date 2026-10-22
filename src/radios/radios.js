@@ -51,9 +51,12 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
   }
   const persist = () => saveRadioSet({ userRadios, arsenal, inactiveArsenal: [...inactive], activeInfraId, activeFieldId, structures });
 
-  // ── Working list (library overlaid by user radios) ─────────────────────
+  // ── Working list (library + the arsenal's own radios, overlaid by user radios)
+  // A mission file brings its own radios (arsenal) and structures that point at
+  // them, so the arsenal must be searchable and resolvable like the library.
   function workingList() {
     const byId = new Map(LIBRARY.map((r) => [r.id, normalizeRadio(r)]));
+    for (const r of arsenal) if (!byId.has(r.id)) byId.set(r.id, r);
     for (const r of userRadios) byId.set(r.id, r); // user override/add wins
     return [...byId.values()];
   }
@@ -185,7 +188,12 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     form.querySelector('[name="gain"]').value = seed?.antennaGainDbi ?? '';
     form.querySelector('[name="loss"]').value = seed?.feederLossDb ?? '';
     form.querySelector('[name="price"]').value = seed?.price ?? ''; // M26: optional unit price
-    form.querySelector('[name="label"]').focus();
+    // The editor sits inside the "Add by FCC ID / manual" disclosure: open it,
+    // or Edit seems to do nothing.
+    const disclosure = form.closest('details');
+    if (disclosure) disclosure.open = true;
+    form.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    form.querySelector('[name="label"]').focus({ preventScroll: true });
   }
 
   function saveEditor() {
@@ -205,8 +213,18 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       source: 'manual', // any edit / manual add flips the source
     });
     upsertUserRadio(radio);
+    // An edited carried radio is part of the mission: update the arsenal copy too.
+    const ai = arsenal.findIndex((r) => r.id === radio.id);
+    if (ai >= 0) {
+      arsenal[ai] = radio;
+      persist();
+      renderArsenal();
+      onArsenalChange?.(getArsenal());
+    }
     form.hidden = true;
     renderResults(els.searchInput.value);
+    reflectActive();
+    renderStructures();
     onStatus?.(`Saved ${radio.label}`);
   }
 
@@ -346,6 +364,7 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
         `<li class="structure-item" data-sid="${esc(s.id)}">` +
         `<span class="structure-item__name" role="button" tabindex="0" title="Click to rename">${esc(s.name)}</span>` +
         `<span class="structure-item__radios">${esc(infraName)} / ${esc(fieldName)}</span>` +
+        `<button class="btn btn--sm structure-item__use" type="button" title="Make this the active set and apply it to coverage"${infra || field ? '' : ' disabled'}>Use</button>` +
         `<button class="structure-item__remove" type="button" title="Remove structure" aria-label="Remove structure ${esc(s.name)}">×</button>` +
         `</li>`
       );
@@ -354,6 +373,18 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       const li = span.closest('.structure-item');
       span.addEventListener('click', () => startRename(li));
       span.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startRename(li); } });
+    });
+    els.structuresList.querySelectorAll('.structure-item__use').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const s = structures.find((x) => x.id === btn.closest('.structure-item')?.dataset.sid);
+        if (!s) return;
+        activeInfraId = findRadio(s.infraId) ? s.infraId : null;
+        activeFieldId = findRadio(s.fieldId) ? s.fieldId : null;
+        persist();
+        reflectActive();
+        apply();
+        onStatus?.(`${s.name} applied to coverage`);
+      });
     });
     els.structuresList.querySelectorAll('.structure-item__remove').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -456,6 +487,8 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       persist();
       renderArsenal();
       renderStructures();
+      renderResults(els.searchInput.value);
+      reflectActive();
       onArsenalChange?.(getArsenal());
     },
     destroy() {},

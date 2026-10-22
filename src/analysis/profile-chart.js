@@ -9,11 +9,11 @@
  *   upper = 2·LOS − ground − clearance   ( = LOS + 0.6·r1 )
  */
 
-const VIEW_W = 600;
-const VIEW_H = 220;
-const M = { top: 12, right: 14, bottom: 26, left: 46 }; // plot margins (px)
-const PLOT_W = VIEW_W - M.left - M.right;
-const PLOT_H = VIEW_H - M.top - M.bottom;
+import { linkVerdict } from './path-profile.js';
+
+const M = { top: 14, right: 16, bottom: 30, left: 58 }; // plot margins (px)
+const MIN_W = 240;
+const MIN_H = 120;
 
 const fmtKm = (km) => (km >= 10 ? km.toFixed(0) : km.toFixed(1));
 const fmtDb = (db) => `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB`;
@@ -25,6 +25,29 @@ const fmtDb = (db) => `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB`;
  *                        obstructed, budget }
  */
 export function renderProfileChart(container, data) {
+  container.innerHTML = `<div class="profile-chart__plot"></div>${budgetTable(data)}`;
+  const plot = container.querySelector('.profile-chart__plot');
+  // Draw at the plot's real pixel size so labels keep their shape (a stretched
+  // fixed viewBox squashed every number); redraw when the drawer resizes.
+  const draw = () => {
+    const W = Math.max(MIN_W, Math.round(plot.clientWidth));
+    const H = Math.max(MIN_H, Math.round(plot.clientHeight));
+    if (plot.dataset.size === `${W}x${H}`) return;
+    plot.dataset.size = `${W}x${H}`;
+    plot.innerHTML = chartSvg(data, W, H);
+  };
+  draw();
+  container.__profileRo?.disconnect();
+  if (typeof ResizeObserver === 'function') {
+    container.__profileRo = new ResizeObserver(draw);
+    container.__profileRo.observe(plot);
+  }
+}
+
+/** The cross-section as an SVG string, laid out for a W × H px box. */
+function chartSvg(data, VIEW_W, VIEW_H) {
+  const PLOT_W = VIEW_W - M.left - M.right;
+  const PLOT_H = VIEW_H - M.top - M.bottom;
   const { distances, elevations, clearances, txElev, rxElev, distanceKm, obstructed } = data;
   const distanceM = data.distanceM ?? distanceKm * 1000;
   const n = elevations.length;
@@ -68,7 +91,7 @@ export function renderProfileChart(container, data) {
     const d = (distanceM * i) / 5;
     xTicks.push(
       `<line class="profile-chart__grid" x1="${sx(d).toFixed(1)}" y1="${M.top}" x2="${sx(d).toFixed(1)}" y2="${M.top + PLOT_H}" />` +
-      `<text class="profile-chart__tick" x="${sx(d).toFixed(1)}" y="${VIEW_H - 8}" text-anchor="middle">${fmtKm((distanceKm * i) / 5)}</text>`,
+      `<text class="profile-chart__tick" x="${sx(d).toFixed(1)}" y="${VIEW_H - 12}" text-anchor="${i === 5 ? 'end' : i === 0 ? 'start' : 'middle'}">${fmtKm((distanceKm * i) / 5)}${i === 5 ? ' km' : ''}</text>`,
     );
   }
   const yTicks = [];
@@ -76,7 +99,7 @@ export function renderProfileChart(container, data) {
     const e = yMin + ((yMax - yMin) * i) / 4;
     yTicks.push(
       `<line class="profile-chart__grid" x1="${M.left}" y1="${sy(e).toFixed(1)}" x2="${M.left + PLOT_W}" y2="${sy(e).toFixed(1)}" />` +
-      `<text class="profile-chart__tick" x="${M.left - 6}" y="${(sy(e) + 3).toFixed(1)}" text-anchor="end">${Math.round(e)}</text>`,
+      `<text class="profile-chart__tick" x="${M.left - 6}" y="${(sy(e) + 4).toFixed(1)}" text-anchor="end">${Math.round(e)}${i === 4 ? ' m' : ''}</text>`,
     );
   }
 
@@ -88,9 +111,13 @@ export function renderProfileChart(container, data) {
     const idx = data.minClearanceIdx ?? clearances.indexOf(Math.min(...clearances));
     const mx = sx(distances[idx]);
     const my = sy(elevations[idx]);
+    const nearL = mx < M.left + 60;
+    const nearR = mx > M.left + PLOT_W - 60;
     obstructionMark =
       `<circle class="profile-chart__obstruction" cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="4" />` +
-      `<text class="profile-chart__obstruction-label" x="${mx.toFixed(1)}" y="${(my - 8).toFixed(1)}" text-anchor="middle">obstruction</text>`;
+      // Near an end the label would sit on TX/RX: put it below the point, inside the plot.
+      `<text class="profile-chart__obstruction-label" x="${(nearL ? mx + 6 : nearR ? mx - 6 : mx).toFixed(1)}" ` +
+      `y="${(nearL || nearR ? my + 16 : my - 8).toFixed(1)}" text-anchor="${nearL ? 'start' : nearR ? 'end' : 'middle'}">obstruction</text>`;
   }
 
   const txY = sy(txElev);
@@ -98,8 +125,8 @@ export function renderProfileChart(container, data) {
   const x0 = sx(0);
   const xN = sx(distanceM);
 
-  const svg =
-    `<svg class="profile-chart__svg" viewBox="0 0 ${VIEW_W} ${VIEW_H}" preserveAspectRatio="none" role="img" aria-label="Terrain path profile">` +
+  return (
+    `<svg class="profile-chart__svg" viewBox="0 0 ${VIEW_W} ${VIEW_H}" width="${VIEW_W}" height="${VIEW_H}" role="img" aria-label="Terrain path profile">` +
     yTicks.join('') +
     xTicks.join('') +
     // Ground fill
@@ -115,17 +142,16 @@ export function renderProfileChart(container, data) {
     `<circle class="profile-chart__node" cx="${xN.toFixed(1)}" cy="${rxY.toFixed(1)}" r="3.5" />` +
     `<text class="profile-chart__end" x="${(x0 + 4).toFixed(1)}" y="${(txY - 6).toFixed(1)}" text-anchor="start">TX</text>` +
     `<text class="profile-chart__end" x="${(xN - 4).toFixed(1)}" y="${(rxY - 6).toFixed(1)}" text-anchor="end">RX</text>` +
-    `</svg>`;
-
-  container.innerHTML = svg + budgetTable(data);
+    `</svg>`
+  );
 }
 
-/** Compact link-budget table beneath the chart. */
+/** Compact link-budget table beside the chart. */
 function budgetTable(data) {
   const b = data.budget || {};
-  const status = b.viable && !data.obstructed
-    ? '<span class="profile-budget__status profile-budget__status--ok">✓ viable</span>'
-    : `<span class="profile-budget__status profile-budget__status--bad">✗ ${data.obstructed ? 'obstructed' : 'no margin'}</span>`;
+  const v = linkVerdict(data);
+  const mark = v.status === 'ok' ? '✓' : v.status === 'bad' ? '✗' : '⚠';
+  const status = `<span class="profile-budget__status profile-budget__status--${v.status}">${mark} ${v.text}</span>`;
   const rows = [
     ['FSPL', fmtDb(b.fsplDb ?? 0)],
     ['Diffraction loss', fmtDb(b.diffractionDb ?? 0)],
