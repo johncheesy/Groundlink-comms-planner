@@ -50,7 +50,7 @@ export function createBackendSettings(container, { onBackendChange } = {}) {
     `<label class="field-label" for="p1812P">Time %&nbsp;<input class="input input--mini" id="p1812P" type="number" value="50" min="1" max="50" step="1" /></label>` +
     `<label class="field-label" for="p1812PL">Location %&nbsp;<input class="input input--mini" id="p1812PL" type="number" value="50" min="1" max="99" step="1" /></label>` +
     `</div>` +
-    `<p class="help" id="p1812PctHelp">P.1812 percentiles: signal level met for this share of time / locations. 50/50 is the typical plot; lower time % = stronger short-term signal, higher location % = more conservative.</p>` +
+    `<p class="help" id="p1812PctHelp">P.1812 percentiles: signal level met for this share of time / locations. 50/50 is the typical plot; lower time % = stronger short-term signal, higher location % = more conservative. <a href="validation/index.html" target="_blank" rel="noopener">How this engine compares with the ITU reference</a>.</p>` +
     `<div class="backend-key-row">` +
     `<input class="input" id="cloudrfKey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="CloudRF API key" aria-label="CloudRF API key" />` +
     `<button class="btn" type="button" id="cloudrfTest">Test key</button>` +

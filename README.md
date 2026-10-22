@@ -14,6 +14,7 @@ Terrain-aware communications coverage and planning, in the browser. Define where
 |---|---|
 | **Coverage modelling** | FSPL + Deygout (M2), ITU-R P.1812 Delta-Bullington in-browser (E2), optional CloudRF ITM backend (M18) |
 | **Propagation models** | Auto / P.1812 / FSPL+Deygout / CloudRF — user-selectable; model accuracy badge with ±dB margin |
+| **Validation** | P.1812 engine checked step by step against the ITU-R WP 3M validation set — published at `/validation/` ([docs](docs/validation-p1812.md)) |
 | **Mission inputs** | Area (circle/polygon), fixed sites, route, points — lat/long, MGRS, or UTM (M4) |
 | **Site recommendation** | Greedy set-cover over demand points with scored relay positions (M3) |
 | **Drone relay** | Altitude optimiser — samples 6 AGL heights, bar chart UI, auto-applies best (M2.1, M42) |

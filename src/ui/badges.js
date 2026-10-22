@@ -17,7 +17,7 @@ import { NAV_GROUPS } from './groups.js';
 // ---- E3b: model accuracy badge -------------------------------------------
 
 const MODEL_ACCURACY = {
-  p1812:   { label: 'P.1812',       margin: '±8 dB',  tooltip: 'ITU-R P.1812 Delta-Bullington — validated on median propagation' },
+  p1812:   { label: 'P.1812',       margin: '±8 dB',  tooltip: 'ITU-R P.1812 Delta-Bullington. The calculation matches the ITU validation set step by step (see validation page); the margin is the model\'s typical spread against real signals' },
   deygout: { label: 'FSPL+Deygout', margin: '±12 dB', tooltip: 'Free-space path loss + Deygout diffraction — tends to overestimate loss at multiple edges' },
   cloudrf: { label: 'ITM/CloudRF',  margin: '±6 dB',  tooltip: 'Longley-Rice ITM via CloudRF API — more accurate but requires API key' },
   flat:    { label: 'FSPL flat',    margin: '±15 dB',  tooltip: 'Free-space path loss only — no terrain, no diffraction' },

@@ -194,7 +194,9 @@ differences; UI never freezes (worker); both themes.
   two-ray prediction for a 10 km / 10 m / 2 m / 150 MHz smooth path),
   percentile ordering, the no-double-count clutter property, and guard rails.
   Running the official vectors locally (not committed) is the remaining
-  validation follow-up.
+  validation follow-up. **Done 22 Oct 2026:** see `docs/validation-p1812.md`
+  — every stage within 0.001 dB in all 63 ITU cases after aligning the path
+  geometry with P.1812-8.
 - **Recommend worker keeps FSPL+Deygout** for its site-search scoring (speed);
   the final multi-site raster paint honours the selected engine. Engine choice
   and p/pL are session settings (M18 pattern), not yet in the mission file.

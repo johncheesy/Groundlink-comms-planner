@@ -25,6 +25,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+**P.1812 validation page** (`/validation/`, `docs/validation-p1812.md`)
+- The in-browser P.1812 engine is checked against the official ITU-R Working Party 3M validation set (63 cases, 1–235 km, 30 MHz–6 GHz). Every calculation step (free space, multipath, diffraction, troposcatter) now matches the reference to within 0.001 dB in all cases. The final loss differs in 16 cases, always as more loss, from two deliberate choices: the terminal clutter loss we keep from P.1812-6, and no ducting. The page shows the deviations only; the ITU profiles stay outside the repo (`scripts/validate-p1812.mjs` reproduces it). Linked from the P.1812 settings.
+- Fixed on the way, following P.1812-8: horizon angles, angular distance and the smooth-earth correction now use bare terrain (clutter only enters the diffraction profile), LoS multipath distances meet at the strongest Fresnel point, and β0 accepts land-stretch lengths. Before, diffraction on cluttered paths was up to 8 dB off and troposcatter up to 111 dB. 3 tests.
+
 **Interference map (M24 follow-up)** (`docs/M24-best-server.md`)
 - Multi-site coverage gets a third view next to Quality and Best server: **Interference**, the carrier-to-interference ratio (C/I) with every site on one channel, summed over all other sites instead of only the runner-up. Five bands from ≥20 dB to below 0 dB in the coverage colours, and a line saying how much of the covered area is below 12 dB. The overlap margin on the zone map is now adjustable (1–20 dB). Both views are in the ⌘K palette. Checked in the app with three masts 10–15 km apart: 93% of the covered area below 12 dB C/I. 3 tests.
 

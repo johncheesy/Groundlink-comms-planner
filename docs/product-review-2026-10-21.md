@@ -183,6 +183,7 @@ Effort: S under a day, M a few days, L a week or more.
 - **Antenna model (M49):** gain, beamwidth, pointing, front-to-back and rx gain with omni/dipole/Yagi/sector/panel presets (`src/coverage/antenna.js`).
 - **Interference map:** C/I view (all sites on one channel) next to best-server, adjustable overlap margin, ⌘K entries.
 - **Small fixes:** F11 coordinate formats, F14 real .docx/.xlsx, F15 satcom/HF follow routes and points, F17 satcom N/S/E/W.
+- **Validation page (part 1):** P.1812 against the ITU-R WP 3M validation set, every step within 0.001 dB in 63 cases; deviations published at `/validation/`. Field RSSI / CloudRF comparison still open.
 - **Sharpest open aerial imagery** per country and Esri licence handling shipped (PR #29).
 
 ### P2 — Reach and differentiation (later)
