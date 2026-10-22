@@ -1,6 +1,6 @@
 # 0003 — Comms-plan report export: client-side, zero dependency (M6)
 
-*Status: accepted · 2026-06-08*
+*Status: accepted · 2026-06-08 · amended 2026-10-22: Word and Excel are now real OOXML, still without a dependency*
 
 ## Context
 
@@ -48,3 +48,14 @@ Add true OOXML behind the same `exportReport()` API: SheetJS for `.xlsx`, the
 `docx` library for `.docx`, and optionally `jsPDF`/`pdf-lib` for a one-click
 `.pdf`. Each is a justified dependency *iff* the HTML-backed route proves
 insufficient in review — the export call site does not change.
+
+## Amendment — 22 Oct 2026
+
+Review item F14: the HTML-backed `.doc`/`.xls` made Excel warn on open. Word
+and Excel now export real `.docx` and `.xlsx`, still with **no dependency**:
+OOXML is a ZIP of XML parts, and the stored-ZIP writer from the KMZ export
+(`src/export/zip.js`) packs them. `src/export/ooxml.js` writes only what the
+report needs (headings, paragraphs, bullet lines, tables with shaded cells;
+sheets with inline strings, numeric cells, a bold header style and frozen
+header row). Checked with openpyxl, python-docx, macOS textutil and Quick
+Look. PDF stays the browser print route.

@@ -897,21 +897,8 @@ whenStyleReady(() => {
       // Feed the AOI into the mission (drives compute/recommend enablement).
       mission.setAoi(has ? aoi.getAoi() : null);
       refreshExportPanel();
-      hfPanel?.refresh(); // HF planning follows the AOI centre
-      // M38: update satcom look angles whenever AOI centre changes
-      const _aoiC = aoi?.getAoi?.()?.center;
-      if (_aoiC?.lat != null) {
-        satPanel?.update({ lat: _aoiC.lat, lng: _aoiC.lng });
-        // M47: capture best GEO status for readiness score
-        try {
-          const sa = satcomAssessment(_aoiC.lat, _aoiC.lng);
-          lastSatcomStatus = sa.bestGeo?.status ?? null;
-        } catch (_) { lastSatcomStatus = null; }
-        setTimeout(() => updateReadinessBadge?.(), 0);
-      } else {
-        satPanel?.clear();
-        lastSatcomStatus = null;
-      }
+      hfPanel?.refresh(); // HF planning follows the mission centre
+      refreshSatcom(); // M38: satcom look angles too
       if (!has) {
         // AOI removed → any recommended sites are stale.
         recommender?.clear();
@@ -951,7 +938,7 @@ whenStyleReady(() => {
     let hf;
     const refresh = () => {
       const p = hf.getParams();
-      const c = aoi?.getAoi?.()?.center;
+      const c = missionCentre();
       hf.update(c?.lat ?? 51.5, c?.lng ?? 0, p.dt, p.pathKm, p.solarCycle);
     };
     hf = createHfPanel(host, { onParamsChange: refresh });
@@ -960,7 +947,7 @@ whenStyleReady(() => {
   })();
 
   // M38: Satcom panel — GEO look angles + LEO system availability.
-  // Pure-math, no API calls. Updates whenever AOI changes (via aoi.onChange above).
+  // Pure-math, no API calls. Follows the mission centre (refreshSatcom).
   (() => {
     const host = $('#satcomPanelInner');
     if (!host) return;
@@ -970,14 +957,7 @@ whenStyleReady(() => {
         document.querySelector('#areaTitle')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       },
     });
-    // Seed with current AOI if one already exists (mission file load)
-    const c = aoi?.getAoi?.()?.center;
-    if (c?.lat != null) {
-      satPanel.update({ lat: c.lat, lng: c.lng });
-      try { lastSatcomStatus = satcomAssessment(c.lat, c.lng).bestGeo?.status ?? null; } catch (_) {}
-    } else {
-      satPanel.clear();
-    }
+    refreshSatcom(); // seed from whatever mission already exists (file load)
   })();
 
   // Coverage backend selector (M18) — built-in engine or hosted CloudRF ITM.
@@ -2102,9 +2082,37 @@ function refreshExportPanel() {
   exportPanel?.refresh(hasCoverage || hasMission);
 }
 
+/**
+ * Where the mission is, for the location-only panels (satcom, HF): the AOI
+ * centre, else the middle of the sites / route / points (review F15).
+ */
+function missionCentre() {
+  const c = aoi?.getAoi?.()?.center;
+  if (c?.lat != null) return c;
+  const b = mission?.bbox?.();
+  return b ? { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 } : null;
+}
+
+/** M38: satcom look angles + the M47 readiness input follow the mission centre. */
+function refreshSatcom() {
+  const c = missionCentre();
+  if (c) {
+    satPanel?.update({ lat: c.lat, lng: c.lng });
+    try {
+      lastSatcomStatus = satcomAssessment(c.lat, c.lng).bestGeo?.status ?? null;
+    } catch (_) { lastSatcomStatus = null; }
+  } else {
+    satPanel?.clear();
+    lastSatcomStatus = null;
+  }
+  setTimeout(() => updateReadinessBadge?.(), 0);
+}
+
 function onMissionChange(s) {
   markDirty(); // any mission edit is unsaved work (M21 §A)
   refreshExportPanel();
+  refreshSatcom();
+  hfPanel?.refresh();
   if (!missionElements) return;
   const showRow = (type, n) => {
     const row = missionElements.querySelector(`[data-type="${type}"]`);

@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Coordinates as people paste them** (review F11, `src/geo/coords.js`): decimal comma (`52,3676 4,9041`, also with `;` or `, `), hemisphere prefixes (`N52.5 E4.5`), brackets, leading `+`, semicolons, unicode minus, `geo:` URIs and Google / OpenStreetMap / Apple Maps links. A bare `52,5` stays a lat,lng pair. Works in search and bulk add. 7 tests.
+- **Satcom and HF follow route and point missions** (review F15): without an area they use the middle of the sites, route and points instead of asking for an area. The readiness score's satcom input follows too.
+- **Satcom footer hemisphere** (review F17): southern and western positions print as "1.3011° S", not "−1.3011° N".
+- **Real Word and Excel files** (review F14, `src/export/ooxml.js`): the comms-plan report now downloads a true `.docx` (headings, tables, coloured PACE tiers) and `.xlsx` (one sheet per table, numbers as numbers, frozen headers) instead of HTML renamed to `.doc`/`.xls`, so Excel no longer warns on open. Still no dependency: OOXML is zipped XML and the KMZ zip writer packs it. Checked with openpyxl, python-docx, textutil and Quick Look. 5 tests.
+
 ### Changed
 - **Real tree heights in clutter** (`src/data/canopy.js`, ADR 0008). Meta/WRI's canopy height map (~1.2 m, read at about 25–40 m) replaces the fixed 20 m per forest pixel: a young stand or open bush now blocks less than a tall forest, and tree lines in farmland count. Read from a CORS mirror on source.coop, the overview that fits the area, two requests per tile. Checked against land cover: Veluwe forest median 11–12 m and other classes 0 m, Amazon 20 m. Areas over about 150 km keep the class table. 15 tests.
 - **Sharper LiDAR terrain for small areas.** With P.1812 and clutter on, small runs (zoom 13–14) use Mapterhorn's bare-earth LiDAR where every tile has it (about 35 countries); elsewhere, and for the FSPL+Deygout engine, terrain stays Copernicus GLO-30. The help text names the source.

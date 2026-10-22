@@ -5,16 +5,17 @@
  * report and exports it in the formats the user ticks:
  *   • PDF   — opens a print-optimised report in a new tab and triggers the
  *             browser print dialog → "Save as PDF". Highest fidelity, no deps.
- *   • Word  — an `application/msword` .doc Blob (HTML Word opens + edits).
- *   • Excel — an `application/vnd.ms-excel` .xls Blob of the plan tables.
+ *   • Word  — a real .docx (OOXML, `src/export/ooxml.js`, no dependency).
+ *   • Excel — a real .xlsx, one sheet per table, numbers as numbers.
  *
  * OPSEC: everything is built and downloaded in the browser. No site
  * coordinates are ever uploaded or committed — the report carries only the
  * user's own runtime mission data, generated locally.
  *
- * See docs/decisions/0003-report-export.md for the zero-dependency rationale
- * and the (later) true-OOXML option.
+ * See docs/decisions/0003-report-export.md for the zero-dependency rationale.
  */
+
+import { buildDocx, buildXlsx } from '../export/ooxml.js';
 
 const TIER_COLOR = {
   Primary: '#1d9e75',
@@ -45,11 +46,13 @@ export function exportReport(plan, formats = {}) {
     }
   }
   if (formats.word) {
-    downloadBlob(buildDocHtml(plan, { autoPrint: false, toolbar: false }), 'application/msword', `GroundLink-comms-plan_${stamp}.doc`);
+    downloadBytes(buildDocx(reportBlocks(plan), { title: 'GroundLink comms plan' }),
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', `GroundLink-comms-plan_${stamp}.docx`);
     done.push('Word');
   }
   if (formats.excel) {
-    downloadBlob(buildTablesHtml(plan), 'application/vnd.ms-excel', `GroundLink-comms-plan_${stamp}.xls`);
+    downloadBytes(buildXlsx(reportSheets(plan), { title: 'GroundLink comms plan' }),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `GroundLink-comms-plan_${stamp}.xlsx`);
     done.push('Excel');
   }
   return { done, popupBlocked };
@@ -148,41 +151,136 @@ export function buildDocHtml(plan, { autoPrint = false, toolbar = false } = {}) 
 </div>${autoPrintScript}</body></html>`;
 }
 
-// ── Tables-only document (Excel) ─────────────────────────────────────────────
+// ── Word / Excel content (OOXML) ─────────────────────────────────────────────
 
-export function buildTablesHtml(plan) {
+const CAVEATS = [
+  'Planning-grade, not survey-grade: modelled over open terrain and land-cover data. Verify in the field.',
+  'HF NVIS is a separate module — no coverage raster in this build; treated as a beyond-line-of-sight leg only.',
+  'Imported radio specs are a strong starting point, not a channel plan — confirm against your actual configuration.',
+  'Coordinates shown are your runtime mission data, generated locally in the browser and not uploaded.',
+];
+
+const buildLineOf = (c) => {
+  const b = c.build || {};
+  return b.version ? `${(b.channel || 'alpha').toUpperCase()} · build ${b.version}+${b.sha} · ${b.date}` : 'local build';
+};
+const tierCell = (tier) => ({ text: tier, fill: TIER_COLOR[tier] || '#888888', color: '#FFFFFF', bold: true });
+const elevOf = (st) => (st.elevM != null ? Math.round(st.elevM) : '');
+
+/** The report as document blocks for the .docx writer. Exported for tests. */
+export function reportBlocks(plan) {
   const c = plan.context || {};
-  const build = c.build || {};
-  const head = `<tr><td colspan="4"><b>GroundLink — Comms plan</b></td></tr>
-    <tr><td colspan="4">${esc(build.version ? `${(build.channel || 'alpha').toUpperCase()} build ${build.version}+${build.sha} · ${build.date}` : 'local build')} — generated ${esc(fmtDateTime(c.generatedAt || new Date().toISOString()))}</td></tr>
-    <tr><td colspan="4"></td></tr>`;
+  const blocks = [
+    { type: 'title', text: 'Comms plan · GroundLink' },
+    { type: 'note', text: `${buildLineOf(c)} — generated ${fmtDateTime(c.generatedAt || new Date().toISOString())}` },
+  ];
+  if (plan.summary) blocks.push({ type: 'p', text: plan.summary });
 
-  const pace = `<tr><th>Tier</th><th>Bearer</th><th>Role</th><th>Rationale</th></tr>` +
-    plan.legs.map((l) => `<tr><td>${esc(l.tier)}</td><td>${esc(bearer(l))}</td><td>${esc(l.role)}</td><td>${esc(l.why)}</td></tr>`).join('');
+  blocks.push({ type: 'h1', text: 'PACE plan' }, {
+    type: 'table',
+    header: ['Tier', 'Bearer', 'Role', 'Rationale'],
+    rows: plan.legs.map((l) => [tierCell(l.tier), bearer(l), l.role, l.why]),
+  });
 
+  const st = plan.structure || {};
+  blocks.push({ type: 'h1', text: 'Comms structure' }, { type: 'p', text: `${cap(st.topology || '')} — ${st.note || ''}` });
   const sites = sitesRows(plan);
-  const sitesTbl = `<tr><td colspan="4"></td></tr><tr><td colspan="4"><b>Comms structure — sites</b></td></tr>` +
-    `<tr><th>#</th><th>Name</th><th>Type</th><th>Lat / Lng / Elev</th></tr>` +
-    (sites.length
-      ? sites.map((s, i) => `<tr><td>${i + 1}</td><td>${esc(s.name)}</td><td>${esc(s.type)}</td><td>${esc(`${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}${s.elevM != null ? ` · ${Math.round(s.elevM)} m` : ''}`)}</td></tr>`).join('')
-      : `<tr><td colspan="4">No fixed or recommended sites — standalone net.</td></tr>`);
+  if (sites.length) {
+    blocks.push({
+      type: 'table',
+      header: ['#', 'Name', 'Type', 'Latitude', 'Longitude', 'Elev (m)'],
+      rows: sites.map((x, i) => [i + 1, x.name, x.type, x.lat.toFixed(5), x.lng.toFixed(5), elevOf(x)]),
+    });
+  }
+  for (const o of plan.overlays || []) blocks.push({ type: 'note', text: `Telemetry overlay: ${o.band} — ${o.why}` });
 
-  const mix = `<tr><td colspan="4"></td></tr><tr><td colspan="4"><b>Radio mix</b></td></tr>` +
-    `<tr><th>Rank</th><th>Band</th><th>PACE</th><th>Rationale</th></tr>` +
-    ((c.mix?.bands || []).map((b) => `<tr><td>${b.rank}</td><td>${esc(b.band)}</td><td>${esc(b.pace)}</td><td>${esc(b.why)}</td></tr>`).join('') || `<tr><td colspan="4">No mix — run “Recommend radio mix”.</td></tr>`);
+  blocks.push({ type: 'h1', text: 'Mission & link parameters' }, {
+    type: 'table', header: ['Parameter', 'Value'], rows: paramRows(plan),
+  });
 
-  const params = `<tr><td colspan="4"></td></tr><tr><td colspan="4"><b>Mission &amp; link parameters</b></td></tr>` +
-    paramRows(plan).map(([k, v]) => `<tr><td>${esc(k)}</td><td colspan="3">${esc(v)}</td></tr>`).join('');
+  blocks.push({ type: 'h1', text: 'Radio mix' });
+  const bands = c.mix?.bands || [];
+  if (bands.length) {
+    blocks.push({
+      type: 'table',
+      header: ['Rank', 'Band', 'PACE', 'Rationale'],
+      rows: bands.map((b) => [b.rank, b.band, tierCell(b.pace), b.why]),
+    });
+  } else {
+    blocks.push({ type: 'note', text: 'No mix yet — run “Recommend radio mix”.' });
+  }
 
-  const bomLines = Array.isArray(plan.bom) ? plan.bom : [];
-  const bom = bomLines.length
-    ? `<tr><td colspan="4"></td></tr><tr><td colspan="4"><b>Power &amp; endurance — bill of materials</b></td></tr>` +
-      `<tr><th>Item</th><th>Qty</th><th>Spec</th><th>Rationale</th></tr>` +
-      bomLines.map((l) => `<tr><td>${esc(l.item)}</td><td>${esc(l.qty)}</td><td>${esc(l.unitSpec)}</td><td>${esc(l.rationale)}</td></tr>`).join('')
-    : '';
+  const bom = bomTable(plan);
+  if (bom) blocks.push({ type: 'h1', text: bom.title }, { type: 'table', header: bom.header, rows: bom.rows });
 
-  return `<!doctype html><html><head><meta charset="utf-8"></head><body>
-<table border="1">${head}${pace}${sitesTbl}${mix}${params}${bom}</table></body></html>`;
+  blocks.push({ type: 'h1', text: 'Caveats' }, ...CAVEATS.map((text) => ({ type: 'bullet', text })));
+  blocks.push({ type: 'note', text: `Generated locally by GroundLink (${buildLineOf(c)}). Client-side only — nothing was uploaded. PACE roles are rule-based and explainable; review before operational use.` });
+  return blocks;
+}
+
+/** Bill of materials as a table (costed columns when prices exist), or null. */
+function bomTable(plan) {
+  const bom = Array.isArray(plan.bom) ? plan.bom : [];
+  if (!bom.length) return null;
+  const costed = bom.some((l) => l.unitPrice != null);
+  const num = (n) => (n == null ? '' : Number(n));
+  const qty = (q) => (q !== '' && q != null && Number.isFinite(Number(q)) ? Number(q) : String(q ?? ''));
+  const rows = bom.map((l) => [l.item, qty(l.qty), l.unitSpec ?? '',
+    ...(costed ? [num(l.unitPrice), num(l.total)] : []), l.rationale ?? '']);
+  if (costed) {
+    const total = bom.reduce((s, l) => s + (l.total ?? 0), 0);
+    const unpriced = bom.filter((l) => l.unitPrice == null).length;
+    rows.push([{ text: 'Total (priced items)', bold: true }, '', '', '', { text: total, bold: true },
+      `${unpriced ? `${unpriced} item(s) unpriced — lower bound` : 'all items priced'} · your figures, indicative`]);
+  }
+  return {
+    title: `Power & endurance${costed ? ' · costed BOM' : ''}`,
+    header: ['Item', 'Qty', 'Spec', ...(costed ? ['Unit €', 'Total €'] : []), 'Rationale'],
+    rows,
+  };
+}
+
+/** The report as workbook sheets for the .xlsx writer. Exported for tests. */
+export function reportSheets(plan) {
+  const c = plan.context || {};
+  const sites = sitesRows(plan);
+  const bands = c.mix?.bands || [];
+  const sheets = [
+    {
+      name: 'Summary',
+      rows: [
+        [{ text: 'GroundLink — Comms plan', bold: true }],
+        [`${buildLineOf(c)} — generated ${fmtDateTime(c.generatedAt || new Date().toISOString())}`],
+        [],
+        [plan.summary || ''],
+        [],
+        [{ text: 'Caveats', bold: true }],
+        ...CAVEATS.map((t) => [t]),
+      ],
+      widths: [110],
+    },
+    {
+      name: 'PACE',
+      header: ['Tier', 'Bearer', 'Role', 'Rationale'],
+      rows: plan.legs.map((l) => [l.tier, bearer(l), l.role, l.why]),
+    },
+    {
+      name: 'Sites',
+      header: ['#', 'Name', 'Type', 'Latitude', 'Longitude', 'Elevation (m)'],
+      rows: sites.length
+        ? sites.map((x, i) => [i + 1, x.name, x.type, +x.lat.toFixed(6), +x.lng.toFixed(6), elevOf(x)])
+        : [['', 'No fixed or recommended sites — standalone net.']],
+    },
+    {
+      name: 'Radio mix',
+      header: ['Rank', 'Band', 'PACE', 'Rationale'],
+      rows: bands.length ? bands.map((b) => [b.rank, b.band, b.pace, b.why]) : [['', 'No mix — run “Recommend radio mix”.']],
+    },
+    { name: 'Parameters', header: ['Parameter', 'Value'], rows: paramRows(plan) },
+  ];
+  const bom = bomTable(plan);
+  if (bom) sheets.push({ name: 'Power BOM', header: bom.header, rows: bom.rows });
+  return sheets;
 }
 
 // ── Section builders ─────────────────────────────────────────────────────────
@@ -297,6 +395,18 @@ function openPrintable(html) {
   w.document.write(html);
   w.document.close();
   return true;
+}
+
+function downloadBytes(bytes, mime, filename) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 function downloadBlob(content, mime, filename) {
