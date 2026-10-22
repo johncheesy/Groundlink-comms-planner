@@ -58,3 +58,10 @@ describe('terrain source in the summary', () => {
     expect(describeAssumptions({ ...base, terrainSource: 'Copernicus GLO-30 via Mapterhorn' }).summary).toMatch(/terrain: Copernicus GLO-30 via Mapterhorn$/);
   });
 });
+
+describe('coarse grid hint', () => {
+  it('suggests High detail only when the run used Standard', () => {
+    expect(describeAssumptions({ ...base, cellM: 400, detail: 'standard' }).warnings.join(' ')).toMatch(/Detail: High/);
+    expect(describeAssumptions({ ...base, cellM: 400, detail: 'high' }).warnings.join(' ')).not.toMatch(/Detail: High/);
+  });
+});

@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { gridDims, ringBounds } from './grid.js';
 import { COVERAGE_CLASS } from './model.js';
 import {
   buildServerImage, serverLegend, SERVER_PALETTE_FALLBACK, CONTEST_FALLBACK,
@@ -29,7 +30,6 @@ function hexToRgb(hex, fallback = [255, 255, 255]) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-const TARGET_MAX_DIM = 220;
 
 export function createCoverageController(
   map,
@@ -64,6 +64,7 @@ export function createCoverageController(
   let lastCanvas = null; // last rendered coverage canvas (for M16 raster export)
   let lastPaintBounds = null; // bbox of that canvas (for georeferencing exports)
   let pendingResolve = null; // for computeAsync()
+  let lastGrid = null; // { cols, rows, cellKm, capped } of the last run (shown in the result card)
   // M24 best-server view state.
   let lastRaw = null; // { classes, servers, marginQ, cols, rows, bounds }
   let view = 'quality'; // 'quality' | 'server'
@@ -110,14 +111,6 @@ export function createCoverageController(
       }
     };
     return worker;
-  }
-
-  function gridDims(bounds) {
-    const midLat = (bounds.north + bounds.south) / 2;
-    const w = Math.abs(bounds.east - bounds.west) * Math.cos((midLat * Math.PI) / 180);
-    const h = Math.abs(bounds.north - bounds.south);
-    if (w >= h) return { cols: TARGET_MAX_DIM, rows: Math.max(8, Math.round((TARGET_MAX_DIM * h) / w)) };
-    return { rows: TARGET_MAX_DIM, cols: Math.max(8, Math.round((TARGET_MAX_DIM * w) / h)) };
   }
 
   function paint(msg) {
@@ -254,7 +247,10 @@ export function createCoverageController(
 
   function compute(bounds, tx, params, opts = {}) {
     const w = ensureWorker();
-    const { cols, rows } = gridDims(bounds);
+    // Cell size follows the AOI (grid.js); without an AOI, the window, as before.
+    const grid = gridDims(bounds, { aoiBounds: ringBounds(opts.aoi?.ring), detail: opts.detail ?? 'standard', txCount: opts.txs?.length ?? 1 });
+    const { cols, rows } = grid;
+    lastGrid = grid;
     if (pendingResolve) {
       const r = pendingResolve;
       pendingResolve = null;
@@ -329,6 +325,7 @@ export function createCoverageController(
   return {
     compute,
     computeAsync,
+    getGrid: () => lastGrid,
     setOpacity,
     setVisible,
     getOpacity: () => opacity,

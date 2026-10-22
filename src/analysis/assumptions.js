@@ -33,6 +33,7 @@ export function cellSizeM(bounds, cols) {
  * @param {number|null} p.cellM
  * @param {boolean} p.radioApplied     a radio from the arsenal is active
  * @param {string|null} [p.terrainSource] credit for the elevation data used
+ * @param {'standard'|'high'} [p.detail] grid detail used
  * @returns {{ summary:string, source:'radio'|'defaults'|'manual', warnings:string[] }}
  */
 export function describeAssumptions(p) {
@@ -61,7 +62,8 @@ export function describeAssumptions(p) {
     warnings.push('Clutter is off: trees and buildings are not modelled, so coverage is optimistic in vegetation and built-up areas.');
   }
   if (p.cellM != null && p.cellM > COARSE_CELL_M) {
-    warnings.push(`Coarse grid (about ${Math.round(p.cellM)} m per cell): narrow valleys and ridge shadows can be missed.`);
+    const hint = p.detail === 'standard' ? ' Choose Detail: High for finer cells.' : '';
+    warnings.push(`Coarse grid (about ${Math.round(p.cellM)} m per cell): narrow valleys and ridge shadows can be missed.${hint}`);
   }
   return { summary: parts.join(' · '), source, warnings };
 }
