@@ -9,6 +9,7 @@
  */
 import { formatCoordinate } from '../geo/coords.js';
 import { KIND_LABEL } from './objects.js';
+import { copyText } from '../util/clipboard.js';
 
 export const COORD_MENU_FORMATS = ['latlng', 'mgrs', 'utm'];
 const FMT_LABEL = { latlng: 'Lat/Long', mgrs: 'MGRS', utm: 'UTM' };
@@ -88,10 +89,7 @@ export function createContextMenu(opts) {
   }
 
   function copyRow(text) {
-    try {
-      navigator.clipboard?.writeText(text);
-      onStatus?.('Coordinate copied');
-    } catch { /* clipboard unavailable */ }
+    copyText(text).then((ok) => onStatus?.(ok ? 'Coordinate copied' : 'Copy failed — clipboard not available here'));
   }
 
   /** Open the menu for a registry entry at viewport coords (x, y). */

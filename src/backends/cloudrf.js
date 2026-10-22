@@ -29,7 +29,7 @@ const num = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback)
  */
 export async function testCloudRFKey(apiKey) {
   const key = (apiKey || '').trim();
-  if (!key) return false;
+  if (!key) return 'rejected';
   try {
     const res = await fetch(PING_URL, {
       method: 'GET',
@@ -37,9 +37,9 @@ export async function testCloudRFKey(apiKey) {
     });
     // 401/403 → bad key. Anything else (200, 405 Method Not Allowed, 400 Bad
     // Request) means the key was accepted and the request reached the engine.
-    return res.status !== 401 && res.status !== 403;
+    return res.status === 401 || res.status === 403 ? 'rejected' : 'ok';
   } catch {
-    return false;
+    return 'network'; // CloudRF unreachable — says nothing about the key (review F22)
   }
 }
 

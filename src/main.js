@@ -89,6 +89,7 @@ import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
 import { landcoverReasonText } from './workers/worldcover.js';
 import { createMastWizard } from './ui/mast-wizard.js';
+import { copyText } from './util/clipboard.js';
 // analysis/calibration.js (M27) loads lazily on the first CSV import /
 // calibration export — see calMod() below.
 
@@ -160,7 +161,7 @@ map.on('contextmenu', (e) => {
     `<button type="button" class="coord-popup__copy" title="Copy coordinate">Copy</button>`;
   wrap.querySelector('.coord-popup__text').textContent = text;
   wrap.querySelector('.coord-popup__copy').addEventListener('click', () => {
-    try { navigator.clipboard?.writeText(text); statusMode.textContent = 'Coordinate copied'; } catch { /* clipboard unavailable */ }
+    copyText(text).then((ok) => { statusMode.textContent = ok ? 'Coordinate copied' : 'Copy failed — clipboard not available here'; });
   });
   coordPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 12 })
     .setLngLat(e.lngLat)
@@ -312,6 +313,11 @@ profileToolBtn?.addEventListener('click', () => {
   if (profileTool.isActive()) {
     profileTool.deactivate();
   } else {
+    // Review F21: one map tool at a time — drop an armed waypoint placement.
+    if (waypoints?.isPlacing?.()) {
+      waypoints.cancelPlacing();
+      $('#placeWaypointBtn')?.classList.remove('is-active');
+    }
     profileTool.removeMarkers();
     profilePanel.hide();
     profileTool.activate();
@@ -1151,7 +1157,7 @@ whenStyleReady(() => {
     onModeChange(m) {
       const key = m === 'site' ? 'sites' : m === 'point' ? 'points' : m === 'route' ? 'route' : 'area';
       reflectMissionMode(key);
-      if (m) statusMode.textContent = `Placing ${m}`;
+      statusMode.textContent = m ? `Placing ${m}` : 'Ready';
     },
     onStatus(msg) { statusMode.textContent = msg; },
     formatCoord: (ll) => formatCoordinate({ lat: ll[1], lng: ll[0] }, COORD_CYCLE[coordFmtIndex]),
@@ -1177,6 +1183,7 @@ whenStyleReady(() => {
     if (waypoints.isPlacing()) {
       waypoints.cancelPlacing();
     } else {
+      if (profileTool.isActive()) { profileTool.deactivate(); reflectProfileBtn(); } // F21
       waypoints.startPlacing();
       statusMode.textContent = 'Click map to place waypoint';
       // The placement click is one-shot — drop the armed state once it lands.
@@ -2076,7 +2083,7 @@ function refreshExportPanel() {
     (recommender?.getSites?.().length ?? 0) ||
     aoi?.getAoi?.(),
   );
-  exportPanel?.refresh(hasCoverage || hasMission);
+  exportPanel?.refresh(hasCoverage || hasMission, hasCoverage);
 }
 
 /**
@@ -3082,7 +3089,9 @@ function initCellularControls() {
       const srcLabel = meta.source === 'opencellid'
         ? `OpenCelliD ${meta.region}`
         : 'live OpenStreetMap (Overpass)';
-      if (result.count === 0) {
+      if (result.error) {
+        cellReadout.textContent = `Could not load towers: the tower services did not answer (${result.error}). Check the connection and try again.`;
+      } else if (result.count === 0) {
         cellReadout.textContent = isSample
           ? `No sample towers here — the bundled OpenCelliD ${meta.region} set only covers a few NL cities. Pan to one, or move outside NL to use live OpenStreetMap data.`
           : `No cell towers found in view (source: ${srcLabel}) — pan/zoom to a populated area and try again.`;
@@ -3165,6 +3174,26 @@ function renderSiteList(sites) {
     siteList.appendChild(li);
   });
 }
+
+// Review F13: number fields are clamped when read (clampNum), so show the value
+// that is actually used — when a field is left outside its min/max, snap it to
+// the limit (or back to its default when it isn't a number) and say so.
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || el.type !== 'number') return;
+  const min = el.min === '' ? -Infinity : Number(el.min);
+  const max = el.max === '' ? Infinity : Number(el.max);
+  const n = Number.parseFloat(el.value);
+  let fixed = null;
+  if (!Number.isFinite(n)) fixed = el.defaultValue;
+  else if (n < min) fixed = String(min);
+  else if (n > max) fixed = String(max);
+  if (fixed == null || fixed === el.value) return;
+  el.value = fixed;
+  const label = (el.id && document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim()) || el.getAttribute('aria-label') || 'Value';
+  const range = Number.isFinite(min) && Number.isFinite(max) ? ` (allowed ${min}–${max})` : '';
+  if (statusMode) statusMode.textContent = `${label} set to ${fixed}${range}`;
+}, true);
 
 function clampNum(v, min, max, fallback) {
   const n = Number.parseFloat(v);

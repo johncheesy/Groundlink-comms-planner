@@ -110,9 +110,12 @@ export function createBackendSettings(container, { onBackendChange } = {}) {
     if (!k) { setStatus('Enter a key first', 'fail'); return; }
     setStatus('Testing…', null);
     testBtn.disabled = true;
-    const ok = await testCloudRFKey(k);
+    const result = await testCloudRFKey(k);
     testBtn.disabled = false;
-    setStatus(ok ? 'Key OK' : 'Key rejected', ok ? 'ok' : 'fail');
+    setStatus(
+      result === 'ok' ? 'Key OK' : result === 'network' ? 'CloudRF not reachable — check the connection' : 'Key rejected',
+      result === 'ok' ? 'ok' : 'fail',
+    );
   });
 
   saveBtn.addEventListener('click', () => {
