@@ -1524,6 +1524,7 @@ whenStyleReady(() => {
   const intelScoreBadge = $('#intelScoreBadge');
   const intelScoreNum   = $('#intelScoreNum');
 
+  readinessBadgeHook = () => updateReadinessBadge(); // reachable from module-level refreshes
   function updateReadinessBadge() {
     const covData = lastPaint
       ? summarizeCoverage({
@@ -2093,6 +2094,9 @@ function missionCentre() {
   return b ? { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 } : null;
 }
 
+// M47 readiness badge refresh, set once the map-load wiring defines it.
+let readinessBadgeHook = null;
+
 /** M38: satcom look angles + the M47 readiness input follow the mission centre. */
 function refreshSatcom() {
   const c = missionCentre();
@@ -2105,7 +2109,7 @@ function refreshSatcom() {
     satPanel?.clear();
     lastSatcomStatus = null;
   }
-  setTimeout(() => updateReadinessBadge?.(), 0);
+  setTimeout(() => readinessBadgeHook?.(), 0);
 }
 
 function onMissionChange(s) {
