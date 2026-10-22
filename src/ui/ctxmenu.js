@@ -35,6 +35,8 @@ export function buildMenuModel(entry) {
   }
   // M49: a fixed site can point its own antenna (click the map to aim).
   if (entry.kind === 'mast' && entry.owner === 'mission') {
+    items.push({ id: 'siteRf', label: 'Mast height and power…' }); // M50
+    items.push({ id: 'link', label: 'Add radio link…' }); // M50
     items.push({ id: 'aim', label: 'Aim antenna…' });
     if (entry.settings?.azimuthDeg != null) items.push({ id: 'aimReset', label: 'Use panel pointing' });
   }

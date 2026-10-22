@@ -23,6 +23,7 @@ import { deygoutLossDb } from '../coverage/model.js';
  * @param {() => number} opts.getRxHeight   RX antenna height AGL (m)
  * @param {() => number} opts.getThreshold  RX sensitivity / threshold (dBm)
  * @param {() => number} opts.getEirp       TX EIRP (dBm)
+ * @param {() => number} [opts.getRxGain]   RX antenna gain (dBi), default 0
  * @param {(data) => void} opts.onProfile
  * @param {(msg: string) => void} [opts.onStatus]
  * @param {() => void} [opts.onDone]  fired when the tool disarms (after a run)
@@ -84,6 +85,36 @@ export function createProfileTool(map, opts = {}) {
     map.on('click', onClick);
   }
 
+  /**
+   * Profile between two known points (a radio link, M50) without clicking.
+   * `over` replaces any of the getters for this run (the sites' own heights,
+   * power, the link's band). Resolves with the result, or null on failure.
+   */
+  async function showBetween(a, b, over = {}) {
+    if (busy) return null;
+    deactivate();
+    removeMarkers();
+    pts.push(a, b);
+    makeMarker([a.lng, a.lat]);
+    makeMarker([b.lng, b.lat]);
+    busy = true;
+    opts.onStatus?.('Building path profile…');
+    const o = { ...opts, ...over };
+    try {
+      const data = await computeProfile(a, b, o, STEPS);
+      o.onProfile?.(data);
+      opts.onStatus?.(data.obstructed ? 'Path obstructed — see profile' : 'Path profile ready');
+      return data;
+    } catch (err) {
+      opts.onStatus?.(`Profile failed: ${err.message}`);
+      removeMarkers();
+      return null;
+    } finally {
+      busy = false;
+      opts.onDone?.();
+    }
+  }
+
   function deactivate() {
     if (!active) return;
     active = false;
@@ -94,6 +125,7 @@ export function createProfileTool(map, opts = {}) {
   return {
     activate,
     deactivate,
+    showBetween,
     removeMarkers,
     isActive: () => active,
     hasMarkers: () => markers.length > 0,
@@ -107,6 +139,7 @@ async function computeProfile(a, b, opts, steps) {
   const rxHeight = opts.getRxHeight?.() ?? 1.5;
   const rxThreshDbm = opts.getThreshold?.() ?? -110;
   const txEirpDbm = opts.getEirp?.() ?? 33;
+  const rxGainDbi = opts.getRxGain?.() ?? 0;
 
   const dem = await fetchDemProfile(a, b, steps);
   if (!dem) throw new Error('no terrain tiles for this area');
@@ -123,7 +156,7 @@ async function computeProfile(a, b, opts, steps) {
   const profile = distances.map((d, i) => ({ d, h: elevations[i] }));
   const diffractionDb = deygoutLossDb(profile, txElev, rxElev, freqMHz, distanceM);
 
-  const budget = linkBudget({ distanceM, freqMHz, txEirpDbm, rxThreshDbm, diffractionDb });
+  const budget = linkBudget({ distanceM, freqMHz, txEirpDbm, rxThreshDbm, diffractionDb, rxGainDbi });
 
   return {
     distances, elevations, clearances,

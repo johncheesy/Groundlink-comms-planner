@@ -688,6 +688,30 @@
   background: color-mix(in srgb, var(--accent) 14%, var(--raise));
 }
 
+/* M50: per-site mast height and power popover */
+.site-rf {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  min-width: 220px;
+  font-size: 12.5px;
+}
+.site-rf__title {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-weight: 600;
+}
+.site-rf .field-label { display: grid; gap: 2px; margin: 0; }
+.site-rf__hint,
+.site-rf__err { grid-column: 1 / -1; margin: 0; }
+.site-rf__err { color: var(--bad); }
+.site-rf__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 /* Right-click coordinate readout popup */
 .coord-popup {
   display: flex;
@@ -869,6 +893,59 @@ input.wp-popup-name:focus {
   padding: 0 1px;
 }
 .waypoint-chip__del:hover { color: var(--bad); }
+
+/* ---- M50 radio links list ------------------------------------------------ */
+.links-panel {
+  display: grid;
+  gap: 6px;
+  margin-top: var(--sp-2);
+}
+.links-panel .help { margin: 0; }
+.links-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 9px;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: var(--surface2);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.link-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-row__km { color: var(--dim); }
+.link-row__del {
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.link-row__del:hover { color: var(--bad); }
+
+/* Link popup on the map */
+.link-popup {
+  display: grid;
+  gap: 6px;
+  min-width: 200px;
+  font-size: 12.5px;
+}
+.link-popup__meta { color: var(--dim); }
+.link-popup__actions { display: flex; gap: 6px; justify-content: flex-end; }
 
 /* ---- M5 radios: active set, picker, FCC/manual, mix card --------------- */
 
@@ -1450,6 +1527,12 @@ select.input--sm { text-align: left; padding-right: 6px; }
   gap: 6px;
   white-space: nowrap;
 }
+/* A long status message truncates instead of pushing the bar (and the
+   page) wider than the window; the full text is in its tooltip. */
+.statusbar { overflow: hidden; }
+.statusbar__item { flex-shrink: 0; }
+#statusModeItem { min-width: 0; flex: 0 1 auto; flex-shrink: 1; }
+#statusMode { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 .statusbar__item .k {
   color: var(--faint);
@@ -5163,3 +5246,8 @@ select.input--sm { text-align: left; padding-right: 6px; }
     max-width: calc(100vw - 110px); /* clear of the menu button */
   }
 }
+
+/* M50: the path-profile panel (260 px at the map's foot, also opened by a radio
+   link check) lifts the docked result card and the map key above it. */
+.map-wrap:has(.profile-panel:not([hidden])) .result-card { bottom: calc(260px + var(--sp-3)); max-height: calc(100% - 260px - 80px); }
+.map-wrap:has(.profile-panel:not([hidden])) .map-key { bottom: calc(260px + 12px); }

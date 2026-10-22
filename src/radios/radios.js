@@ -182,6 +182,8 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
     form.querySelector('[name="hi"]').value = seed?.freqRangeMHz?.[1] ?? '';
     form.querySelector('[name="power"]').value = seed?.powerW ?? '';
     form.querySelector('[name="sens"]').value = seed?.rxSensDbm ?? '';
+    form.querySelector('[name="gain"]').value = seed?.antennaGainDbi ?? '';
+    form.querySelector('[name="loss"]').value = seed?.feederLossDb ?? '';
     form.querySelector('[name="price"]').value = seed?.price ?? ''; // M26: optional unit price
     form.querySelector('[name="label"]').focus();
   }
@@ -197,6 +199,8 @@ export function createRadios(els, { onApply, onStatus, onArsenalChange } = {}) {
       freqRangeMHz: [Number(get('lo')), Number(get('hi'))],
       powerW: Number(get('power')),
       rxSensDbm: get('sens') === '' ? undefined : Number(get('sens')),
+      antennaGainDbi: get('gain') === '' ? undefined : Number(get('gain')),
+      feederLossDb: get('loss') === '' ? undefined : Number(get('loss')),
       price: get('price') === '' ? null : Number(get('price')), // M26
       source: 'manual', // any edit / manual add flips the source
     });

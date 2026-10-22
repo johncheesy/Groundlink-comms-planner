@@ -257,6 +257,18 @@
                   <span class="mission-el-count" id="missionPointsCount" data-numeric>0</span>
                   <button class="btn btn--sm mission-el-clear" type="button" data-clear="points">Clear</button>
                 </div>
+                <div class="mission-el-row" data-type="links" hidden>
+                  <span class="mission-el-dot" style="background: var(--mapink)"></span>
+                  <span class="mission-el-label">Radio links</span>
+                  <span class="mission-el-count" id="missionLinksCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="links">Clear</button>
+                </div>
+              </div>
+              <!-- M50: radio links between sites — right-click a site → Add radio link -->
+              <div class="links-panel" id="linksPanel" hidden>
+                <ul class="links-list" id="linksList"></ul>
+                <button class="btn btn--sm" type="button" id="checkLinksBtn" title="Path profile and link budget for every link, each site with its own height and power">Check all links</button>
+                <p class="help">Right-click a site → <strong>Add radio link</strong>. Margin is over the receiver sensitivity; 10 dB or more is solid. Assumes both antennas face each other.</p>
               </div>
 
               <button class="btn btn--block tool-btn" id="placeWaypointBtn" type="button" title="Place a named location">
@@ -411,6 +423,8 @@
                     <label class="field-label" style="flex:1">Freq hi<input class="input input--mini" name="hi" type="number" step="0.1" /></label>
                     <label class="field-label" style="flex:1">Power W<input class="input input--mini" name="power" type="number" step="0.1" /></label>
                     <label class="field-label" style="flex:1">Sens dBm<input class="input input--mini" name="sens" type="number" step="1" /></label>
+                    <label class="field-label" style="flex:1" title="Antenna gain of this radio's antenna. Empty = the role's default.">Ant dBi<input class="input input--mini" name="gain" type="number" step="0.5" /></label>
+                    <label class="field-label" style="flex:1" title="Cable, connector and duplexer loss between radio and antenna">Loss dB<input class="input input--mini" name="loss" type="number" min="0" max="30" step="0.5" /></label>
                     <label class="field-label" style="flex:1" title="Optional unit price for the costed BOM (M26) — your figure, never fetched">Price €<input class="input input--mini" name="price" type="number" min="0" step="1" /></label>
                   </div>
                   <div class="input-row">
@@ -556,7 +570,17 @@
                     <span class="input-suffix">dBi</span>
                   </div>
                 </div>
-                <div style="flex:2"></div>
+                <div style="flex:1">
+                  <label class="field-label" for="txLoss">Cable/duplexer loss</label>
+                  <div class="input-row">
+                    <input class="input" id="txLoss" type="number" value="0" min="0" max="30" step="0.5" title="Loss between transmitter and antenna: cable, connectors and (on a repeater) the duplexer. Typical repeater: 2–4 dB." />
+                    <span class="input-suffix">dB</span>
+                  </div>
+                </div>
+                <div style="flex:1">
+                  <span class="field-label">EIRP</span>
+                  <output class="help" id="eirpReadout" data-numeric title="Power + antenna gain − loss: what actually leaves the antenna">—</output>
+                </div>
               </div>
 
               <label class="check">

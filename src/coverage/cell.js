@@ -26,7 +26,7 @@ export function txAntenna(t, params) {
  * dBm from one transmitter at (lng, lat).
  *
  * @param {object} c
- * @param {object} c.t        transmitter { lat, lng, txHeightM?, antenna? }
+ * @param {object} c.t        transmitter { lat, lng, txHeightM?, antenna?, eirpDbm? }
  * @param {number} c.txElev   tx antenna height amsl (m) — DEM + mast
  * @param {number} c.lng
  * @param {number} c.lat
@@ -59,6 +59,8 @@ export function txDbmAt({ t, txElev, lng, lat, rxElev, clutterDb, params, dem, c
     }
     dbm = receivedDbm(params, dist, diffraction, useP1812 ? 0 : clutterDb);
   }
+  // A site with its own power (M50): both engines are linear in EIRP.
+  if (t.eirpDbm != null) dbm += t.eirpDbm - params.eirpDbm;
   if (antenna) dbm -= patternLossDb(antenna, bearingDeg(t.lat, t.lng, lat, lng));
   return dbm;
 }

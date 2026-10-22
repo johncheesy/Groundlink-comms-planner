@@ -94,13 +94,13 @@ export function fresnelClearance(elevations, distances, distanceM, txElev, rxEle
 
 /**
  * Simple two-end link budget.
- *   rxSignal = EIRP − FSPL − diffraction
+ *   rxSignal = EIRP − FSPL − diffraction + rx antenna gain
  *   margin   = rxSignal − rxThreshold
  * @returns {{ fsplDb, diffractionDb, eirpDbm, rxSignalDbm, marginDb, viable: boolean }}
  */
-export function linkBudget({ distanceM, freqMHz, txEirpDbm, rxThreshDbm, diffractionDb = 0 }) {
+export function linkBudget({ distanceM, freqMHz, txEirpDbm, rxThreshDbm, diffractionDb = 0, rxGainDbi = 0 }) {
   const fspl = fsplDb(distanceM, freqMHz);
-  const rxSignalDbm = txEirpDbm - fspl - diffractionDb;
+  const rxSignalDbm = txEirpDbm - fspl - diffractionDb + rxGainDbi;
   const marginDb = rxSignalDbm - rxThreshDbm;
   return {
     fsplDb: fspl,

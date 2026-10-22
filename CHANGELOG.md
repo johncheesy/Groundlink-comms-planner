@@ -34,6 +34,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 ### Added
+- **Feeder loss, per-site height and power, radio links** (M50, `docs/M50-site-rf-links.md`):
+  - *Cable/duplexer loss* in the Coverage panel and an *EIRP* readout; EIRP is power + antenna gain − loss everywhere (coverage, teams, calibration, path profile, mast wizard, CloudRF). Applying a radio set now takes the radio's antenna gain (omni antennas) and feeder loss instead of a fixed 2.15 dBi. The radio editor has *Ant dBi* and *Loss dB*.
+  - Right-click a site → *Mast height and power…*: each site can carry its own height and power; empty follows the panel. Labels show them, the mast wizard applies to the site, undo works.
+  - Radio links between sites: right-click a site → *Add radio link…*, then click the other site. Lines on the map turn teal / amber / rose after a path-profile check (margin ≥ 10 dB, tight or Fresnel-blocked, does not close); *Check all links* in the Mission panel.
+  - All three are saved in the mission file (`coverage.txLossDb`, `sites[].txHeightM` / `powerW`, `links`). 24 tests.
+- A long status message no longer widens the page; it truncates with the full text in its tooltip. The result card and map key move up while the path-profile panel is open instead of covering it.
 
 **Field validation (validation page, part 2)**
 - After importing measurements (Coverage → Calibration), a table shows how each model set-up matched them: P.1812 and FSPL + Deygout, each with and without clutter, with bias, RMSE, share within ±6 dB and share where the map was too optimistic. Predictions use the exact per-cell step the map runs (`src/coverage/cell.js`, now shared by the coverage worker). **Export validation summary** writes statistics only, no coordinates, for the new "Field measurements" section on `/validation/` (`public/validation/field.json`, empty until real datasets are added). 5 tests.

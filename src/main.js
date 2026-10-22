@@ -11,6 +11,7 @@ import { createCoverageController } from './coverage/coverage.js';
 import { updateCliffLayer, clearCliffLayer } from './coverage/dual-contour.js';
 import { createBackendSettings } from './ui/backend-settings.js';
 import { runCloudRFCoverage } from './backends/cloudrf.js';
+import { openSiteRfPopup } from './ui/site-rf-popup.js';
 import { createDroneController } from './drone/drone.js';
 import { createRecommendController } from './recommend/recommend.js';
 import { createMission } from './mission/mission.js';
@@ -81,8 +82,9 @@ import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
 import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
-import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg } from './coverage/antenna.js';
+import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg, withGain } from './coverage/antenna.js';
 import { updateAntennaBeams } from './map/antenna-beams.js';
+import { linkFeatures, linkStatus, updateRadioLinks, RADIO_LINK_LAYERS, LINK_FADE_MARGIN_DB } from './map/radio-links.js';
 import { createMapKey } from './ui/map-key.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { terrainCredit } from './data/terrain-tiles.js';
@@ -325,7 +327,7 @@ const profileTool = createProfileTool(map, {
   getTxHeight: () => parseFloat($('#txHeight')?.value) || 10,
   getRxHeight: () => 1.5,
   getThreshold: () => clampNum($('#thNone')?.value, -200, 0, -110),
-  getEirp: () => wattsToDbm(clampNum($('#powerInput')?.value, 0.01, 100, 5)) + txGainDbi(),
+  getEirp: () => txEirpDbm(clampNum($('#powerInput')?.value, 0.01, 100, 5)),
   onProfile(data) { profilePanel.show(data); },
   onStatus(msg) { statusMode.textContent = msg; },
   onDone: reflectProfileBtn,
@@ -836,6 +838,13 @@ const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applie
 let hfPanel = null; // M12 HF ionosphere panel
 let satPanel = null; // M38 satcom look-angle panel
 let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
+// The radio set's antenna gain + feeder loss land in the antenna controls,
+// which are looked up further down: a set restored at start-up waits for them.
+let pendingRadioRf = null;
+let antennaUiReady = false;
+// M50: last path-profile check per radio link: id → { key, data }. A check
+// only counts while its inputs (ends, heights, power, band) are unchanged.
+const linkChecks = new Map();
 let palette = null; // M20 ⌘K command palette (created once the style is ready)
 let teams = null; // M13 per-team/operator model
 let teamsPanel = null; // M13 teams panel UI
@@ -1474,6 +1483,8 @@ whenStyleReady(() => {
       thGood.value = String(vals.thresholds.good);
       thMarginal.value = String(vals.thresholds.marginal);
       thNone.value = String(vals.thresholds.none);
+      pendingRadioRf = vals;
+      if (antennaUiReady) applyRadioRf();
       updateSignalLegend();
       coverageHelp.textContent = vals.rasterMeaningful
         ? `Coverage controls set from the active radio set — talk-in at ${vals.rxHeightM} m, ` +
@@ -2004,6 +2015,8 @@ const antennaGain = $('#antennaGain');
 const antennaBeam = $('#antennaBeam');
 const antennaFb = $('#antennaFb');
 const rxGainInput = $('#rxGain');
+const txLossInput = $('#txLoss');
+const eirpReadout = $('#eirpReadout');
 const opacityInput = $('#opacityInput');
 const opacityRow = $('#opacityRow');
 const showNoneRow = $('#showNoneRow');
@@ -2036,8 +2049,21 @@ function writeAntenna(a) {
     antennaAzimuth.disabled = isOmni(n);
   }
 }
-/** Peak transmit antenna gain (dBi) — the EIRP term. */
-const txGainDbi = () => readAntenna().gainDbi;
+/** Cable, connector and duplexer loss between transmitter and antenna (dB). */
+const txLossDb = () => clampNum(txLossInput?.value, 0, 30, 0);
+/** EIRP (dBm): conducted power + peak antenna gain − feeder loss. */
+function txEirpDbm(powerW, antenna = readAntenna()) {
+  return wattsToDbm(powerW) + antenna.gainDbi - txLossDb();
+}
+function refreshEirpReadout() {
+  if (!eirpReadout) return;
+  const dbm = txEirpDbm(clampNum(powerInput.value, 0.01, 100, 5));
+  eirpReadout.textContent = `${dbm.toFixed(1)} dBm (${(10 ** ((dbm - 30) / 10)).toFixed(dbm < 30 ? 2 : 1)} W)`;
+}
+for (const el of [powerInput, txLossInput, antennaGain, antennaPreset]) {
+  el?.addEventListener('input', refreshEirpReadout);
+  el?.addEventListener('change', refreshEirpReadout);
+}
 /** M49: beam wedges for directional antennas, one per fixed site. */
 function refreshBeams() {
   if (mission) updateAntennaBeams(map, mission.getSites(), readAntenna());
@@ -2055,6 +2081,25 @@ for (const el of [antennaGain, antennaBeam, antennaFb]) {
   });
 }
 antennaAzimuth?.addEventListener('input', refreshBeams);
+
+/**
+ * The active radio set's antenna gain and feeder loss. An omni antenna takes
+ * the radio's gain (dipole 2.15, collinear 6, …); a directional antenna the
+ * planner chose keeps its own gain — the radio's figure is for its stock
+ * antenna.
+ */
+function applyRadioRf() {
+  const vals = pendingRadioRf;
+  pendingRadioRf = null;
+  if (!vals) return;
+  if (isOmni(readAntenna())) writeAntenna(withGain(readAntenna(), vals.txGainDbi));
+  if (txLossInput) txLossInput.value = String(vals.txLossDb ?? 0);
+  refreshEirpReadout();
+  refreshBeams();
+}
+antennaUiReady = true;
+applyRadioRf();
+refreshEirpReadout();
 
 // Manual threshold edits should move the Signal legend too (B8).
 for (const el of [thExcellent, thGood, thMarginal, thNone]) {
@@ -2184,7 +2229,9 @@ function onMissionChange(s) {
   showRow('sites', s.sites);
   showRow('route', s.route);
   showRow('points', s.points);
+  showRow('links', s.links);
   missionElements.hidden = s.sites < 1 && s.route < 1 && s.points < 1;
+  refreshLinks();
   missionSitesCount.textContent = String(s.sites);
   missionRouteCount.textContent = String(s.route);
   missionPointsCount.textContent = String(s.points);
@@ -2863,7 +2910,7 @@ function calParamsForRadio(radioId) {
     : null;
   if (radio) {
     if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
-    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + params.antenna.gainDbi;
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = txEirpDbm(Number(radio.powerW), params.antenna);
   }
   return params;
 }
@@ -3396,10 +3443,13 @@ function omniParams(params) {
 /**
  * One fixed site as a coverage transmitter. A site aimed on its own (M49)
  * carries the panel's antenna with its own pointing; others use the panel's.
+ * A site with its own mast height or power (M50) overrides the panel's;
+ * `eirpAdjDb` is the run's calibration offset, kept on top of a site's power.
  */
-function siteTx(s, txHeightM, antenna) {
-  const tx = { lat: s.lat, lng: s.lng, txHeightM };
+function siteTx(s, txHeightM, antenna, eirpAdjDb = 0) {
+  const tx = { lat: s.lat, lng: s.lng, txHeightM: s.txHeightM ?? txHeightM };
   if (s.azimuthDeg != null && antenna && !isOmni(antenna)) tx.antenna = { ...antenna, azimuthDeg: s.azimuthDeg };
+  if (s.powerW != null) tx.eirpDbm = txEirpDbm(s.powerW, antenna ?? readAntenna()) + eirpAdjDb;
   return tx;
 }
 
@@ -3410,7 +3460,8 @@ function coverageParams() {
   const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
   const antenna = readAntenna();
   return {
-    eirpDbm: wattsToDbm(powerW) + antenna.gainDbi,
+    eirpDbm: txEirpDbm(powerW, antenna),
+    txLossDb: txLossDb(),
     freqMHz,
     rxGainDbi: clampNum(rxGainInput?.value, -10, 20, 0),
     antenna, // horizontal pattern, applied per cell by the coverage worker
@@ -3452,10 +3503,12 @@ const WINDOW_CAP_MULT = 3;
 // window large enough to show the signal, not a sliver around the bbox.
 const MIN_HALF_DEG = 0.05; // ≈ 5.5 km
 
-function coverageBoundsFor(bbox, center, params) {
+function coverageBoundsFor(bbox, center, params, txs = null) {
   const halfLat = Math.max((bbox.north - bbox.south) / 2, MIN_HALF_DEG);
   const halfLng = Math.max((bbox.east - bbox.west) / 2, MIN_HALF_DEG);
-  const rangeM = maxRangeM(params);
+  // The strongest site sets the reach (a site may carry its own power, M50).
+  const eirpDbm = Math.max(params.eirpDbm, ...(txs ?? []).map((t) => t.eirpDbm ?? -Infinity));
+  const rangeM = maxRangeM({ ...params, eirpDbm });
   const dLat = Math.min(rangeM / 111320, WINDOW_CAP_MULT * halfLat);
   const dLng = Math.min(
     rangeM / (111320 * Math.cos((center.lat * Math.PI) / 180)),
@@ -3504,7 +3557,7 @@ function runCoverage() {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna, calOff));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3514,7 +3567,7 @@ function runCoverage() {
     return;
   }
 
-  const compBounds = coverageBoundsFor(bbox, center, params);
+  const compBounds = coverageBoundsFor(bbox, center, params, txs);
   const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
 
   const runBuiltin = () => {
@@ -3592,6 +3645,7 @@ async function runCloudRF(compBounds, center, params, fallback) {
     rxHeightM: params.rxHeightM,
     rxSensDbm: params.thresholds.marginal,
     txGainDbi: params.antenna.gainDbi,
+    txLossDb: params.txLossDb,
     antenna: params.antenna,
     rxGainDbi: params.rxGainDbi,
   };
@@ -3683,7 +3737,7 @@ async function runTeamCoverage(team) {
   const radio = team.radioId ? radios?.getArsenal?.().find((r) => r.id === team.radioId) : null;
   if (radio) {
     if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
-    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + params.antenna.gainDbi;
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = txEirpDbm(Number(radio.powerW), params.antenna);
   }
   // M27: per-radio field-calibration offset (mean measured − predicted).
   params.eirpDbm += calOffsetDb(team.radioId);
@@ -3698,7 +3752,7 @@ async function runTeamCoverage(team) {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna, calOffsetDb(team.radioId)));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3710,7 +3764,7 @@ async function runTeamCoverage(team) {
   const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
   statusMode.textContent = `Coverage for ${team.name}…`;
   coverageEngine.textContent = engineLabel(params.engine);
-  const stats = await coverage.computeAsync(coverageBoundsFor(bbox, center, params), center, params, {
+  const stats = await coverage.computeAsync(coverageBoundsFor(bbox, center, params, txs), center, params, {
     aoi: aoiMask,
     txs,
     txNames: txs ? sites.map((s, i) => s.name || `Site ${i + 1}`) : null, // M24 legend
@@ -3737,7 +3791,19 @@ function gatherMissionState() {
         ? { type: 'radius', center: area.center, radiusM: area.radiusM }
         : { type: 'polygon', ring: area.ring }
       : null,
-    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name, azimuthDeg }) => ({ lat, lng, name, ...(azimuthDeg != null ? { azimuthDeg } : {}) })),
+    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name, azimuthDeg, txHeightM, powerW }) => ({
+      lat, lng, name,
+      ...(azimuthDeg != null ? { azimuthDeg } : {}),
+      ...(txHeightM != null ? { txHeightM } : {}),
+      ...(powerW != null ? { powerW } : {}),
+    })),
+    // M50: radio links refer to sites by their index in the list above.
+    links: (() => {
+      const idx = new Map((mission?.getSites?.() ?? []).map((s, i) => [s.id, i]));
+      return (mission?.getLinks?.() ?? []).map(({ a, b, label, freqMHz }) => ({
+        a: idx.get(a), b: idx.get(b), label, ...(freqMHz != null ? { freqMHz } : {}),
+      }));
+    })(),
     points: (mission?.getPoints?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
     route: mission?.getRoute?.() ?? [],
     waypoints: (waypoints?.getAll?.() ?? []).map(({ lat, lng, name, icon }) => ({ lat, lng, name, icon })),
@@ -3753,6 +3819,7 @@ function gatherMissionState() {
       useClutter: useClutterInput.checked,
       antenna: readAntenna(),
       rxGainDbi: clampNum(rxGainInput?.value, -10, 20, 0),
+      txLossDb: txLossDb(),
       thresholds: coverageParams().thresholds,
       digitalMode: getDigitalMode(),
     },
@@ -3800,9 +3867,15 @@ function applyMissionState(m) {
     if (m.aoi?.type === 'radius') aoi.setRadius([m.aoi.center.lng, m.aoi.center.lat], m.aoi.radiusM);
     else if (m.aoi?.type === 'polygon') aoi.setPolygon(m.aoi.ring);
 
-    for (const s of m.sites) {
+    const siteIds = m.sites.map((s) => {
       const added = mission.addSite(s.lat, s.lng, s.name);
-      if (added && s.azimuthDeg != null) mission.setSiteAzimuth(added.id, s.azimuthDeg);
+      if (!added) return null;
+      if (s.azimuthDeg != null) mission.setSiteAzimuth(added.id, s.azimuthDeg);
+      if (s.txHeightM != null || s.powerW != null) mission.setSiteRf(added.id, { txHeightM: s.txHeightM ?? null, powerW: s.powerW ?? null });
+      return added.id;
+    });
+    for (const l of m.links ?? []) {
+      if (siteIds[l.a] && siteIds[l.b]) mission.addLink(siteIds[l.a], siteIds[l.b], { label: l.label, freqMHz: l.freqMHz });
     }
     for (const p of m.points) mission.addPoint(p.lat, p.lng, p.name);
     if (m.route.length) mission.setRoute(m.route);
@@ -3832,6 +3905,8 @@ function applyMissionState(m) {
       useClutterInput.checked = Boolean(c.useClutter);
       writeAntenna(c.antenna ?? {}); // older files: dipole, as before
       if (rxGainInput) rxGainInput.value = String(c.rxGainDbi ?? 0);
+      if (txLossInput) txLossInput.value = String(c.txLossDb ?? 0);
+      refreshEirpReadout();
       const t = c.thresholds ?? {};
       if (t.excellent != null) thExcellent.value = String(t.excellent);
       if (t.good != null) thGood.value = String(t.good);
@@ -4129,8 +4204,256 @@ const ctxMenu = createContextMenu({
     else if (action === 'optimise') mastWizard.openFor(entry.id); // M35
     else if (action === 'aim') startAim(entry); // M49
     else if (action === 'aimReset') setSiteAim(entry.id, null);
+    else if (action === 'siteRf') openSiteRf(entry); // M50
+    else if (action === 'link') startLinkPick(entry); // M50
   },
 });
+
+// ---- M50: one site's own mast height and power ----------------------------
+function setSiteRf(id, v) {
+  const e = registry.get(id);
+  if (!e) return;
+  const from = { txHeightM: e.settings?.txHeightM ?? null, powerW: e.settings?.powerW ?? null };
+  const apply = (x) => registry.update(id, { settings: x });
+  apply(v);
+  undoStack.push({ label: `${e.name} height/power`, undo: () => apply(from), redo: () => apply(v) });
+  const parts = [v.txHeightM != null ? `${v.txHeightM} m` : null, v.powerW != null ? `${v.powerW} W` : null].filter(Boolean);
+  statusMode.textContent = parts.length
+    ? `${e.name}: ${parts.join(', ')} — other values from the Coverage panel`
+    : `${e.name} follows the Coverage panel again`;
+}
+
+function openSiteRf(entry) {
+  openSiteRfPopup(map, {
+    lngLat: entry.lngLat,
+    name: entry.name,
+    current: { txHeightM: entry.settings?.txHeightM ?? null, powerW: entry.settings?.powerW ?? null },
+    panel: { txHeightM: clampNum(txHeightInput.value, 1, 300, 10), powerW: clampNum(powerInput.value, 0.01, 100, 5) },
+    onSave: (v) => setSiteRf(entry.id, v),
+  });
+}
+
+// ---- M50: radio links between sites ---------------------------------------
+// A truncated status message keeps its full text in the tooltip.
+new MutationObserver(() => { statusMode.title = statusMode.textContent; })
+  .observe(statusMode, { childList: true, characterData: true, subtree: true });
+
+const linksPanel = $('#linksPanel');
+const linksList = $('#linksList');
+const missionLinksCount = $('#missionLinksCount');
+
+/** Panel values a link falls back to when a site has none of its own. */
+function linkInputs(l, a, b) {
+  const panelH = clampNum(txHeightInput.value, 1, 300, 10);
+  const panelW = clampNum(powerInput.value, 0.01, 100, 5);
+  return {
+    freqMHz: l.freqMHz ?? clampNum(freqInput.value, 30, 6000, 150),
+    txHeightM: a.txHeightM ?? panelH,
+    rxHeightM: b.txHeightM ?? panelH, // the far end is a mast too
+    eirpDbm: txEirpDbm(a.powerW ?? panelW),
+    // The far end's antenna, less its feeder (the same antenna type).
+    rxGainDbi: readAntenna().gainDbi - txLossDb(),
+    sensDbm: clampNum(thNone.value, -200, 0, -110),
+  };
+}
+const linkKey = (l, a, b) => JSON.stringify([a.lat, a.lng, b.lat, b.lng, linkInputs(l, a, b)]);
+
+/** The current check of a link, or null when never run or out of date. */
+function currentCheck(l, sitesById) {
+  const c = linkChecks.get(l.id);
+  const a = sitesById.get(l.a);
+  const b = sitesById.get(l.b);
+  return c && a && b && c.key === linkKey(l, a, b) ? c.data : null;
+}
+
+function refreshLinks() {
+  if (!mission) return;
+  const sites = mission.getSites();
+  const links = mission.getLinks();
+  const byId = new Map(sites.map((s) => [s.id, s]));
+  for (const id of linkChecks.keys()) if (!links.some((l) => l.id === id)) linkChecks.delete(id);
+  const checks = new Map(links.map((l) => [l.id, currentCheck(l, byId)]));
+  const fc = linkFeatures(sites, links, checks);
+  updateRadioLinks(map, fc);
+  if (missionLinksCount) missionLinksCount.textContent = String(links.length);
+  if (!linksPanel || !linksList) return;
+  linksPanel.hidden = links.length < 1;
+  linksList.innerHTML = '';
+  for (const f of fc.features) {
+    const { id, label, km, status } = f.properties;
+    const data = checks.get(id);
+    const li = document.createElement('li');
+    li.className = 'link-row';
+    const badge = status === 'unknown'
+      ? '<span class="badge">not checked</span>'
+      : `<span class="badge badge--${status}" data-numeric title="${data.obstructed ? 'Fresnel zone blocked: raise a mast or move a site' : 'Margin over the receiver sensitivity'}">` +
+        `${data.budget.marginDb >= 0 ? '+' : ''}${data.budget.marginDb.toFixed(0)} dB${data.obstructed ? ', blocked' : ''}</span>`;
+    li.innerHTML =
+      `<span class="link-row__name"></span><span class="link-row__km" data-numeric>${km} km</span>${badge}` +
+      `<span><button class="btn btn--sm" type="button" data-act="check">Profile</button>` +
+      `<button class="link-row__del" type="button" data-act="del" aria-label="Remove link">×</button></span>`;
+    li.querySelector('.link-row__name').textContent = label;
+    li.title = label;
+    li.querySelector('[data-act="check"]').addEventListener('click', () => checkLink(id));
+    li.querySelector('[data-act="del"]').addEventListener('click', () => removeLinkUndoable(id));
+    linksList.appendChild(li);
+  }
+}
+
+/** Path profile + link budget for one link; colours the line. */
+async function checkLink(id, { show = true } = {}) {
+  const l = mission.getLinks().find((x) => x.id === id);
+  if (!l) return null;
+  const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+  const a = byId.get(l.a);
+  const b = byId.get(l.b);
+  if (!a || !b) return null;
+  const v = linkInputs(l, a, b);
+  const key = linkKey(l, a, b);
+  const data = await profileTool.showBetween(
+    { lat: a.lat, lng: a.lng },
+    { lat: b.lat, lng: b.lng },
+    {
+      getFreqMHz: () => v.freqMHz,
+      getTxHeight: () => v.txHeightM,
+      getRxHeight: () => v.rxHeightM,
+      getEirp: () => v.eirpDbm,
+      getRxGain: () => v.rxGainDbi,
+      getThreshold: () => v.sensDbm,
+      ...(show ? {} : { onProfile: null }),
+    },
+  );
+  if (!data) return null;
+  linkChecks.set(id, { key, data });
+  refreshLinks();
+  const st = linkStatus(data);
+  const name = l.label || `${a.name || 'Site'} – ${b.name || 'Site'}`;
+  statusMode.textContent = st === 'ok'
+    ? `${name}: link closes with ${data.budget.marginDb.toFixed(0)} dB margin`
+    : st === 'warn'
+      ? `${name}: link is tight (${data.budget.marginDb.toFixed(0)} dB${data.obstructed ? ', Fresnel zone blocked' : ''}; aim for ≥ ${LINK_FADE_MARGIN_DB} dB)`
+      : `${name}: link does not close (${data.budget.marginDb.toFixed(0)} dB)`;
+  return data;
+}
+
+$('#checkLinksBtn')?.addEventListener('click', async () => {
+  const links = mission.getLinks();
+  let n = 0;
+  for (const l of links) {
+    statusMode.textContent = `Checking link ${++n} of ${links.length}…`;
+    await checkLink(l.id, { show: n === links.length });
+  }
+  const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+  const bad = links.filter((l) => linkStatus(currentCheck(l, byId)) === 'bad').length;
+  const warn = links.filter((l) => linkStatus(currentCheck(l, byId)) === 'warn').length;
+  statusMode.textContent = `${links.length} link${links.length === 1 ? '' : 's'} checked — ${bad} do not close, ${warn} need attention (margin under ${LINK_FADE_MARGIN_DB} dB or Fresnel zone blocked)`;
+});
+
+function addLinkUndoable(a, b) {
+  const l = mission.addLink(a, b);
+  if (!l) return null;
+  let cur = l;
+  undoStack.push({
+    label: 'Radio link added',
+    undo: () => mission.removeLink(cur.id),
+    redo: () => { cur = mission.addLink(a, b, { label: l.label, freqMHz: l.freqMHz }) ?? cur; },
+  });
+  return l;
+}
+
+function removeLinkUndoable(id) {
+  const l = mission.getLinks().find((x) => x.id === id);
+  if (!l) return;
+  let cur = l;
+  mission.removeLink(id);
+  undoStack.push({
+    label: 'Radio link removed',
+    undo: () => { cur = mission.addLink(l.a, l.b, { label: l.label, freqMHz: l.freqMHz }) ?? cur; },
+    redo: () => mission.removeLink(cur.id),
+  });
+  statusMode.textContent = 'Radio link removed';
+}
+
+/** Right-click a site → Add radio link: the next site clicked is the far end. */
+function startLinkPick(entry) {
+  const container = map.getContainer();
+  const canvas = map.getCanvas();
+  const finish = () => {
+    canvas.style.cursor = '';
+    container.removeEventListener('click', onClick, true);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    finish();
+    statusMode.textContent = 'Linking cancelled';
+  };
+  // Capture phase: site markers are DOM elements that stop their own clicks.
+  // A click on the map itself takes the nearest site within 30 px.
+  const onClick = (ev) => {
+    let target = registry.byElement(ev.target);
+    if (!target) {
+      const r = container.getBoundingClientRect();
+      const p = { x: ev.clientX - r.left, y: ev.clientY - r.top };
+      let best = null;
+      for (const s of mission.getSites()) {
+        const q = map.project([s.lng, s.lat]);
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (d <= 30 && (!best || d < best.d)) best = { d, id: s.id };
+      }
+      target = best ? registry.get(best.id) : null;
+    }
+    ev.stopPropagation();
+    ev.preventDefault();
+    finish();
+    if (!target || target.kind !== 'mast' || target.owner !== 'mission' || target.id === entry.id) {
+      statusMode.textContent = 'No other site there — linking cancelled';
+      return;
+    }
+    const l = addLinkUndoable(entry.id, target.id);
+    statusMode.textContent = l
+      ? `Radio link ${entry.name} – ${target.name} added. Profile it from the Mission panel or the line.`
+      : `${entry.name} and ${target.name} are already linked`;
+  };
+  canvas.style.cursor = 'crosshair';
+  container.addEventListener('click', onClick, true);
+  document.addEventListener('keydown', onKey, true);
+  statusMode.textContent = `Click the site to link ${entry.name} with — Esc cancels`;
+}
+
+// Click a link line: name (editable), length, margin, profile, remove.
+let linkPopup = null;
+for (const layer of RADIO_LINK_LAYERS) {
+  map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+  map.on('click', layer, (e) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    const { id, label, km, status } = f.properties;
+    const l = mission.getLinks().find((x) => x.id === id);
+    if (!l) return;
+    const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+    const data = currentCheck(l, byId);
+    const wrap = document.createElement('div');
+    wrap.className = 'link-popup';
+    wrap.innerHTML =
+      '<input type="text" class="mission-popup__edit" aria-label="Link name" />' +
+      `<span class="link-popup__meta" data-numeric>${km} km · ${status === 'unknown' ? 'not checked' : `margin ${data.budget.marginDb.toFixed(0)} dB`}</span>` +
+      '<div class="link-popup__actions"><button class="btn btn--sm" type="button" data-act="del">Remove</button>' +
+      '<button class="btn btn--sm btn--primary" type="button" data-act="check">Path profile</button></div>';
+    const input = wrap.querySelector('input');
+    input.value = l.label || '';
+    input.placeholder = label;
+    input.addEventListener('change', () => mission.renameLink(id, input.value));
+    wrap.querySelector('[data-act="check"]').addEventListener('click', () => { linkPopup?.remove(); checkLink(id); });
+    wrap.querySelector('[data-act="del"]').addEventListener('click', () => { linkPopup?.remove(); removeLinkUndoable(id); });
+    wrap.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') linkPopup?.remove(); });
+    linkPopup?.remove();
+    // No auto-focus: a focused name field would swallow Esc and ⌘Z.
+    linkPopup = new maplibregl.Popup({ closeButton: true, offset: 8, focusAfterOpen: false })
+      .setLngLat(e.lngLat).setDOMContent(wrap).addTo(map);
+  });
+}
 
 // ---- M49: aim one site's antenna by clicking where it should point ---------
 function setSiteAim(id, deg) {
@@ -4190,6 +4513,11 @@ function applyMastHeight(entry, heightM) {
     statusMode.textContent = `${entry.name}: altitude ${heightM} m AGL applied`;
     return; // setAltitude → registry.sync → objects:changed arms the recompute
   }
+  // A fixed site takes the height as its own (M50); other masts set the panel.
+  if (entry.kind === 'mast' && entry.owner === 'mission') {
+    setSiteRf(entry.id, { txHeightM: heightM, powerW: entry.settings?.powerW ?? null });
+    return;
+  }
   const from = clampNum(txHeightInput.value, 1, 300, 10);
   const setH = (v) => { txHeightInput.value = String(v); };
   setH(heightM);
@@ -4208,7 +4536,7 @@ const mastWizard = createMastWizard(document.querySelector('.map-wrap'), {
   getPoints: () => mission?.getPoints?.() ?? [],
   getFreqMHz: () => clampNum(freqInput.value, 30, 6000, 150),
   getRxHeightM: () => clampNum(rxHeightInput.value, 0.5, 50, 1.5),
-  getEirpDbm: () => wattsToDbm(clampNum(powerInput.value, 0.01, 100, 5)) + txGainDbi(),
+  getEirpDbm: (e) => txEirpDbm(e?.settings?.powerW ?? clampNum(powerInput.value, 0.01, 100, 5)),
   getThresholdDbm: () => clampNum(thMarginal.value, -200, 0, -103),
   getMaxM: (e) => (e.kind === 'drone' ? 120 : 30),
   // E1 seam: the wizard sees the same data the coverage run would — local
@@ -4653,6 +4981,7 @@ function currentAssumptions() {
     detail: coverageDetailValue(),
     antenna: antennaText(p.antenna),
     rxGainDbi: p.rxGainDbi,
+    txLossDb: p.txLossDb,
   });
 }
 

@@ -12,6 +12,7 @@
 
 import { normalizeAntenna } from '../coverage/antenna.js';
 import { LIMITS, strictNum, isLatLng, clipName } from '../geo/validate.js';
+import { SITE_RF_LIMITS } from '../mission/mission.js';
 
 export const MISSION_FORMAT = 'groundlink-mission';
 export const MISSION_VERSION = 1;
@@ -32,12 +33,58 @@ function namedPoint(p) {
   return { lat, lng, name: clipName(p.name) };
 }
 
-/** A site: a named point plus its own antenna pointing when set (M49). */
+/**
+ * A site: a named point plus its own antenna pointing (M49), mast height and
+ * power (M50) when set. Out-of-range height/power is clamped like the panel.
+ */
 function site(p) {
   const out = namedPoint(p);
+  if (!out) return null;
   const az = num(p?.azimuthDeg);
-  if (out && az != null) out.azimuthDeg = ((az % 360) + 360) % 360;
+  if (az != null) out.azimuthDeg = ((az % 360) + 360) % 360;
+  for (const key of ['txHeightM', 'powerW']) {
+    const v = num(p?.[key]);
+    const [lo, hi] = SITE_RF_LIMITS[key];
+    if (v != null) out[key] = Math.min(hi, Math.max(lo, v));
+  }
   return out;
+}
+
+/**
+ * Radio links (M50) refer to sites by their index in the file's `sites` list.
+ * `siteIndex` maps a file index to the index after cleaning (null when that
+ * site was dropped), so links follow their sites when a bad one is skipped.
+ * Links to a missing site, self-links and duplicate pairs are dropped.
+ */
+function cleanLinks(arr, siteIndex, report) {
+  const input = Array.isArray(arr) ? arr : [];
+  const seen = new Set();
+  const out = [];
+  for (const l of input) {
+    const a = siteIndex[num(l?.a)] ?? null;
+    const b = siteIndex[num(l?.b)] ?? null;
+    if (a == null || b == null || a === b) continue;
+    const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const link = { a, b, label: clipName(l.label) };
+    const f = num(l.freqMHz);
+    if (f != null && f >= 1 && f <= 100000) link.freqMHz = f;
+    out.push(link);
+  }
+  if (report && input.length > out.length) report.dropped.links = input.length - out.length;
+  if (report && out.length > LIMITS.links) report.truncated.links = { over: out.length - LIMITS.links, max: LIMITS.links };
+  return out.slice(0, LIMITS.links);
+}
+
+/** File index → cleaned index for the sites list (null = dropped or over the limit). */
+function siteIndexMap(arr) {
+  const map = [];
+  let k = 0;
+  (Array.isArray(arr) ? arr : []).forEach((p, i) => {
+    map[i] = site(p) && k < LIMITS.sites ? k++ : null;
+  });
+  return map;
 }
 
 function vertex(p) {
@@ -110,6 +157,7 @@ function cleanCoverage(c) {
     // Antenna fields arrived after v1 files existed; absent → dipole, 0 dBi.
     ...(c.antenna && typeof c.antenna === 'object' ? { antenna: normalizeAntenna(c.antenna) } : {}),
     ...(num(c.rxGainDbi) != null ? { rxGainDbi: num(c.rxGainDbi) } : {}),
+    ...(num(c.txLossDb) != null ? { txLossDb: Math.min(30, Math.max(0, num(c.txLossDb))) } : {}),
     thresholds: {
       excellent: num(t.excellent),
       good: num(t.good),
@@ -156,6 +204,7 @@ function cleanMission(m, report) {
   return {
     aoi,
     sites: cleanListReport(src.sites, site, 'sites', LIMITS.sites, report),
+    links: cleanLinks(src.links, siteIndexMap(src.sites), report),
     points: cleanListReport(src.points, namedPoint, 'points', LIMITS.points, report),
     route: cleanListReport(src.route, vertex, 'route vertices', LIMITS.routeVertices, report),
     waypoints: cleanListReport(src.waypoints, waypoint, 'waypoints', LIMITS.waypoints, report),
