@@ -1067,7 +1067,10 @@ whenStyleReady(() => {
         else if (terrain && info?.elevSource) bits.push(`Terrain: ${terrainCredit(info.elevSource)}.`);
         if (useClutterInput.checked) {
           bits.push(clutter
-            ? (info?.clutterSource === 'cog' ? 'Clutter heights from your local COG.' : 'ESA WorldCover clutter applied.')
+            ? (info?.clutterSource === 'cog' ? 'Clutter heights from your local COG.'
+              : info?.clutterSource?.includes('chm')
+                ? (info.clutterSource.includes('worldcover') ? 'Clutter from ESA WorldCover land cover with Meta tree heights.' : 'Clutter from Meta tree heights (land cover unavailable).')
+                : 'Clutter from ESA WorldCover land cover (tree heights unavailable for this area, typical heights used).')
             : `No clutter in this run: ${landcoverReasonText(info?.clutterError)}. Run again, or load a local COG in the Data flyout.`);
         }
         bits.push('Planning-grade, not survey-grade.');

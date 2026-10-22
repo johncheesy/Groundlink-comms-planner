@@ -1,6 +1,6 @@
 # 0007 — Terrain from Mapterhorn (Copernicus GLO-30), capped at zoom 12
 
-**Date:** 22 Oct 2026 · **Status:** accepted · **Context:** product review P1 "credibility" items; height-data research (no CORS on Copernicus DEM in AWS, Mapterhorn keyless with CORS)
+**Date:** 22 Oct 2026 · **Status:** accepted (zoom 13+ unlocked for small P.1812 runs by ADR 0008) · **Context:** product review P1 "credibility" items; height-data research (no CORS on Copernicus DEM in AWS, Mapterhorn keyless with CORS)
 
 ## Problem
 

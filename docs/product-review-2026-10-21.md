@@ -179,6 +179,7 @@ Effort: S under a day, M a few days, L a week or more.
 - **Terrain upgraded** to Copernicus GLO-30 via Mapterhorn (ADR 0007).
 - **F4 coverage resolution:** the cell size now follows the AOI with a compute budget, plus a High detail setting (`src/coverage/grid.js`). A 20 km-radius AOI went from about 545 m to 321 m per cell (185 m on High).
 - **F10 global clutter:** ESA WorldCover now comes from Microsoft Planetary Computer for the whole world (DEA WMS kept as Africa fallback), 15 s time-out, and the reason is shown when clutter is missing.
+- **Tree heights:** Meta canopy height (CHM v2) refines WorldCover clutter; small P.1812 runs use bare-earth LiDAR where it exists (ADR 0008).
 - **Sharpest open aerial imagery** per country and Esri licence handling shipped (PR #29).
 
 ### P2 — Reach and differentiation (later)

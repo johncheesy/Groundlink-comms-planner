@@ -34,6 +34,7 @@ import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage
 import { receivedDbmP1812 } from '../coverage/p1812.js';
 import { NO_SERVER, MARGIN_SINGLE, quantizeMarginDb } from '../coverage/bestserver.js';
 import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
+import { buildLidarDem } from './dem.js';
 import { buildProfile, buildProfileP1812 } from './profile.js';
 import { createYielder } from './yield.js';
 
@@ -65,6 +66,10 @@ self.onmessage = async (e) => {
   let clutterError = null; // LandcoverError.reason — why clutter is missing
   if (params.useTerrain || params.useClutter) {
     self.postMessage({ type: 'progress', id, done: 0, total: rows, phase: 'data' });
+    // Small areas may swap the GLO-30 surface model for bare-earth LiDAR
+    // (fetched alongside, used below only if clutter loads too).
+    const wantLidar = params.useTerrain && params.useClutter && params.engine === 'p1812' && !msg.files?.elevationCog;
+    const lidarP = wantLidar ? buildLidarDem(bounds).catch(() => null) : null;
     const [d, lc] = await Promise.all([
       params.useTerrain
         ? buildElevationSampler({ bounds, cog: msg.files?.elevationCog ?? null }).catch(() => null)
@@ -79,6 +84,15 @@ self.onmessage = async (e) => {
     dem = d;
     clutter = lc;
     if (aborted()) return; // superseded/cancelled while fetching tiles
+    // Bare-earth LiDAR where every tile has it — P.1812 only, and only with
+    // clutter heights loaded, because bare earth without them would drop trees
+    // and buildings from the path (ADR 0007). A local elevation COG or an
+    // offline package keeps priority.
+    if (lidarP && dem && clutter && dem.id !== 'offline') {
+      const lidar = await lidarP;
+      if (aborted()) return;
+      if (lidar) dem = lidar;
+    }
   }
 
   const classes = new Uint8Array(cols * rows);
