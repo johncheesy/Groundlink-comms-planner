@@ -81,6 +81,7 @@ import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
 import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
+import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText } from './coverage/antenna.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { terrainCredit } from './data/terrain-tiles.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
@@ -301,7 +302,7 @@ const profileTool = createProfileTool(map, {
   getTxHeight: () => parseFloat($('#txHeight')?.value) || 10,
   getRxHeight: () => 1.5,
   getThreshold: () => clampNum($('#thNone')?.value, -200, 0, -110),
-  getEirp: () => wattsToDbm(clampNum($('#powerInput')?.value, 0.01, 100, 5)) + TX_GAIN_DBI,
+  getEirp: () => wattsToDbm(clampNum($('#powerInput')?.value, 0.01, 100, 5)) + txGainDbi(),
   onProfile(data) { profilePanel.show(data); },
   onStatus(msg) { statusMode.textContent = msg; },
   onDone: reflectProfileBtn,
@@ -1412,7 +1413,7 @@ whenStyleReady(() => {
       siteHelp.textContent = spread;
       return;
     }
-    const params = { ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) };
+    const params = omniParams({ ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) });
     // Cap the AOI grid resolution for very large areas (edge case in the spec).
     const demand = mission.demandPoints({ maxDim: currentAoiAreaM2 > 1e10 ? 20 : 28 });
     if (demand.length < 2) {
@@ -1966,6 +1967,12 @@ const thGood = $('#thGood');
 const thMarginal = $('#thMarginal');
 const thNone = $('#thNone');
 const digitalModeSelect = $('#digitalModeSelect');
+const antennaPreset = $('#antennaPreset');
+const antennaAzimuth = $('#antennaAzimuth');
+const antennaGain = $('#antennaGain');
+const antennaBeam = $('#antennaBeam');
+const antennaFb = $('#antennaFb');
+const rxGainInput = $('#rxGain');
 const opacityInput = $('#opacityInput');
 const opacityRow = $('#opacityRow');
 const clearCoverageBtn = $('#clearCoverage');
@@ -1973,6 +1980,41 @@ const progress = $('#coverageProgress');
 const progressBar = $('#coverageProgressBar');
 const coverageHelp = $('#coverageHelp');
 const coverageEngine = $('#coverageEngine');
+
+// Tx antenna: a preset fills gain/beamwidth/front-to-back; editing any of
+// them makes it Custom. Pointing only matters for directional antennas.
+function readAntenna() {
+  return normalizeAntenna({
+    preset: antennaPreset?.value,
+    gainDbi: antennaGain?.value,
+    beamwidthDeg: antennaBeam?.value,
+    fbDb: antennaFb?.value,
+    azimuthDeg: antennaAzimuth?.value,
+  });
+}
+function writeAntenna(a) {
+  const n = normalizeAntenna(a);
+  if (antennaPreset) antennaPreset.value = n.preset;
+  if (antennaGain) antennaGain.value = String(n.gainDbi);
+  if (antennaBeam) antennaBeam.value = String(n.beamwidthDeg);
+  if (antennaFb) antennaFb.value = String(n.fbDb);
+  if (antennaAzimuth) {
+    antennaAzimuth.value = String(n.azimuthDeg);
+    antennaAzimuth.disabled = isOmni(n);
+  }
+}
+/** Peak transmit antenna gain (dBi) — the EIRP term. */
+const txGainDbi = () => readAntenna().gainDbi;
+antennaPreset?.addEventListener('change', () => {
+  const p = ANTENNA_PRESETS[antennaPreset.value];
+  writeAntenna(p ? { ...p, preset: antennaPreset.value, azimuthDeg: antennaAzimuth?.value } : readAntenna());
+});
+for (const el of [antennaGain, antennaBeam, antennaFb]) {
+  el?.addEventListener('input', () => {
+    if (antennaPreset) antennaPreset.value = 'custom';
+    if (antennaAzimuth) antennaAzimuth.disabled = isOmni(readAntenna());
+  });
+}
 
 // Manual threshold edits should move the Signal legend too (B8).
 for (const el of [thExcellent, thGood, thMarginal, thNone]) {
@@ -2730,7 +2772,7 @@ function calParamsForRadio(radioId) {
     : null;
   if (radio) {
     if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
-    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + TX_GAIN_DBI;
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + params.antenna.gainDbi;
   }
   return params;
 }
@@ -3165,15 +3207,28 @@ function engineLabel(engineOverride) {
   return useTerrainInput.checked ? 'FSPL+Deygout' : 'FSPL · flat';
 }
 
+/**
+ * Site search places masts where no pointing is known yet, so it plans with
+ * omni antennas: a directional antenna's peak gain in every direction would
+ * be optimistic.
+ */
+function omniParams(params) {
+  if (isOmni(params.antenna)) return params;
+  const omni = normalizeAntenna({ preset: 'dipole' });
+  return { ...params, eirpDbm: params.eirpDbm - params.antenna.gainDbi + omni.gainDbi, antenna: omni };
+}
+
 /** Shared link/engine params (everything except bounds/tx/txHeightM). */
 function coverageParams() {
   const freqMHz = clampNum(freqInput.value, 30, 6000, 150);
   const powerW = clampNum(powerInput.value, 0.01, 100, 5);
   const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
+  const antenna = readAntenna();
   return {
-    eirpDbm: wattsToDbm(powerW) + TX_GAIN_DBI,
+    eirpDbm: wattsToDbm(powerW) + antenna.gainDbi,
     freqMHz,
-    rxGainDbi: 0,
+    rxGainDbi: clampNum(rxGainInput?.value, -10, 20, 0),
+    antenna, // horizontal pattern, applied per cell by the coverage worker
     clutterDb: 0,
     engine: resolveEngine(),
     p: pct.p,
@@ -3351,6 +3406,9 @@ async function runCloudRF(compBounds, center, params, fallback) {
     txHeightM: params.txHeightM,
     rxHeightM: params.rxHeightM,
     rxSensDbm: params.thresholds.marginal,
+    txGainDbi: params.antenna.gainDbi,
+    antenna: params.antenna,
+    rxGainDbi: params.rxGainDbi,
   };
   coverage.clear(); // remove the built-in raster while the hosted job runs
   progress.hidden = false;
@@ -3440,7 +3498,7 @@ async function runTeamCoverage(team) {
   const radio = team.radioId ? radios?.getArsenal?.().find((r) => r.id === team.radioId) : null;
   if (radio) {
     if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
-    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + TX_GAIN_DBI;
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + params.antenna.gainDbi;
   }
   // M27: per-radio field-calibration offset (mean measured − predicted).
   params.eirpDbm += calOffsetDb(team.radioId);
@@ -3508,6 +3566,8 @@ function gatherMissionState() {
       rxHeightM: clampNum(rxHeightInput.value, 0.5, 50, 1.5),
       useTerrain: useTerrainInput.checked,
       useClutter: useClutterInput.checked,
+      antenna: readAntenna(),
+      rxGainDbi: clampNum(rxGainInput?.value, -10, 20, 0),
       thresholds: coverageParams().thresholds,
       digitalMode: getDigitalMode(),
     },
@@ -3581,6 +3641,8 @@ function applyMissionState(m) {
       if (c.rxHeightM != null) rxHeightInput.value = String(c.rxHeightM);
       useTerrainInput.checked = Boolean(c.useTerrain);
       useClutterInput.checked = Boolean(c.useClutter);
+      writeAntenna(c.antenna ?? {}); // older files: dipole, as before
+      if (rxGainInput) rxGainInput.value = String(c.rxGainDbi ?? 0);
       const t = c.thresholds ?? {};
       if (t.excellent != null) thExcellent.value = String(t.excellent);
       if (t.good != null) thGood.value = String(t.good);
@@ -3913,7 +3975,7 @@ const mastWizard = createMastWizard(document.querySelector('.map-wrap'), {
   getPoints: () => mission?.getPoints?.() ?? [],
   getFreqMHz: () => clampNum(freqInput.value, 30, 6000, 150),
   getRxHeightM: () => clampNum(rxHeightInput.value, 0.5, 50, 1.5),
-  getEirpDbm: () => wattsToDbm(clampNum(powerInput.value, 0.01, 100, 5)) + TX_GAIN_DBI,
+  getEirpDbm: () => wattsToDbm(clampNum(powerInput.value, 0.01, 100, 5)) + txGainDbi(),
   getThresholdDbm: () => clampNum(thMarginal.value, -200, 0, -103),
   getMaxM: (e) => (e.kind === 'drone' ? 120 : 30),
   // E1 seam: the wizard sees the same data the coverage run would — local
@@ -4258,6 +4320,8 @@ function currentAssumptions() {
     radioApplied: Boolean(radios?.hasActive?.()),
     terrainSource: st.terrain ? terrainCredit(st.elevSource) : null,
     detail: coverageDetailValue(),
+    antenna: antennaText(p.antenna),
+    rxGainDbi: p.rxGainDbi,
   });
 }
 

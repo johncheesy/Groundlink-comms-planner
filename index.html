@@ -502,6 +502,61 @@
                 </div>
               </div>
 
+              <div class="input-row">
+                <div style="flex:1.4">
+                  <label class="field-label" for="antennaPreset">Tx antenna</label>
+                  <select class="input" id="antennaPreset" title="Antenna on the transmitter. Directional antennas concentrate power in one direction and lose it behind.">
+                    <option value="dipole">Dipole / whip (omni)</option>
+                    <option value="collinear">Collinear (omni, 6 dBi)</option>
+                    <option value="yagi3">Yagi 3-element</option>
+                    <option value="yagi5">Yagi 5-element</option>
+                    <option value="sector90">Sector 90°</option>
+                    <option value="panel60">Panel 60°</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                <div style="flex:1">
+                  <label class="field-label" for="antennaAzimuth">Pointing</label>
+                  <div class="input-row">
+                    <input class="input" id="antennaAzimuth" type="number" value="0" min="0" max="359" step="5" title="Compass bearing the antenna points to (0 = north, 90 = east)" disabled />
+                    <span class="input-suffix">°</span>
+                  </div>
+                </div>
+              </div>
+              <div class="input-row adv-flex">
+                <div style="flex:1">
+                  <label class="field-label" for="antennaGain">Gain</label>
+                  <div class="input-row">
+                    <input class="input" id="antennaGain" type="number" value="2.15" min="-10" max="30" step="0.5" />
+                    <span class="input-suffix">dBi</span>
+                  </div>
+                </div>
+                <div style="flex:1">
+                  <label class="field-label" for="antennaBeam">Beamwidth</label>
+                  <div class="input-row">
+                    <input class="input" id="antennaBeam" type="number" value="360" min="5" max="360" step="5" title="Horizontal half-power beamwidth. 360 = omni." />
+                    <span class="input-suffix">°</span>
+                  </div>
+                </div>
+                <div style="flex:1">
+                  <label class="field-label" for="antennaFb">Front/back</label>
+                  <div class="input-row">
+                    <input class="input" id="antennaFb" type="number" value="0" min="0" max="40" step="1" title="How much weaker the signal is behind the antenna" />
+                    <span class="input-suffix">dB</span>
+                  </div>
+                </div>
+              </div>
+              <div class="input-row adv-flex">
+                <div style="flex:1">
+                  <label class="field-label" for="rxGain">Rx antenna gain</label>
+                  <div class="input-row">
+                    <input class="input" id="rxGain" type="number" value="0" min="-10" max="20" step="0.5" title="Receiving antenna gain. 0 dBi for a handheld whip; lower for a body-worn radio." />
+                    <span class="input-suffix">dBi</span>
+                  </div>
+                </div>
+                <div style="flex:2"></div>
+              </div>
+
               <label class="check">
                 <input type="checkbox" id="useTerrain" checked />
                 <span>Use terrain (DEM) — talk-in binding link</span>

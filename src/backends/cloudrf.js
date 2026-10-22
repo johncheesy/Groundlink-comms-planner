@@ -66,6 +66,9 @@ function buildBody(bounds, tx, radio) {
   const rxHeightM = num(radio?.rxHeightM, 2);
   const rxSensDbm = num(radio?.rxSensDbm, -110);
   const txGainDbi = num(radio?.txGainDbi, 2.15);
+  // Directional antenna: CloudRF's custom pattern (ant 0) from beamwidth and
+  // front-to-back; otherwise its omni dipole template (ant 1).
+  const ant = radio?.antenna && radio.antenna.beamwidthDeg < 360 ? radio.antenna : null;
 
   return {
     site: 'GroundLink',
@@ -82,18 +85,18 @@ function buildBody(bounds, tx, radio) {
       lat: 0,
       lon: 0,
       alt: rxHeightM,
-      rxg: 0, // rx antenna gain, dBi
+      rxg: num(radio?.rxGainDbi, 0), // rx antenna gain, dBi
       rxs: rxSensDbm, // sensitivity / required signal, dBm
     },
     antenna: {
       txg: txGainDbi,
       txl: 0, // feeder loss, dB
-      ant: 1, // 1 = omni-directional template
-      azi: 0,
+      ant: ant ? 0 : 1, // 0 = custom pattern from hbw/vbw/fbr, 1 = omni dipole
+      azi: ant ? ant.azimuthDeg : 0,
       tlt: 0,
-      hbw: 0,
-      vbw: 0,
-      fbr: 0,
+      hbw: ant ? ant.beamwidthDeg : 0,
+      vbw: ant ? Math.min(90, ant.beamwidthDeg) : 0,
+      fbr: ant ? ant.fbDb : 0,
       pol: 'v',
     },
     model: {

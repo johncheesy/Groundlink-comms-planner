@@ -184,3 +184,15 @@ describe('mission file — helpers', () => {
     expect(isMissionData(null)).toBe(false);
   });
 });
+
+describe('mission file — antenna', () => {
+  it('keeps a directional antenna and rx gain, clamped', async () => {
+    const { serializeMission, parseMission } = await import('./mission.js');
+    const text = serializeMission({
+      coverage: { freqMHz: 450, antenna: { preset: 'yagi5', gainDbi: 10, beamwidthDeg: 50, fbDb: 20, azimuthDeg: 400 }, rxGainDbi: 3 },
+    });
+    const r = parseMission(JSON.stringify(text));
+    expect(r.mission.coverage.antenna).toMatchObject({ preset: 'yagi5', gainDbi: 10, azimuthDeg: 40 });
+    expect(r.mission.coverage.rxGainDbi).toBe(3);
+  });
+});

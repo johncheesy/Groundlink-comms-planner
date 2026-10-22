@@ -18,6 +18,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+**M49 — Antenna model** (`docs/M49-antenna-model.md`)
+- Coverage panel: transmit antenna preset (dipole, collinear, Yagi 3/5-element, sector 90°, panel 60°, custom) and pointing; in advanced mode gain, beamwidth, front-to-back and receive antenna gain. Directional antennas use the 3GPP parabolic horizontal pattern, so a Yagi pointing east now covers far to the east and little behind it (checked in the app: 4x the covered cells to the east of an omni at equal power). Applies to coverage, team coverage, calibration, path profile, mast wizard and CloudRF; site search keeps an omni. Saved in mission files and shown in the assumptions line. 15 tests.
+
 **M48 — Live LEO/MEO pass window** (`docs/M48-leo-passes.md`)
 - Satcom panel: per-constellation live line for Iridium, Globalstar and O3b — satellites above a 10° mask now, best elevation/azimuth, gaps and worst moment in the next 120 min, next pass when nothing is visible. SGP4 via `satellite.js` on CelesTrak element sets (CORS, no key, 6 h cache, stale-on-offline). Lazy-loaded chunk; eager bundle unchanged.
 - Decision record `docs/decisions/0006-gods-eye-view-port.md`: what was and was not taken from God's Eye View 0.1.1.

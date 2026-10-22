@@ -33,6 +33,7 @@
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
 import { receivedDbmP1812 } from '../coverage/p1812.js';
 import { NO_SERVER, MARGIN_SINGLE, quantizeMarginDb } from '../coverage/bestserver.js';
+import { patternLossDb, bearingDeg, isOmni } from '../coverage/antenna.js';
 import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
 import { buildLidarDem } from './dem.js';
 import { buildProfile, buildProfileP1812 } from './profile.js';
@@ -125,6 +126,12 @@ self.onmessage = async (e) => {
     ? msg.txs
     : [{ lat: tx.lat, lng: tx.lng, txHeightM: params.txHeightM ?? 10 }];
   const txElevs = txList.map((t) => (dem ? dem.sample(t.lng, t.lat) : 0) + (t.txHeightM ?? 10));
+  // Directional tx antennas: per-site override, else the run's antenna.
+  // eirpDbm already carries the peak gain; the pattern takes off the rest.
+  const txAntennas = txList.map((t) => {
+    const a = t.antenna ?? params.antenna;
+    return a && !isOmni(a) ? a : null;
+  });
 
   let inAoiCount = 0;
   let coveredInAoiCount = 0;
@@ -170,6 +177,7 @@ self.onmessage = async (e) => {
           }
           dbm = receivedDbm(params, dist, diffraction, useP1812 ? 0 : clutterDb);
         }
+        if (txAntennas[ti]) dbm -= patternLossDb(txAntennas[ti], bearingDeg(t.lat, t.lng, lat, lng));
         if (dbm > maxDbm) {
           secondDbm = maxDbm;
           maxDbm = dbm;
