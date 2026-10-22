@@ -2278,13 +2278,18 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .alpha-notice {
   position: absolute;
   top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  /* Centred between two edges, not left:50% + translate — that gave the card
+     only half the map width to shrink into (188 px on a phone, UI test U13). */
+  left: 12px;
+  right: 12px;
+  width: fit-content;
+  margin: 0 auto;
   z-index: var(--z-toolbar);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  max-width: min(620px, calc(100% - 24px));
+  gap: 6px 10px;
+  max-width: 620px;
   padding: 8px 10px 8px 12px;
   border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--hair2));
   border-left: 3px solid var(--warn);
@@ -2297,7 +2302,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .alpha-notice[hidden] { display: none; }
 .alpha-notice__tag { flex: 0 0 auto; }
-.alpha-notice__text { flex: 1 1 auto; color: var(--dim); }
+.alpha-notice__text { flex: 1 1 220px; color: var(--dim); }
 .alpha-notice__text strong { color: var(--ink); }
 .alpha-notice__close {
   flex: 0 0 auto;
@@ -5104,4 +5109,51 @@ select.input--sm { text-align: left; padding-right: 6px; }
   color: var(--mapink);
   font-size: 13px;
   pointer-events: none;
+}
+
+/* Touch screens: finger-sized hit areas (UI test U14, WCAG 2.5.5 target 44 px).
+   Mouse layouts keep their compact sizes. */
+@media (pointer: coarse) {
+  .btn,
+  .input,
+  .segmented__btn,
+  .basemap-switch__btn,
+  .panel-group__head,
+  .plan-stepper__step,
+  .section__details-summary,
+  .result-card__zones-wrap > summary,
+  .check {
+    min-height: 44px;
+  }
+  .toolbar__btn,
+  .section__expand,
+  .map-rail__btn,
+  .objrow__menu,
+  .panel__collapse-btn,
+  .result-card__fold,
+  .result-card__close,
+  .alpha-notice__close,
+  .estate__close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .check { align-items: center; }
+}
+
+/* Phone header and overlays (UI test retest: the header was 476 px wide on a
+   375 px screen, so the whole page scrolled sideways; the start card sat
+   under the map rail; the attribution ran behind the menu button). */
+@media (max-width: 540px) {
+  .brand__alpha { display: none; } /* BETA stays in the status bar */
+  .toolbar__brief-btn { display: none; } /* Brief: result card and ⌘K */
+  .toolbar__btn[data-module='basemap'] { display: none; } /* the map rail has it */
+  .estate {
+    left: 12px;
+    right: 76px; /* clear of the map rail */
+    width: auto;
+    transform: translateY(-50%);
+  }
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib {
+    max-width: calc(100vw - 110px); /* clear of the menu button */
+  }
 }
