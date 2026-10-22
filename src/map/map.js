@@ -8,6 +8,7 @@ import {
   BUILDINGS_LAYER,
   variantLayerId,
   IMAGERY_LABELS,
+  LABELS_FALLBACK,
 } from './basemaps.js';
 import { registerHiresProtocol, HIRES_SOURCES, hiresLayerId } from './hires-imagery.js';
 import {
@@ -175,7 +176,12 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   }
 
   function applyBasemap(category, variantId) {
-    const newVariant = variantId ?? activeVariantIds[category];
+    // An unknown variant (e.g. a mission file naming a basemap that was later
+    // removed, like Carto Voyager) falls back to the category's first variant
+    // instead of hiding every layer and leaving a black map.
+    const known = (id) => BASEMAP_VARIANTS[category]?.some((v) => v.id === id);
+    const wanted = variantId ?? activeVariantIds[category];
+    const newVariant = known(wanted) ? wanted : BASEMAP_VARIANTS[category][0].id;
 
     // Hide every variant layer across all categories
     for (const cat of BASEMAPS) {
@@ -216,10 +222,19 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   // ---- Place names and roads over the satellite map (UI test U3) ----------
   function syncLabels() {
     const show = labelsOn && activeCategory === 'imagery';
+    const blocked = (l) => sessionBlocked.has(providerOf(hostOf(l)));
     for (const l of IMAGERY_LABELS) {
-      if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', show ? 'visible' : 'none');
+      if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', show && !blocked(l) ? 'visible' : 'none');
+    }
+    // Esri unreachable → OpenFreeMap place names stand in.
+    const primary = IMAGERY_LABELS.find((l) => l.id === LABELS_FALLBACK.fallbackFor);
+    if (map.getLayer(LABELS_FALLBACK.id)) {
+      map.setLayoutProperty(LABELS_FALLBACK.id, 'visibility', show && blocked(primary) ? 'visible' : 'none');
     }
   }
+  // A provider already blocked at start-up. 'style.load', not 'load': 'load'
+  // waits for every first tile, which can take long when a provider is down.
+  map.once('style.load', syncLabels);
   function setLabels(on) {
     labelsOn = Boolean(on);
     writeLabelsPref(labelsOn);
@@ -229,6 +244,7 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   /** Keep place names on top of rasters added later (coverage, cellular). */
   function raiseLabels() {
     for (const l of IMAGERY_LABELS) if (l.raise && map.getLayer(l.id)) map.moveLayer(l.id);
+    if (map.getLayer(LABELS_FALLBACK.id)) map.moveLayer(LABELS_FALLBACK.id);
   }
 
   // ---- 3D terrain + globe projection -------------------------------------

@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Fixed
+- **Bugs found in a full app run-through and code check:**
+  - The satellite place names and roads come from Esri, so they disappeared whenever Esri is unreachable (it answers 403 on some networks). OpenFreeMap place names now stand in automatically. The CARTO label tiles first tried for this turned out to need an API key and only return an "API KEY REQUIRED" watermark.
+  - The existing **Carto Voyager** topo basemap showed only that watermark for everyone; it is removed. A mission file that names it opens on OpenTopoMap instead of a black map (any unknown basemap variant now falls back).
+  - The basemap failover notice said national aerial photos are "shown automatically"; they are opt-in since today, so it now points to the Imagery menu.
+  - Antenna beam wedges could stay missing when the first update arrived while the map was still loading (the code waited for an event that only fires once). The newest update is now drawn on the next idle.
+  - Building heights (GHSL) stayed off for the whole session after a single failed request; the next run now retries.
 - Satcom refreshes threw "updateReadinessBadge is not defined" on every mission change since satcom started following sites and routes; the readiness badge refresh is now reachable from there.
 - **Small review fixes** (F12, F13, F19–F23, F26): GeoTIFF, KMZ and TAK exports are disabled with the reason until a coverage run exists (GeoJSON works for the mission alone); a number field left outside its range snaps to the value actually used and the status bar says so; cellular says "could not load towers" when the services fail instead of "no towers found"; "Placing point" clears when the tool ends; waypoint placement and the path profile no longer arm at the same time; a CloudRF network failure no longer reads as "Key rejected"; copying a coordinate reports failure instead of throwing; the bulk-add box and four power fields have names, and the page has an h1.
 - **National hi-res aerial photos are opt-in.** Esri is the imagery you see by default; the national layers (PDOK, IGN, …) only draw after you tick them in the Imagery flyout, because they could hide what Esri shows, such as water in the Netherlands. A previously stored "on" is ignored once.

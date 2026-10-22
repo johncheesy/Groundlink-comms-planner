@@ -17,3 +17,31 @@ describe('beamFeatures', () => {
     expect(f[1].geometry.coordinates).toEqual([0.4, 0.3]);
   });
 });
+
+describe('updateAntennaBeams before the style is ready', () => {
+  it('queues the newest update and draws it on the next idle', async () => {
+    const { updateAntennaBeams } = await import('./antenna-beams.js');
+    globalThis.document ??= { documentElement: {}, createElement: () => ({ getContext: () => ({ beginPath() {}, moveTo() {}, arc() {}, closePath() {}, fill() {}, stroke() {}, lineTo() {}, getImageData: () => ({}) }) }) };
+    globalThis.getComputedStyle ??= () => ({ getPropertyValue: () => '' });
+    let ready = false;
+    const idle = [];
+    const sources = {};
+    const map = {
+      getSource: (id) => sources[id],
+      hasImage: () => true,
+      addImage() {},
+      addSource(id, spec) {
+        if (!ready) throw new Error('Style is not done loading');
+        sources[id] = { data: spec.data, setData(d) { this.data = d; } };
+      },
+      addLayer() {},
+      once(ev, fn) { if (ev === 'idle') idle.push(fn); },
+    };
+    updateAntennaBeams(map, sites, { ...yagi, azimuthDeg: 10 });
+    updateAntennaBeams(map, sites, { ...yagi, azimuthDeg: 20 }); // newer, same idle
+    expect(idle).toHaveLength(1);
+    ready = true;
+    idle[0]();
+    expect(sources['gl-antenna-beams'].data.features[0].properties.az).toBe(20);
+  });
+});

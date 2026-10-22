@@ -67,7 +67,7 @@ export const BASEMAP_VARIANTS = {
       // HTTP 400 for every tile. `_3857` supports EPSG:3857 / EPSG:900913.
       id: 's2cloudless-2024',
       label: 'Sentinel-2 (10 m · cloudless)',
-      note: 'Sentinel-2 is 10 m, so detail is limited when zoomed in. Where a national aerial source exists (for example the Netherlands, Switzerland, France) the sharper imagery is shown automatically.',
+      note: 'Sentinel-2 is 10 m, so detail is limited when zoomed in. Where a national aerial source exists (for example the Netherlands, Switzerland, France) you can switch it on in the Imagery menu.',
       wms: true, // flag: tile URL uses {bbox-epsg-3857} instead of {x}/{y}/{z}
       tiles: [
         'https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&version=1.1.1' +
@@ -120,17 +120,6 @@ export const BASEMAP_VARIANTS = {
       maxzoom: 19,
     },
     {
-      id: 'carto-voyager',
-      label: 'Carto Voyager',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      ],
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      maxzoom: 19,
-    },
-    {
       id: 'esri-natgeo',
       label: 'Esri National Geographic',
       tiles: [
@@ -167,6 +156,14 @@ export const IMAGERY_LABELS = Object.freeze([
     raise: true, // names above the coverage raster
   },
 ]);
+
+/**
+ * Stand-in place names while Esri is unreachable (it answers 403 on some
+ * networks): a keyless vector layer from OpenFreeMap's `place` data, white
+ * with a dark halo so it reads on a photo. map.js syncLabels swaps it in.
+ * (CARTO's label tiles now need an API key and only return a watermark.)
+ */
+export const LABELS_FALLBACK = Object.freeze({ id: 'labels-places-alt', fallbackFor: 'labels-places' });
 const LABELS_ATTRIBUTION = 'Labels &copy; <a href="https://www.esri.com/">Esri</a>';
 
 export function variantLayerId(category, variantId) {
@@ -197,7 +194,7 @@ export const OPENFREEMAP = {
   // TileJSON endpoint (keyless). See https://openfreemap.org — confirm if it moves.
   url: 'https://tiles.openfreemap.org/planet',
   attribution:
-    'Buildings: © <a href="https://openfreemap.org">OpenFreeMap</a> · © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    '© <a href="https://openfreemap.org">OpenFreeMap</a> · © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 };
 export const BUILDINGS_LAYER = 'buildings-3d';
 const BUILDING_COLOR = '#3b4250'; // muted neutral surface on the dark map (not a bright fill)
@@ -260,6 +257,23 @@ export function buildStyle(
       paint: { 'raster-opacity': l.opacity ?? 1 },
     });
   }
+  layers.push({
+    id: LABELS_FALLBACK.id,
+    type: 'symbol',
+    source: OPENFREEMAP.id,
+    'source-layer': 'place',
+    filter: ['in', ['get', 'class'], ['literal', ['city', 'town', 'village', 'suburb']]],
+    layout: {
+      visibility: 'none',
+      'text-field': ['coalesce', ['get', 'name:latin'], ['get', 'name']],
+      'text-font': ['Open Sans Bold'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 6, 11, 12, 14],
+      'text-max-width': 8,
+    },
+    // On-map label colours: the map canvas is dark in both themes (--mapring
+    // white text on a --mapbg halo), so these do not follow the UI theme.
+    paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(11, 16, 24, 0.9)', 'text-halo-width': 1.6 },
+  });
 
   // DEM source is declared up-front so setTerrain can reference it on demand.
   sources[TERRARIUM_DEM.id] = TERRARIUM_DEM.spec;

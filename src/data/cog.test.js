@@ -131,4 +131,20 @@ describe('buildCogSampler (end-to-end on a synthetic GeoTIFF)', () => {
     expect(warn).toHaveBeenCalledTimes(1); // logged once, then remembered
     warn.mockRestore();
   });
+  it('rememberFailure: false retries a URL source on the next call', async () => {
+    resetCogCaches();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let calls = 0;
+    vi.stubGlobal('fetch', () => { calls += 1; return Promise.reject(new TypeError('offline')); });
+    try {
+      const url = 'https://example.invalid/blocks.tif';
+      expect(await buildCogSampler(url, { west: 0, south: 0, east: 1, north: 1 }, { rememberFailure: false })).toBeNull();
+      const after1 = calls;
+      expect(await buildCogSampler(url, { west: 0, south: 0, east: 1, north: 1 }, { rememberFailure: false })).toBeNull();
+      expect(calls).toBeGreaterThan(after1); // tried the network again
+    } finally {
+      vi.unstubAllGlobals();
+      warn.mockRestore();
+    }
+  });
 });

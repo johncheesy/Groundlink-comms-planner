@@ -77,6 +77,7 @@ Only the providers whose imagery is actually in view are credited (rebuilt as th
 | ESA WorldCover via Digital Earth Africa WMS | Clutter fallback (Africa only) | CC BY 4.0 |
 | Meta/WRI Canopy Height Map v2 via source.coop (Taylor Geospatial mirror) | Tree heights in clutter | CC BY 4.0 |
 | Esri World Boundaries and Places + World Transportation (reference tiles) | Place names and roads over the satellite map | Esri terms, same credit as Esri imagery |
+| OpenFreeMap vector tiles (`place` layer) | Place names over the satellite map while Esri is unreachable | ODbL (OpenStreetMap), OpenFreeMap terms |
 | GHSL GHS-BUILT-H R2023A (ANBH, 2018), European Commission JRC, AWS bucket `jrc-ghsl` | Building heights in clutter | CC BY 4.0 |
 | Bare-earth LiDAR via Mapterhorn (zoom 13–14, ~35 countries) | Terrain for small P.1812 runs with clutter | per source, see mapterhorn.com/attribution |
 | Overture Maps buildings | 3D buildings (optional) | ODbL / CDLA, see overturemaps.org |
