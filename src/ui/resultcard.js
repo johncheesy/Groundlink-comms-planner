@@ -29,7 +29,8 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
   let zones = [];
   // UI test U11: the card docks to a corner and folds to its three figures;
   // the choice holds for later runs in this session.
-  let collapsed = false;
+  // Phones start folded: the full card would cover half the map.
+  let collapsed = typeof matchMedia === 'function' && matchMedia('(max-width: 540px)').matches;
 
   el.addEventListener('click', (e) => {
     const zoneBtn = e.target.closest('[data-zone]');

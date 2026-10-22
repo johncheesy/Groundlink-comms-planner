@@ -199,7 +199,9 @@ button {
 @media (max-width: 760px) {
   .app,
   .app[data-collapsed='true'] {
-    grid-template-columns: 1fr;
+    /* minmax(0, …): a plain 1fr column grows to the header's minimum width,
+       which pushed the phone layout to 418 px on a 375 px screen. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
     grid-template-areas:
       'toolbar'

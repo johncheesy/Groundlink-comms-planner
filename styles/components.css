@@ -181,7 +181,8 @@
 .segmented__btn[aria-pressed='true'],
 .segmented__btn.is-active {
   background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-  color: var(--accent);
+  /* Accent pulled towards ink so it stays ≥ 4.5:1 on its own tint (UI retest). */
+  color: color-mix(in srgb, var(--accent) 70%, var(--ink));
 }
 
 /* ---- Inputs ------------------------------------------------------------ */
@@ -308,22 +309,22 @@
 }
 
 .badge--ok {
-  color: var(--ok);
+  color: color-mix(in srgb, var(--ok) 60%, var(--ink)); /* ≥ 4.5:1 on its tint (UI retest) */
   background: color-mix(in srgb, var(--ok) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--ok) 22%, transparent);
 }
 .badge--warn {
-  color: var(--warn);
+  color: color-mix(in srgb, var(--warn) 60%, var(--ink)); /* ≥ 4.5:1 on its tint (UI retest) */
   background: color-mix(in srgb, var(--warn) 14%, var(--surface));
   border-color: color-mix(in srgb, var(--warn) 26%, transparent);
 }
 .badge--bad {
-  color: var(--bad);
+  color: color-mix(in srgb, var(--bad) 60%, var(--ink)); /* ≥ 4.5:1 on its tint (UI retest) */
   background: color-mix(in srgb, var(--bad) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--bad) 24%, transparent);
 }
 .badge--ref {
-  color: var(--accent2);
+  color: color-mix(in srgb, var(--accent2) 60%, var(--ink)); /* ≥ 4.5:1 on its tint (UI retest) */
   background: color-mix(in srgb, var(--accent2) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--accent2) 24%, transparent);
 }
@@ -5080,7 +5081,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .map-key__swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
 .map-key__note { margin-top: 4px; color: var(--dim); }
 @media (max-width: 640px) {
-  .map-key { bottom: 84px; } /* clear of the mobile menu button */
+  .map-key { bottom: 112px; } /* clear of the mobile menu button and the folded result card */
 }
 
 /* Fixed-site name next to its marker (UI test U9/U10). Halo for any map. */
@@ -5145,6 +5146,11 @@ select.input--sm { text-align: left; padding-right: 6px; }
    under the map rail; the attribution ran behind the menu button). */
 @media (max-width: 540px) {
   .brand__alpha { display: none; } /* BETA stays in the status bar */
+  .toolbar__modules { display: none; } /* module groups: the menu button and ⌘K */
+  .statusbar { overflow: hidden; }
+  .statusbar__item--build .v { display: none; } /* build number: Settings / desktop */
+  #statusModeItem { min-width: 0; flex: 1 1 auto; }
+  #statusMode { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .toolbar__brief-btn { display: none; } /* Brief: result card and ⌘K */
   .toolbar__btn[data-module='basemap'] { display: none; } /* the map rail has it */
   .estate {

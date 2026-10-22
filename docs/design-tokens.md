@@ -42,11 +42,11 @@ Codifies the look from `../../groundlink_moodboard_v6.html`. Drop the CSS block 
   --surface:#ffffff; --surface2:#fafbfd; --raise:#f0f3f7;
   --hair:#e5e8ef; --hair2:#d6dce5;
   --ink:#0f141b; --dim:#586273; --faint:#636c7b;
-  --accent:#0a8475;          /* deep teal: text, lines, primary action */
+  --accent:#08776a;          /* deep teal: text, lines, primary action */
   --accent-bright:#19c4ad;   /* vivid teal: fills/tints on light */
   --accent2:#2a7fe0;         /* azure: assets / tracks */
   --accent-ink:#ffffff;      /* text on accent button */
-  --warn:#cf8a16; --bad:#dd4f68; --ok:#0a8475;
+  --warn:#cf8a16; --bad:#dd4f68; --ok:#08776a;
 
   /* map canvas + on-map feature colours (theme-independent) */
   --mapbg:#0b1018; --mapink:#cfe7e2;
