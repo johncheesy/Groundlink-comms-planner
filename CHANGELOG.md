@@ -6,6 +6,36 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+**M48 — Live LEO/MEO pass window** (`docs/M48-leo-passes.md`)
+- Satcom panel: per-constellation live line for Iridium, Globalstar and O3b — satellites above a 10° mask now, best elevation/azimuth, gaps and worst moment in the next 120 min, next pass when nothing is visible. SGP4 via `satellite.js` on CelesTrak element sets (CORS, no key, 6 h cache, stale-on-offline). Lazy-loaded chunk; eager bundle unchanged.
+- Decision record `docs/decisions/0006-gods-eye-view-port.md`: what was and was not taken from God's Eye View 0.1.1.
+
+### Changed
+- CSP `connect-src` now allows `https://celestrak.org`.
+
+### Added
+- **Sharpest open aerial imagery, country by country.** No global open layer beats about 10 m (Sentinel-2), so national orthophoto programmes are drawn above the global layer inside their own bounds: Netherlands 8 cm, Switzerland 10 cm, NRW 10 to 20 cm, France 20 cm, Luxembourg 20 cm, Flanders 25 cm, Poland 25 cm, Austria 30 cm, Bavaria 40 cm, Spain 25 to 50 cm, USA about 1 m, Japan, New South Wales, Taiwan, Czechia, Saxony and Estonia. On by default, one switch in the basemap panel. Blank (white) and failed tiles become transparent so the base map shows through at borders and during outages, which also makes the seam between countries invisible. The credit lists only the providers in view. Sources and licences: `docs/DATA-SOURCES.md`. Code: `src/map/hires-imagery.js` (36 tests). The CSP and the service worker tile cache allow the new hosts.
+
+### Changed
+- **Esri imagery is no longer stored offline.** The service worker now sends Esri tile requests straight to the network (no cache, no stale copy) and deletes Esri tiles stored by earlier builds, because storing Esri imagery for offline use is a licensed use. Other providers keep their offline tile cache. The basemap panel states the terms for each imagery source, and `docs/DATA-SOURCES.md` has an "Intended use" section (research and other non-commercial use). Tested against the real worker in a sandbox (`src/test/sw.test.js`).
+
+### Fixed
+- **Black map when the satellite provider is unreachable.** If Esri (or any active basemap provider) is blocked, rate-limited or silent, the map now detects it from tile errors or tiles that never answer, switches to the next usable source (Sentinel-2, then a street map), and says so in a persistent notice with a "Try again" button. The failed provider is remembered for 30 minutes so a reload starts on the working source. Choosing a basemap yourself counts as a retry. Logic in `src/map/tile-health.js` (23 tests), wiring in `src/map/map.js`, notice in `src/ui/map-notice.js`.
+- App start-up (AOI, mission tools, toolbar wiring) no longer waits for the first basemap tiles, only for the style, so a slow provider cannot leave the controls dead.
+- **Readiness score** no longer reads 100 on an AOI alone. It needs at least 3 of 6 checks, says "based on n of 6", and deconfliction only counts with two or more radios.
+- **Coverage result** now shows what it rests on (frequency, power, mast and receiver height, grid cell size, clutter, terrain) and warns when default radio values were used. The completion toast says so too.
+- **Limits and validation** (`src/geo/validate.js`): 300 sites, 300 points, 2,000 route vertices, 80-character names; invalid or out-of-range coordinates are rejected everywhere. Promoting 50,000 imported points used to freeze the page for 32 s; marker redraw cost grows with the square of the count (500 sites 1 s). Bulk add keeps lines it could not add. Long GPS tracks are thinned, keeping both ends.
+- **Mission files**: a missing coordinate is no longer silently moved to 0°N 0°E, an out-of-range one no longer throws halfway through loading, and everything skipped is reported.
+- **Imports**: invalid geometry is dropped with a count instead of leaving the importer stuck on "Importing…".
+- **Far-apart objects** (over 800 km) get a clear explanation in Coverage, Site recommendation and Offline package instead of an exception and a silent flat-earth fallback. The compute window is clamped to valid latitudes.
+- **Radios**: "Save structure" no longer uses `window.prompt()` (it threw where prompts are blocked); the name is edited in place.
+
+---
+
 ## [0.9.0-beta] — 2026-07-06
 
 First public beta release. M1–M47 + E1–E4 feature-complete; BR1 security and

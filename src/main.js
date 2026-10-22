@@ -78,6 +78,10 @@ import { createEmptyState } from './ui/emptystate.js';
 import { createUndoStack } from './ui/undo.js';
 import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, fsplDb, receivedDbm } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
+import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
+import { createMapNotice } from './ui/map-notice.js';
+import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
+import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
 import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
@@ -106,7 +110,7 @@ $('#statusBuildItem').title = `${BUILD.channel.toUpperCase()} · ${buildLabel}`;
 
 // ---- Map ----------------------------------------------------------------
 
-const mapApi = initMap($('#map'));
+const mapApi = initMap($('#map'), { onBasemapFailover: handleBasemapFailover, onHiresResult: handleHiresResult });
 const { map } = mapApi;
 const resize = keepMapSized(map);
 
@@ -411,10 +415,70 @@ function reflectBasemap(category) {
   });
 }
 
-/** Switch category (and optionally variant). */
+/** Switch category (and optionally variant). A deliberate choice clears any failover notice. */
 function switchBasemap(category, variantId) {
   const result = mapApi.setBasemap(category, variantId);
   reflectBasemap(result.category);
+  mapNotice?.hide();
+}
+
+// ---- High-resolution aerial: which source is really on screen --------------
+// The tile handler reports every source that delivered real imagery, with the
+// tile position. A source counts as "showing" when it has delivered imagery
+// inside the current view, so the readout follows panning and still holds when
+// MapLibre redraws from its own cache. (Bounding rectangles alone would credit
+// the wrong country near a border.)
+const hiresMemory = createCoverageMemory();
+let hiresStatusTimer = 0;
+function handleHiresResult({ id, real, z, x, y }) {
+  if (!real) return;
+  hiresMemory.record(id, z, x, y);
+  window.clearTimeout(hiresStatusTimer);
+  hiresStatusTimer = window.setTimeout(updateHiresStatus, 700);
+}
+mapApi.map.on('idle', () => window.setTimeout(() => updateHiresStatus(), 800));
+function updateHiresStatus() {
+  const showing = mapApi.isHiresOn() && mapApi.getBasemap() === 'imagery';
+  let live = [];
+  if (showing) {
+    const b = mapApi.map.getBounds();
+    const ids = new Set(hiresMemory.inView({ west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() }));
+    live = HIRES_SOURCES.filter((s) => ids.has(s.id));
+  }
+  // Credit only the providers whose imagery is really in view (licence terms
+  // require the credit; listing eleven at once buries it).
+  mapApi.setHiresCredits(live.map((s) => s.attribution));
+  const el = document.getElementById('hiresNow');
+  if (!el) return;
+  if (!showing) { el.textContent = ''; return; }
+  el.textContent = live.length
+    ? `Showing: ${live.map((s) => `${s.label} · ${s.resolution}`).join(', ')}`
+    : 'No national aerial imagery in this view. Showing the global layer.';
+}
+
+// ---- Basemap provider failover notice -------------------------------------
+// map.js detects an unreachable imagery provider and moves to another source;
+// this tells the user what happened and offers a retry. Hoisted: initMap()
+// above may report a provider that was already known to be down at startup.
+let mapNotice = null;
+function handleBasemapFailover(info) {
+  mapNotice ??= createMapNotice(document.querySelector('.map-wrap'));
+  const { kind, from, to } = info;
+  if (kind !== 'none') {
+    reflectBasemap(mapApi.getBasemap());
+    if (railState?.current?.() === 'basemap') renderVariantMenu();
+  }
+  const retry = { label: `Try ${from.label} again`, onClick: () => switchBasemap(from.category, from.variantId) };
+  const note = to ? BASEMAP_VARIANTS[to.category]?.find((v) => v.id === to.variantId)?.note : null;
+  let message;
+  if (kind === 'none') {
+    message = `${from.label} can't be reached from this network and no other map source is available. Check your connection.`;
+  } else if (kind === 'degraded') {
+    message = `No satellite imagery source can be reached from this network, so the map switched to ${to.label}.`;
+  } else {
+    message = `${from.label} can't be reached from this network, so the map switched to ${to.label}.${note ? ` ${note}` : ''}`;
+  }
+  mapNotice.show({ message, tone: 'warn', actions: [retry] });
 }
 
 // ---- Variant list (M20 §5: inline in the basemap flyout) ------------------
@@ -432,6 +496,35 @@ function renderVariantMenu() {
   label.className = 'basemap-variant-menu__label';
   label.textContent = category === 'topo' ? 'Topo variants' : 'Imagery variants';
   variantMenu.appendChild(label);
+
+  if (category === 'imagery') {
+    const row = document.createElement('label');
+    row.className = 'basemap-hires';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.id = 'hiresToggle';
+    box.checked = mapApi.isHiresOn();
+    box.addEventListener('change', () => { mapApi.setHires(box.checked); updateHiresStatus(); });
+    const text = document.createElement('span');
+    text.textContent = 'Sharpest open aerial imagery where available';
+    row.append(box, text);
+    variantMenu.appendChild(row);
+    const now = document.createElement('div');
+    now.id = 'hiresNow';
+    now.className = 'basemap-hires__now';
+    variantMenu.appendChild(now);
+    const cov = document.createElement('div');
+    cov.className = 'basemap-hires__cov';
+    cov.textContent = `National aerial programmes: ${HIRES_SOURCES.map((s) => s.short).join(', ')}. Elsewhere the global layer (10 m) is the sharpest open imagery.`;
+    variantMenu.appendChild(cov);
+    const terms = document.createElement('div');
+    terms.className = 'basemap-hires__cov basemap-hires__terms';
+    terms.textContent =
+      'Terms: intended for research and other non-commercial use. Esri imagery stays under Esri\'s own terms, needs its credit, and is never stored offline by this app. ' +
+      'Sentinel-2 is CC BY-NC-SA (non-commercial). National aerial sources are open data under each provider\'s terms. Check them before any commercial use.';
+    variantMenu.appendChild(terms);
+    updateHiresStatus();
+  }
 
   const currentVariant = mapApi.getVariant(category);
   for (const v of BASEMAP_VARIANTS[category]) {
@@ -530,6 +623,11 @@ offlinePackBtn?.addEventListener('click', async () => {
   const bbox = mission?.bbox?.();
   if (!bbox) {
     offlineStatus.textContent = 'Draw an AOI or place a site first — the package covers your mission area.';
+    return;
+  }
+  const spread = missionSpanProblem(bbox);
+  if (spread) {
+    offlineStatus.textContent = spread;
     return;
   }
   // Package the same window coverage computes over (the WINDOW_CAP_MULT cap
@@ -768,9 +866,17 @@ const markDirty = () => {
   if (!applyingMission) setDirty(true);
 };
 
+// Run once the style exists. `isStyleLoaded()` and the map 'load' event also wait
+// for the first basemap TILES, so a slow or blocked imagery provider used to
+// leave the whole app (AOI, mission tools, toolbar wiring) dead. Nothing here
+// needs tiles, only the style, so 'style.load' is enough; 'load' stays as the
+// backstop and the guard makes `fn` run exactly once.
 function whenStyleReady(fn) {
-  if (map.isStyleLoaded()) fn();
-  else map.once('load', fn);
+  let ran = false;
+  const run = () => { if (!ran) { ran = true; fn(); } };
+  if (map.isStyleLoaded()) { run(); return; }
+  map.once('style.load', run);
+  map.once('load', run);
 }
 
 whenStyleReady(() => {
@@ -1293,6 +1399,13 @@ whenStyleReady(() => {
   recommendBtn.addEventListener('click', () => {
     const bbox = mission.bbox();
     if (!bbox) return;
+    const spread = missionSpanProblem(bbox);
+    if (spread) {
+      siteResults.hidden = false;
+      siteList.innerHTML = '';
+      siteHelp.textContent = spread;
+      return;
+    }
     const params = { ...coverageParams(), txHeightM: clampNum(txHeightInput.value, 1, 300, 10) };
     // Cap the AOI grid resolution for very large areas (edge case in the spec).
     const demand = mission.demandPoints({ maxDim: currentAoiAreaM2 > 1e10 ? 20 : 28 });
@@ -1433,8 +1546,11 @@ whenStyleReady(() => {
         })
       : null;
 
-    const decoSummary = decoPanel?.check(radios?.getArsenal?.() ?? []);
-    const decoConflicts = decoSummary
+    // Deconfliction compares radios with each other: with fewer than two there is
+    // nothing to check, and "no conflicts" must not count as a passed check.
+    const arsenal = radios?.getArsenal?.() ?? [];
+    const decoSummary = decoPanel?.check(arsenal);
+    const decoConflicts = decoSummary && arsenal.length >= 2
       ? Array.from({ length: decoSummary.errors }, () => ({ severity: 'error' }))
           .concat(Array.from({ length: decoSummary.warnings }, () => ({ severity: 'warn' })))
       : null;
@@ -1455,14 +1571,14 @@ whenStyleReady(() => {
         intelScoreBadge.removeAttribute('title');
       }
       if (intelScoreNum) intelScoreNum.textContent = '—';
-      updateOpsDashReadiness(null);
+      updateOpsDashReadiness(result); // dashboard explains why there is no score yet
       return;
     }
 
     const tier = result.tier;
     if (intelScoreBadge) {
       intelScoreBadge.className = `intel-score-badge is-visible intel-score-badge--${tier}`;
-      intelScoreBadge.title = `Mission readiness: ${result.score}/100 (${tier}). Open Ops Dashboard for breakdown.`;
+      intelScoreBadge.title = `Mission readiness: ${result.score}/100 (${tier}), based on ${result.assessed} of ${result.total} checks. Open Ops Dashboard for breakdown.`;
     }
     if (intelScoreNum) intelScoreNum.textContent = result.score;
     updateOpsDashReadiness(result);
@@ -1764,16 +1880,32 @@ whenStyleReady(() => {
   function promoteLinesToRoute() {
     const line = importer.getFeatures().find((f) => f.geometry?.type === 'LineString');
     if (!line) return;
-    mission.setRoute(line.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })));
+    const r = mission.setRoute(line.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })));
+    const notes = [];
+    if (r.thinned) notes.push(`thinned from ${r.kept + r.thinned} to ${r.kept} vertices, shape kept`);
+    if (r.dropped) notes.push(`${r.dropped} invalid vertices skipped`);
+    statusMode.textContent = `Route set, ${r.kept} vertices${notes.length ? ` (${notes.join('; ')})` : ''}`;
   }
   function promotePoints(asSites) {
+    let added = 0;
+    let invalid = 0;
+    let overLimit = 0;
     for (const f of importer.getFeatures()) {
       if (f.geometry?.type !== 'Point') continue;
       const [lng, lat] = f.geometry.coordinates;
       const name = f.properties?.name || '';
-      if (asSites) mission.addSite(lat, lng, name);
-      else mission.addPoint(lat, lng, name);
+      const item = asSites ? mission.addSite(lat, lng, name) : mission.addPoint(lat, lng, name);
+      if (item) added += 1;
+      else if (isLatLng(lat, lng)) overLimit += 1;
+      else invalid += 1;
     }
+    const noun = asSites ? 'site' : 'demand point';
+    const limit = asSites ? LIMITS.sites : LIMITS.points;
+    const parts = [`Added ${added} ${noun}${added === 1 ? '' : 's'}.`];
+    if (overLimit) parts.push(`${overLimit} more skipped: the planner holds at most ${limit}. Filter the file to the points you need.`);
+    if (invalid) parts.push(`${invalid} skipped: invalid coordinates.`);
+    statusMode.textContent = parts.join(' ');
+    if (overLimit || invalid) showToast(parts.slice(1).join(' '));
   }
   function promotePolygonToAoi() {
     const pg = importer.getFeatures().find((f) => f.geometry?.type === 'Polygon');
@@ -1800,7 +1932,9 @@ whenStyleReady(() => {
     importer.clear();
     clearImportBtn.hidden = true;
     importPromote.hidden = true;
-    statusMode.textContent = 'Imported data added to the mission';
+    // Keep the specific message promotePoints/promoteLinesToRoute just wrote (it
+    // says what was skipped); only fall back to the generic one.
+    if (!/^(Added|Route set)/.test(statusMode.textContent)) statusMode.textContent = 'Imported data added to the mission';
   }
 });
 
@@ -1958,6 +2092,7 @@ function runBulkAdd() {
   let added = 0;
   const badNums = [];
   const badLines = [];
+  let overLimit = 0;
   lines.forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return;
@@ -1968,15 +2103,24 @@ function runBulkAdd() {
       badLines.push(raw);
       return;
     }
-    if (asSites) mission.addSite(parsed.lat, parsed.lng, name);
-    else mission.addPoint(parsed.lat, parsed.lng, name);
+    const item = asSites ? mission.addSite(parsed.lat, parsed.lng, name) : mission.addPoint(parsed.lat, parsed.lng, name);
+    if (!item) {
+      // Valid line, but the limit is reached: keep it in the box instead of losing it.
+      overLimit += 1;
+      badLines.push(raw);
+      return;
+    }
     added += 1;
   });
   missionTools.refresh();
 
   const parts = [];
   if (added) parts.push(`Added ${added} ${asSites ? 'site' : 'point'}${added > 1 ? 's' : ''}.`);
-  if (badNums.length) parts.push(`Could not parse line${badNums.length > 1 ? 's' : ''} ${badNums.join(', ')}.`);
+  if (badNums.length) {
+    const shown = badNums.slice(0, 12).join(', ');
+    parts.push(`Could not parse line${badNums.length > 1 ? 's' : ''} ${shown}${badNums.length > 12 ? ` and ${badNums.length - 12} more` : ''}.`);
+  }
+  if (overLimit) parts.push(`${overLimit} line${overLimit > 1 ? 's' : ''} left in the box: the planner holds at most ${asSites ? LIMITS.sites : LIMITS.points} ${asSites ? 'sites' : 'points'}.`);
   bulkReport.hidden = parts.length === 0;
   bulkReport.textContent = parts.join(' ');
   // Keep only the failed lines so the user can fix them in place.
@@ -3071,11 +3215,14 @@ function coverageBoundsFor(bbox, center, params) {
     rangeM / (111320 * Math.cos((center.lat * Math.PI) / 180)),
     WINDOW_CAP_MULT * halfLng,
   );
+  // Clamp to what the map can place: a window past ±85° latitude or ±180°
+  // longitude made the raster overlay throw and the run fall back to flat earth.
+  const clamp = (v, lim) => Math.max(-lim, Math.min(lim, v));
   return {
-    west: Math.min(center.lng - dLng, bbox.west),
-    south: Math.min(center.lat - dLat, bbox.south),
-    east: Math.max(center.lng + dLng, bbox.east),
-    north: Math.max(center.lat + dLat, bbox.north),
+    west: clamp(Math.min(center.lng - dLng, bbox.west), 180),
+    south: clamp(Math.min(center.lat - dLat, bbox.south), 85),
+    east: clamp(Math.max(center.lng + dLng, bbox.east), 180),
+    north: clamp(Math.max(center.lat + dLat, bbox.north), 85),
   };
 }
 
@@ -3097,6 +3244,12 @@ function runCoverage() {
   const bbox = mission.bbox();
   if (!bbox) {
     coverageHelp.textContent = 'Define a mission first — draw an AOI or place a fixed site.';
+    return;
+  }
+  const spread = missionSpanProblem(bbox);
+  if (spread) {
+    coverageHelp.textContent = spread;
+    showToast('Mission too spread out for one plan. See the Coverage panel.');
     return;
   }
 
@@ -3176,7 +3329,8 @@ function finishRunAll() {
   }
   const stats = coverage?.getStats?.();
   const covPct = stats?.coveredFracAoi != null ? `${Math.round(stats.coveredFracAoi * 100)}% covered` : 'done';
-  showToast(`Analysis complete — ${covPct}`);
+  const usedDefaults = currentAssumptions().source === 'defaults';
+  showToast(`Analysis complete — ${covPct}${usedDefaults ? ' (default radio values, no radio selected)' : ''}`);
 }
 
 const CLOUDRF_SRC = 'cloudrf';
@@ -3486,8 +3640,20 @@ function loadMissionFromText(text, name) {
     statusMode.textContent = 'Mission load cancelled';
     return false;
   }
-  applyMissionState(r.mission);
-  statusMode.textContent = `Mission loaded from ${name}`;
+  try {
+    applyMissionState(r.mission);
+  } catch (err) {
+    // The file is sanitised before it gets here, so this is a last resort: say
+    // what happened instead of leaving a half-applied mission with no message.
+    statusMode.textContent = `Mission file could not be fully applied: ${err?.message ?? err}`;
+    showToast('Mission file could not be fully applied. Check what is on the map.');
+    return false;
+  }
+  const warnings = r.warnings ?? [];
+  statusMode.textContent = warnings.length
+    ? `Mission loaded from ${name} with skipped items: ${warnings.join(' ')}`
+    : `Mission loaded from ${name}`;
+  if (warnings.length) showToast(`Mission loaded, but some items were skipped. ${warnings[0]}`);
   return true;
 }
 
@@ -4051,7 +4217,25 @@ function showResultCard() {
   resultCard.show(
     summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds }),
     { modelKey, percentileLabel },
+    currentAssumptions(),
   );
+}
+
+/** What the last coverage run rested on (see analysis/assumptions.js). */
+function currentAssumptions() {
+  const st = coverage?.getStats?.() ?? {};
+  const p = coverageParams();
+  return describeAssumptions({
+    freqMHz: p.freqMHz,
+    powerW: clampNum(powerInput.value, 0.01, 100, 5),
+    txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
+    rxHeightM: p.rxHeightM,
+    terrainUsed: Boolean(st.terrain),
+    clutterRequested: Boolean(useClutterInput.checked),
+    clutterUsed: Boolean(st.clutter),
+    cellM: lastPaint ? cellSizeM(lastPaint.bounds, lastPaint.cols) : null,
+    radioApplied: Boolean(radios?.hasActive?.()),
+  });
 }
 
 // M20 §1: a stepper click jumps to that step's "do this next" tab.

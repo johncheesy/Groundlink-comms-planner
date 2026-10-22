@@ -18,7 +18,8 @@
     "jszip": "^3.10.1",
     "maplibre-gl": "^5.24.0",
     "mgrs": "^2.1.0",
-    "pmtiles": "^4.4.1"
+    "pmtiles": "^4.4.1",
+    "satellite.js": "^6.0.2"
   },
   "devDependencies": {
     "vite": "^6.0.0",

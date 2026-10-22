@@ -25,7 +25,7 @@
  *   }
  */
 
-import { READINESS_DIMS } from '../analysis/readiness.js';
+import { READINESS_DIMS, MIN_ASSESSED } from '../analysis/readiness.js';
 
 const e = (tag, cls, ...children) => {
   const el = document.createElement(tag);
@@ -148,23 +148,31 @@ function buildReadinessGauge(score, tier) {
 
 function renderReadiness(readiness) {
   if (!readiness) return null;
-  const { score, tier, dims } = readiness;
-  if (score == null) return null;
+  const { score, tier, dims, assessed = 0, total = READINESS_DIMS.length } = readiness;
+  const pending = score == null;
 
-  const wrap = e('div', `readiness-section intel-score--${tier}`);
+  const wrap = e('div', `readiness-section ${pending ? 'intel-score--pending' : `intel-score--${tier}`}`);
   const head = e('div', 'dash-ops__section-head');
   head.append(e('span', 'dash-ops__section-title', 'Mission readiness'));
 
-  const tierLabel = tier === 'high' ? 'Ready' : tier === 'mid' ? 'Partial' : 'Not ready';
-  const pillMod   = tier === 'high' ? 'teal'  : tier === 'mid' ? 'amber'  : 'bad';
-  head.append(pill(tierLabel, pillMod));
+  if (pending) {
+    head.append(pill('Not scored yet', 'amber'));
+  } else {
+    const tierLabel = tier === 'high' ? 'Ready' : tier === 'mid' ? 'Partial' : 'Not ready';
+    const pillMod   = tier === 'high' ? 'teal'  : tier === 'mid' ? 'amber'  : 'bad';
+    head.append(pill(tierLabel, pillMod));
+  }
   wrap.append(head);
+
+  // Say how much of the picture the number rests on.
+  wrap.append(e('p', 'readiness-basis', pending
+    ? `${assessed} of ${total} checks done. A score needs at least ${MIN_ASSESSED}: run coverage, build the comms plan, and check frequencies.`
+    : `Based on ${assessed} of ${total} checks. Unchecked items are left out of the score, not counted as passed.`));
 
   // Gauge + dims side-by-side
   const body = e('div', 'readiness-body');
 
-  const gaugeEl = buildReadinessGauge(score, tier);
-  body.append(gaugeEl);
+  if (!pending) body.append(buildReadinessGauge(score, tier));
 
   const dims_el = e('div', 'readiness-dims');
   for (const d of READINESS_DIMS) {

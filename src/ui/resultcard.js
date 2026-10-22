@@ -1,4 +1,5 @@
 import { modelBadge } from './badges.js';
+import { esc as escHtml } from '../util/esc.js';
 
 /**
  * M20 §3 — result summary card + stale-plan pill (DOM controllers).
@@ -45,8 +46,9 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
    * Render + show for a fresh summarizeCoverage() result.
    * @param {object} summary  — from summarizeCoverage()
    * @param {object} [modelInfo] — E3b: { modelKey, percentileLabel }
+   * @param {{summary:string, warnings:string[]}} [assumptions] — what the figures rest on
    */
-  function show(summary, modelInfo) {
+  function show(summary, modelInfo, assumptions) {
     zones = summary.deadZones;
     const weakest = `${summary.weakestBelow ? '< ' : '≥ '}${Math.round(summary.weakestDbm)} dBm`;
     const zoneRows = zones
@@ -67,6 +69,13 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
       `<div class="result-card__fig"><span class="result-card__num" data-numeric>${weakest}</span><span class="result-card__cap">weakest link</span></div>` +
       `</div>` +
       (badgeHtml ? `<div class="result-card__model">${badgeHtml}</div>` : '') +
+      (assumptions
+        ? `<div class="result-card__assump"><span class="result-card__assump-line" data-numeric>${escHtml(assumptions.summary)}</span>` +
+          (assumptions.warnings.length
+            ? `<ul class="result-card__assump-warn">${assumptions.warnings.slice(0, 3).map((w) => `<li>${escHtml(w)}</li>`).join('')}</ul>`
+            : '') +
+          `</div>`
+        : '') +
       (zoneRows ? `<ol class="result-card__zones">${zoneRows}</ol>` : '') +
       `<div class="result-card__actions">` +
       `<button type="button" class="btn btn--sm" data-act="relay">Relay advice</button>` +

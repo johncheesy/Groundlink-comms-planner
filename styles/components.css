@@ -4918,3 +4918,87 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .intel-score-badge--high { color: var(--accent); border-color: var(--accent); }
 .intel-score-badge--mid  { color: var(--warn);   border-color: var(--warn); }
 .intel-score-badge--low  { color: var(--bad);    border-color: var(--bad); }
+
+/* ── M48: live LEO/MEO pass window (satcom panel) ─────────────────────── */
+.satcom-leo-live {
+  width: 100%;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+  margin: 0;
+}
+.satcom-leo-live b { font-weight: 600; }
+.satcom-leo-live--pending { color: var(--faint); }
+.satcom-leo-live--err     { color: var(--faint); font-style: italic; }
+.satcom-leo-live--gap     { color: var(--warn); }
+.satcom-leo-live__meta {
+  display: block;
+  font-size: 9.5px;
+  color: var(--faint);
+}
+
+/* ---- Map notice: persistent, actionable (e.g. imagery provider unreachable) ----
+   Bottom-left, narrow and stacked: the beta banner is top-centre and the result
+   card is bottom-centre, so this corner is the one place that covers neither. */
+.map-notice {
+  position: absolute;
+  left: 12px;
+  bottom: calc(var(--status-h) + 14px);
+  z-index: calc(var(--z-toolbar) + 1);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  width: min(340px, calc(100% - 24px));
+  padding: 10px 12px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+}
+.map-notice[hidden] { display: none; }
+.map-notice--info { border-left-color: var(--accent2); }
+.map-notice__text { min-width: 0; }
+.map-notice__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.map-notice__close {
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.map-notice__close:hover { color: var(--ink); }
+@media (max-width: 560px) {
+  /* above the mobile beta banner (bottom: 52px) and the panel button */
+  .map-notice { right: 12px; width: auto; bottom: 140px; }
+}
+
+.readiness-basis {
+  margin: 0 0 var(--sp-2);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+.result-card__assump { margin-top: var(--sp-2); font-size: 11px; line-height: 1.4; color: var(--dim); }
+.result-card__assump-line { display: block; color: var(--ink); }
+.result-card__assump-warn { margin: 4px 0 0; padding: 0; list-style: none; }
+.result-card__assump-warn li { position: relative; padding-left: 12px; margin-top: 2px; }
+.result-card__assump-warn li::before { content: ''; position: absolute; left: 0; top: 0.55em; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+
+.structure-item__name { cursor: text; }
+.structure-item__name:hover { text-decoration: underline dotted; }
+.structure-item__edit { flex: 1; min-width: 0; padding: 2px 6px; font-size: 12.5px; }
+
+.basemap-hires { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 2px; font-size: 12.5px; cursor: pointer; }
+.basemap-hires input { accent-color: var(--accent); }
+.basemap-hires__now { font-size: 11px; color: var(--ink); min-height: 1.2em; padding: 0 2px; }
+.basemap-hires__cov { font-size: 10.5px; line-height: 1.4; color: var(--dim); padding: 2px 2px 8px; }

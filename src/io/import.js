@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { cleanFeatures } from './geometry-clean.js';
 
 /**
  * Import KML / KMZ / GPX / GeoJSON and render it on the map.
@@ -281,16 +282,31 @@ export function createImportController(map, { onStatus } = {}) {
       return { ok: false };
     }
 
-    ensureLayers();
-    data.features.push(...fc.features);
-    map.getSource(SRC).setData(data);
+    // Only geometry the map can place goes any further (see geometry-clean.js).
+    const { features, dropped } = cleanFeatures(fc.features);
+    if (!features.length) {
+      onStatus?.(`${file.name}: all ${dropped} features had invalid coordinates, nothing imported.`, 'error');
+      return { ok: false };
+    }
 
-    const bounds = new maplibregl.LngLatBounds();
-    fc.features.forEach((f) => extendBounds(bounds, f.geometry));
-    if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 800 });
+    try {
+      ensureLayers();
+      data.features.push(...features);
+      map.getSource(SRC).setData(data);
 
-    onStatus?.(`Imported ${fc.features.length} feature${fc.features.length > 1 ? 's' : ''} from ${file.name}`, 'done');
-    return { ok: true, count: fc.features.length, byType: countByType(data.features) };
+      const bounds = new maplibregl.LngLatBounds();
+      features.forEach((f) => extendBounds(bounds, f.geometry));
+      if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 800 });
+    } catch (err) {
+      // Never leave the status on "Importing…".
+      console.warn('[import] display failed', err);
+      onStatus?.(`Could not display ${file.name}: ${err?.message ?? err}`, 'error');
+      return { ok: false };
+    }
+
+    const skipped = dropped ? ` (${dropped} skipped: invalid coordinates)` : '';
+    onStatus?.(`Imported ${features.length} feature${features.length > 1 ? 's' : ''} from ${file.name}${skipped}`, 'done');
+    return { ok: true, count: features.length, dropped, byType: countByType(data.features) };
   }
 
   function clear() {

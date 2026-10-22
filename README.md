@@ -25,7 +25,7 @@ Terrain-aware communications coverage and planning, in the browser. Define where
 | **Cellular** | Live OpenCelliD/Overpass tower layer; best-network indicator (M9, M22) |
 | **PACE plan** | Auto-generated from bands and assets; printable mission brief export (M6, M37) |
 | **Frequency** | Deconfliction (co-channel/adjacent/protected-band) + printable freq-plan export (M39, M40) |
-| **Satcom** | GEO look-angle protractor; LEO badges; Ka/Ku rain-fade margins (ITU-R P.618-14) (M38, M44, E4) |
+| **Satcom** | GEO look-angle protractor; LEO badges; Ka/Ku rain-fade margins (ITU-R P.618-14); live LEO/MEO pass window — SGP4 on CelesTrak elements (M38, M44, E4, M48) |
 | **Data layers (E1)** | PMTiles/COG — Overture buildings, local canopy/DSM, offline AOI packaging to OPFS |
 | **Mission ops** | Fused RF+cellular+drone+PACE+teams dashboard; mission readiness score (M36, M47) |
 | **Smart suggestions** | Radio-to-node heuristic scoring; top-3 accordion with Apply (M46) |
@@ -63,7 +63,7 @@ For development guidance, open the folder in Claude Code and read `CLAUDE.md` fi
 ## Attribution
 
 - Elevation tiles: [Terrain Tiles (AWS Open Data)](https://registry.opendata.aws/terrain-tiles/) — Mapzen / AWS, public domain
-- Basemaps: Esri (Esri World Imagery), PDOK (CC BY 4.0), EOX (Sentinel-2, CC BY-NC-SA), OpenTopoMap (CC-BY-SA), OpenStreetMap contributors (ODbL), CARTO, OpenFreeMap
+- Basemaps: Esri (Esri World Imagery, under Esri's terms and never stored offline), national aerial imagery (see `docs/DATA-SOURCES.md`), EOX (Sentinel-2, CC BY-NC-SA), OpenTopoMap (CC-BY-SA), OpenStreetMap contributors (ODbL), CARTO, OpenFreeMap. Intended for research and other non-commercial use.
 - Buildings: Overture Maps Foundation (© OpenStreetMap contributors)
 - Cellular towers: OpenCelliD / Unwired Labs (CC BY 4.0) via Overpass API
 - Land cover: ESA WorldCover (CC BY 4.0), Digital Earth Africa WMS

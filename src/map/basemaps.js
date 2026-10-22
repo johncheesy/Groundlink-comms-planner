@@ -14,13 +14,17 @@
  * zoom-based auto-switching. All sources are token-free.
  */
 
+import { hiresStyleParts } from './hires-imagery.js';
+
 export const BASEMAPS = ['imagery', 'topo'];
 export const DEFAULT_BASEMAP = 'imagery';
 
 /**
  * Variants for each basemap category. The first entry in each array is the
- * default. All are free and token-free (Esri AGOL open tiles, OpenTopoMap,
- * OSM, CARTO). Add more later — only visible layers load tiles.
+ * default. All load without a key (Esri public tiles, OpenTopoMap, OSM, CARTO),
+ * but "free to load" is not "free to store or use commercially": Esri keeps its
+ * own terms, so its tiles are never cached offline (public/sw.js). See
+ * docs/DATA-SOURCES.md. Add more later; only visible layers load tiles.
  */
 export const BASEMAP_VARIANTS = {
   imagery: [
@@ -41,6 +45,7 @@ export const BASEMAP_VARIANTS = {
       // higher detail than Esri/Sentinel over NL; blank outside the Netherlands.
       id: 'pdok-nl-ortho',
       label: 'NL Luchtfoto (HR · PDOK)',
+      global: false, // regional only: never an automatic failover target (blank outside NL)
       wms: true,
       tiles: [
         'https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?service=WMS&request=GetMap&version=1.1.1' +
@@ -62,6 +67,7 @@ export const BASEMAP_VARIANTS = {
       // HTTP 400 for every tile. `_3857` supports EPSG:3857 / EPSG:900913.
       id: 's2cloudless-2024',
       label: 'Sentinel-2 (10 m · cloudless)',
+      note: 'Sentinel-2 is 10 m, so detail is limited when zoomed in. Where a national aerial source exists (for example the Netherlands, Switzerland, France) the sharper imagery is shown automatically.',
       wms: true, // flag: tile URL uses {bbox-epsg-3857} instead of {x}/{y}/{z}
       tiles: [
         'https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&version=1.1.1' +
@@ -181,6 +187,7 @@ const BUILDING_COLOR = '#3b4250'; // muted neutral surface on the dark map (not 
 export function buildStyle(
   activeCategory = DEFAULT_BASEMAP,
   activeVariantIds = {},
+  { hires = true } = {},
 ) {
   const sources = {};
   const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': MAP_BG } }];
@@ -209,6 +216,13 @@ export function buildStyle(
       });
     }
   }
+
+  // High-resolution national aerial imagery (hires-imagery.js): drawn above the
+  // base layers, inside each country's bounds only, and only while the imagery
+  // category is showing. The `hires://` protocol is registered in map.js.
+  const hiresParts = hiresStyleParts({ visible: hires && activeCategory === 'imagery' });
+  Object.assign(sources, hiresParts.sources);
+  layers.push(...hiresParts.layers);
 
   // DEM source is declared up-front so setTerrain can reference it on demand.
   sources[TERRARIUM_DEM.id] = TERRARIUM_DEM.spec;
