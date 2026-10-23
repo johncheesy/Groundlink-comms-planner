@@ -1,6 +1,13 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import '../styles/index.css';
+import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
+
+// M52 phase 1: the Ops workspace is opt-in (?ws=ops). The grid switches
+// before first paint; the shell itself mounts once everything is wired.
+const OPS_WS = isOpsWorkspace(window.location.search);
+if (OPS_WS) document.getElementById('app').dataset.ws = 'ops';
+let opsShell = null;
 import { esc as htmlEsc } from './util/esc.js';
 import { confirmDialog } from './ui/confirm.js';
 
@@ -2323,6 +2330,7 @@ function onMissionChange(s) {
   showRow('route', s.route);
   showRow('points', s.points);
   showRow('links', s.links);
+  opsShell?.refresh({ sites: s.sites, links: s.links }); // M52 drawer counts
   missionElements.hidden = s.sites < 1 && s.route < 1 && s.points < 1;
   refreshLinks();
   missionSitesCount.textContent = String(s.sites);
@@ -4294,6 +4302,7 @@ for (const key of ['objects', 'aoi', 'radios', 'coverage']) {
 /** Expand the panel + the owning group, open a section's tab, scroll to it. */
 function jumpToAnchor(anchorId) {
   if (focusCtl?.isActive()) focusCtl.exit(); // edit-jumps land in the panel, not the surface
+  if (opsShell?.openAnchor(anchorId)) return; // M52: the section lives in a flyout
   lpanelCtl.setCollapsed(false, { persist: false });
   if (mq.matches) openPanel();
   const moduleKey = MODULE_KEY_BY_ANCHOR[anchorId];
@@ -5142,6 +5151,30 @@ toolbarCtl = createToolbar(
 );
 // Mirror the restored open/closed state onto the toolbar icons.
 for (const m of TOOLBAR_MODULES) toolbarCtl.setPressed(m.anchor, sectionTabs.isOpen(m.anchor));
+
+// M52 phase 1: mount the Ops shell last, so every element it relocates
+// (brand, intel chip, Open / Run / Brief, the toolbar's right group) has
+// already been wired by the code above.
+if (OPS_WS) {
+  opsShell = createOpsShell({
+    app: $('#app'),
+    mapWrap: $('.map-wrap'),
+    modules: TOOLBAR_MODULES,
+    sectionTabs,
+    nodes: {
+      brand: $('#toolbar .brand'),
+      intel: $('#toolbarIntel'),
+      open: $('#openFileBtn'),
+      run: $('#runAllBtn'),
+      brief: $('#briefBtn'),
+      right: $('#toolbarRight'),
+    },
+    onOpenFlyout() { if (focusCtl?.isActive()) focusCtl.exit(); },
+  });
+  if (mission) {
+    opsShell.refresh({ sites: mission.getSites().length, links: mission.getLinks().length });
+  }
+}
 
 // ---- Focus mode (M21 §B) — any section fullscreen over the map ------------
 // Expand button on every section header; the portalled form gets a wide grid;

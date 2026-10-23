@@ -53,6 +53,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
 ### Added
+- **Ops workspace shell, phase 1** (M52, `docs/M52-ops-workspace.md`, opt-in with `?ws=ops`): a top bar (brand · Mission · Open · Run · ⌘K · theme), a 46 px tool strip with one icon per section, a status-rail host on the right (the coverage chip is its first tile) and a data-drawer row under the map with Sites · Links · Gaps · Radios counts. A strip icon opens today's section in one flyout over the map and puts it back on close, so nothing was rewritten; ⌘K and edit jumps open the flyout too. Rail tiles and drawer tables follow in phases 2–3; the classic layout is unchanged without the flag. 7 tests.
 - **Feeder loss, per-site height and power, radio links** (M50, `docs/M50-site-rf-links.md`):
   - *Cable/duplexer loss* in the Coverage panel and an *EIRP* readout; EIRP is power + antenna gain − loss everywhere (coverage, teams, calibration, path profile, mast wizard, CloudRF). Applying a radio set now takes the radio's antenna gain (omni antennas) and feeder loss instead of a fixed 2.15 dBi. The radio editor has *Ant dBi* and *Loss dB*.
   - Right-click a site → *Mast height and power…*: each site can carry its own height and power; empty follows the panel. Labels show them, the mast wizard applies to the site, undo works.

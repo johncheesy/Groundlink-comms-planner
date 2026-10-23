@@ -81,6 +81,10 @@
   /* ---- M19 workspace metrics (layout only — no colours) ---- */
   --toolbar-h: 52px; /* top icon toolbar row (M20: fits the group labels) */
   --panel-w-collapsed: 52px; /* left panel as icon strip */
+  --ops-strip-w: 46px; /* M52 tool strip */
+  --ops-rail-w: 272px; /* M52 status rail */
+  --ops-drawer-h: 36px; /* M52 data drawer, collapsed */
+  --ops-flyout-w: 360px; /* M52 section flyout */
 }
 
 :root[data-theme='dark'] {

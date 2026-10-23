@@ -72,6 +72,30 @@ button {
   grid-template-columns: var(--panel-w-collapsed) 1fr;
 }
 
+/* M52 Ops workspace (?ws=ops): tool strip · map · status rail, with the
+   data drawer as its own row under the map so no overlay needs an offset.
+   The classic toolbar and panel stay in the DOM (their handlers live on)
+   but are not shown. */
+.app[data-ws='ops'],
+.app[data-ws='ops'][data-collapsed='true'] {
+  grid-template-columns: var(--ops-strip-w) minmax(0, 1fr) var(--ops-rail-w);
+  grid-template-rows: var(--toolbar-h) minmax(0, 1fr) var(--ops-drawer-h) var(--status-h);
+  grid-template-areas:
+    'top top top'
+    'strip map rail'
+    'strip drawer rail'
+    'status status status';
+}
+.app[data-ws='ops'] > .toolbar,
+.app[data-ws='ops'] > .panel,
+.app[data-ws='ops'] .panel-toggle {
+  display: none;
+}
+.ops-top { grid-area: top; }
+.ops-strip { grid-area: strip; }
+.ops-rail { grid-area: rail; }
+.ops-drawer { grid-area: drawer; }
+
 .toolbar {
   grid-area: toolbar;
   background: var(--surface);
@@ -208,6 +232,19 @@ button {
       'map'
       'status';
   }
+  /* Ops shell under 760 px (phase 5 brings the real phone layout): strip +
+     map, rail hidden, drawer kept. */
+  .app[data-ws='ops'],
+  .app[data-ws='ops'][data-collapsed='true'] {
+    grid-template-columns: var(--ops-strip-w) minmax(0, 1fr);
+    grid-template-rows: var(--toolbar-h) minmax(0, 1fr) var(--ops-drawer-h) var(--status-h);
+    grid-template-areas:
+      'top top'
+      'strip map'
+      'strip drawer'
+      'status status';
+  }
+  .app[data-ws='ops'] .ops-rail { display: none; }
 
   .panel {
     position: fixed;
