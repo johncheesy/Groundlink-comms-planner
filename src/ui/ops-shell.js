@@ -54,7 +54,7 @@ const SVG_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
  * @param {object} o.nodes           existing elements to relocate (any may be null)
  * @param {Function} [o.onOpenFlyout] (module) — e.g. exit focus mode first
  */
-export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {}, onOpenFlyout } = {}) {
+export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {}, onOpenFlyout, onSheet, onMore } = {}) {
   app.dataset.ws = OPS_WS_VALUE;
 
   // ── Top bar ───────────────────────────────────────────────────────────
@@ -104,6 +104,7 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
 
   let openKey = null;
   let moved = null; // { section, placeholder }
+  const tabBtns = new Map(); // phone tab bar, filled below
 
   function restore() {
     if (!moved) return;
@@ -137,6 +138,7 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
     for (const [k, b] of stripBtns) b.setAttribute('aria-pressed', String(k === m.key));
     flyout.hidden = false;
     flyBody.scrollTop = 0;
+    tabBtns.get('map')?.setAttribute('aria-pressed', 'false');
   }
 
   function close() {
@@ -144,6 +146,7 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
     openKey = null;
     for (const b of stripBtns.values()) b.setAttribute('aria-pressed', 'false');
     flyout.hidden = true;
+    if (!sheet) tabBtns.get('map')?.setAttribute('aria-pressed', 'true');
   }
 
   missionBtn.addEventListener('click', () => {
@@ -151,12 +154,65 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
     if (m) openKey === m.key ? close() : open(m);
   });
   // Esc closes; a click on the map canvas closes (not on the flyout itself).
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openKey) close(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (openKey) close();
+    else if (sheet) setSheet('');
+  });
   mapWrap.querySelector('#map')?.addEventListener('pointerdown', () => { if (openKey) close(); });
 
-  app.append(top, strip, rail, drawer);
+  // ── Phone: bottom tab bar + sheets (phase 5) ──────────────────────────
+  // Map · Plan · Status · Data · More. Plan lists the editors; Status and
+  // Data show the rail and the drawer as sheets. Hidden above 760 px by CSS.
+  const tabbar = el('nav', 'ops-tabbar', { 'aria-label': 'Workspace' });
+  const plan = el('section', 'ops-plan', { hidden: '', 'aria-label': 'Plan — sections' });
+  const planHead = el('div', 'ops-flyout__head');
+  const planTitle = el('span', 'ops-flyout__title');
+  planTitle.textContent = 'Plan';
+  const planClose = el('button', 'ops-flyout__close', { type: 'button', 'aria-label': 'Close' });
+  planClose.innerHTML = SVG_X;
+  planHead.append(planTitle, planClose);
+  const planList = el('div', 'ops-plan__list');
+  for (const m of modules) {
+    const b = el('button', 'ops-plan__item', { type: 'button', 'data-key': m.key });
+    b.innerHTML = `${MODULE_ICONS[m.key] ?? MODULE_ICONS.objects}<span>${m.label}</span>`;
+    b.addEventListener('click', () => { setSheet(''); open(m); });
+    planList.appendChild(b);
+  }
+  plan.append(planHead, planList);
+  planClose.addEventListener('click', () => setSheet(''));
+  mapWrap.appendChild(plan);
+
+  let sheet = '';
+  function setSheet(key) {
+    sheet = key;
+    app.dataset.sheet = key || 'none';
+    plan.hidden = key !== 'plan';
+    for (const [k, b] of tabBtns) b.setAttribute('aria-pressed', String(k === key || (k === 'map' && !key && openKey == null)));
+    onSheet?.(key);
+  }
+  const TABS = [
+    ['map', 'Map', MODULE_ICONS.basemap, () => { close(); setSheet(''); }],
+    ['plan', 'Plan', MODULE_ICONS.objects, () => setSheet(sheet === 'plan' ? '' : 'plan')],
+    ['status', 'Status', MODULE_ICONS.coverage, () => setSheet(sheet === 'status' ? '' : 'status')],
+    ['data', 'Data', MODULE_ICONS.pace, () => setSheet(sheet === 'data' ? '' : 'data')],
+    ['more', 'More', MODULE_ICONS.search, () => { setSheet(''); onMore?.(); }],
+  ];
+  for (const [key, label, icon, fn] of TABS) {
+    const b = el('button', 'ops-tabbar__btn', { type: 'button', 'aria-pressed': 'false', 'data-key': key });
+    b.innerHTML = `${icon}<span>${label}</span>`;
+    b.addEventListener('click', fn);
+    tabbar.appendChild(b);
+    tabBtns.set(key, b);
+  }
+  setSheet('');
+
+  app.append(top, strip, rail, drawer, tabbar);
 
   return {
+    /** Phone sheets: '', 'plan', 'status' or 'data'. */
+    setSheet,
+    sheet: () => sheet,
     /** The status-rail column (phase 2 renders into it). */
     rail,
     /** The data-drawer row (phase 3 renders into it). */

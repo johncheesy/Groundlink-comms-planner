@@ -85,6 +85,8 @@
   --ops-rail-w: 272px; /* M52 status rail */
   --ops-drawer-h: 36px; /* M52 data drawer, collapsed */
   --ops-flyout-w: 360px; /* M52 section flyout */
+  --ops-tabbar-h: 56px; /* M52 phone tab bar (44 px targets + padding) */
+  --ops-rail-row-h: 104px; /* M52 tablet: rail as one row of tiles */
 }
 
 :root[data-theme='dark'] {

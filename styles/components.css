@@ -5748,3 +5748,123 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .app[data-ws='ops'] #railOpsBtn { display: none; }
 /* Section header inside a flyout: the flyout already carries the title. */
 .ops-flyout__body > .section > .section__head .section__title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ---- M52 phase 5: tablet and phone ------------------------------------- */
+
+/* Tablet: the rail is one horizontal row of tiles; events move out of view. */
+@media (min-width: 761px) and (max-width: 1099px) {
+  .ops-rail {
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+    border-left: 0;
+    border-top: 1px solid var(--hair);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .ops-rail__head, .ops-rail__head--events, .ops-events { display: none; }
+  .ops-rail__tiles { flex-direction: row; gap: var(--sp-2); }
+  .ops-tile { flex: 0 0 148px; min-height: 0; padding: 8px 12px; }
+  .ops-tile__value { font-size: 18px; }
+  .ops-tile__sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 124px; }
+  .ops-top__mission { max-width: 180px; }
+}
+
+/* Phone: bottom tab bar, sheets over the map, a lean top bar. */
+.ops-tabbar {
+  align-items: stretch;
+  justify-content: space-around;
+  background: var(--surface);
+  border-top: 1px solid var(--hair);
+  z-index: var(--z-panel);
+  padding: 4px 4px 0;
+}
+.ops-tabbar__btn {
+  flex: 1 1 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--dim);
+  font: 500 11px var(--ui);
+  cursor: pointer;
+}
+.ops-tabbar__btn svg { width: 20px; height: 20px; }
+.ops-tabbar__btn[aria-pressed='true'] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ops-plan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 72%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--hair);
+  border-radius: 14px 14px 0 0;
+  box-shadow: var(--shadow);
+  z-index: calc(var(--z-toolbar) + 3);
+}
+.ops-plan[hidden] { display: none; }
+.ops-plan__list { overflow-y: auto; min-height: 0; padding: 4px 8px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ops-plan__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  border-radius: 9px;
+  background: var(--surface2);
+  color: var(--ink);
+  font: 500 12.5px var(--ui);
+  text-align: left;
+  cursor: pointer;
+}
+.ops-plan__item svg { width: 18px; height: 18px; color: var(--dim); flex: none; }
+@media (max-width: 760px) {
+  .ops-top { padding: 0 var(--sp-2); gap: 6px; }
+  .ops-top .brand__name .brand__alpha, .ops-top .brand__sub { display: none; }
+  .ops-top .brand__name { font-size: 13px; }
+  .ops-top__mission { max-width: 40vw; }
+  .ops-top__actions > :not(#runAllBtn) { display: none; }
+  .ops-top .toolbar__right { display: none; }
+  /* Sheets: the rail and the drawer come up over the map, above the tab bar. */
+  .app[data-ws='ops'][data-sheet='status'] .ops-rail,
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--ops-tabbar-h) + var(--status-h));
+    height: 62vh;
+    border-left: 0;
+    border-top: 1px solid var(--hair);
+    border-radius: 14px 14px 0 0;
+    box-shadow: var(--shadow);
+    z-index: calc(var(--z-toolbar) + 3);
+  }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__body { display: block; }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__bar { flex-wrap: wrap; height: auto; padding: 6px 8px; gap: 4px; }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__strip { flex-basis: 100%; border-left: 0; padding-left: 0; order: 3; }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__toggle { display: none; }
+  .ops-flyout {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    max-height: 72%;
+    border-radius: 14px 14px 0 0;
+    animation: none;
+  }
+  .ops-flyout__body > .section .section__body { padding-bottom: 12px; }
+  /* Map overlays keep clear of the sheets' handle area. */
+  .app[data-ws='ops'] .map-key { bottom: 12px; }
+}

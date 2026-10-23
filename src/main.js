@@ -5279,6 +5279,9 @@ if (OPS_WS) {
       right: $('#toolbarRight'),
     },
     onOpenFlyout() { if (focusCtl?.isActive()) focusCtl.exit(); },
+    // Phone sheets (phase 5): the Data sheet needs the drawer body open.
+    onSheet(key) { if (key === 'data') opsDrawer?.open(); },
+    onMore() { palette?.open(); },
   });
   // Phase 3: the data drawer. Rows click through to the map; the strip
   // carries what the result card used to show.
