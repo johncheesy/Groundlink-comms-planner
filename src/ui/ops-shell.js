@@ -87,14 +87,8 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
   rail.innerHTML = '<div class="ops-rail__head">Mission status</div>';
 
   // ── Data drawer host ──────────────────────────────────────────────────
-  const drawer = el('div', 'ops-drawer', { role: 'tablist', 'aria-label': 'Mission data' });
-  const tabEls = new Map();
-  for (const t of drawerTabs()) {
-    const b = el('button', 'ops-drawer__tab', { type: 'button', role: 'tab', 'aria-selected': 'false', disabled: '', title: `${t.label} table — phase 3` });
-    b.innerHTML = `<span class="ops-drawer__tab-label">${t.label}</span><span class="ops-drawer__tab-count" data-numeric>${t.count}</span>`;
-    drawer.appendChild(b);
-    tabEls.set(t.key, b);
-  }
+  // Phase 3 fills it (src/ui/ops-drawer.js); the shell only owns the row.
+  const drawer = el('div', 'ops-drawer', { 'aria-label': 'Mission data' });
 
   // ── Flyout (one at a time) ────────────────────────────────────────────
   const flyout = el('section', 'ops-flyout', { hidden: '', 'aria-label': 'Section' });
@@ -165,6 +159,8 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
   return {
     /** The status-rail column (phase 2 renders into it). */
     rail,
+    /** The data-drawer row (phase 3 renders into it). */
+    drawer,
     /** Open the flyout that holds this section anchor; false if none. */
     openAnchor(anchorId) {
       const m = moduleForAnchor(modules, anchorId);
@@ -174,13 +170,6 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
     },
     close,
     isOpen: () => openKey != null,
-    /** Update the drawer tab counts ({ sites, links, gaps, radios }). */
-    refresh(counts) {
-      for (const t of drawerTabs(counts)) {
-        const c = tabEls.get(t.key)?.querySelector('.ops-drawer__tab-count');
-        if (c) c.textContent = t.count;
-      }
-    },
     /** Rename the mission button (file name or "Mission"). */
     setMissionName(name) {
       missionBtn.querySelector('.ops-top__mission-name').textContent = name || 'Mission';

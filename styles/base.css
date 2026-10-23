@@ -91,6 +91,7 @@ button {
 .app[data-ws='ops'] .panel-toggle {
   display: none;
 }
+.app[data-ws='ops'][data-drawer='open'] { --ops-drawer-h: clamp(220px, 38vh, 420px); }
 .ops-top { grid-area: top; }
 .ops-strip { grid-area: strip; }
 .ops-rail { grid-area: rail; }

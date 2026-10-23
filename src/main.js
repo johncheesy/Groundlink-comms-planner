@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 import '../styles/index.css';
 import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
 import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2
+import { createOpsDrawer, linkRows, siteRows } from './ui/ops-drawer.js'; // M52 phase 3
 import { modelLabelText } from './ui/badges.js';
 
 // M52 phase 1: the Ops workspace is opt-in (?ws=ops). The grid switches
@@ -11,6 +12,22 @@ const OPS_WS = isOpsWorkspace(window.location.search);
 if (OPS_WS) document.getElementById('app').dataset.ws = 'ops';
 let opsShell = null;
 let opsRail = null; // M52 phase 2: status rail (src/ui/ops-rail.js)
+let opsDrawer = null; // M52 phase 3: data drawer (src/ui/ops-drawer.js)
+
+/** M52: rebuild the drawer's Sites and Links rows from the mission + checks. */
+function refreshOpsDrawer() {
+  if (!opsDrawer) return;
+  const sites = mission?.getSites?.() ?? [];
+  const links = mission?.getLinks?.() ?? [];
+  const byId = new Map(sites.map((s) => [s.id, s]));
+  const lr = linkRows(links, sites, (l) => currentCheck(l, byId));
+  const sr = siteRows(sites, lr, links, {
+    heightM: clampNum(txHeightInput.value, 1, 300, 10),
+    powerW: clampNum(powerInput.value, 0.01, 100, 5),
+    eirpDbm: (w) => txEirpDbm(w),
+  });
+  opsDrawer.refresh({ sites: sr, links: lr });
+}
 let lastReadiness = null; // computeReadiness() output of the last badge refresh
 let lastModelLabel = null; // "P.1812 · ±8 dB" of the last painted run
 
@@ -47,6 +64,7 @@ function refreshOpsRail() {
     links,
     linkCount: allLinks.length,
   });
+  refreshOpsDrawer(); // the same inputs feed the Sites and Links tables
 }
 
 /** Arm the stale-plan pill and log it on the rail with a Recompute action. */
@@ -1144,6 +1162,7 @@ whenStyleReady(() => {
         planStale = false; // nothing painted → nothing to be stale
         stalePill.disarm();
         resultCard.hide();
+        opsDrawer?.clearSummary();
         updateOpsDash(); // M36
         updateIntelChip('idle'); // Maven intel chip
       }
@@ -2381,8 +2400,7 @@ function onMissionChange(s) {
   showRow('route', s.route);
   showRow('points', s.points);
   showRow('links', s.links);
-  opsShell?.refresh({ sites: s.sites, links: s.links }); // M52 drawer counts
-  refreshOpsRail();
+  refreshOpsRail(); // M52 rail tiles + drawer rows
   missionElements.hidden = s.sites < 1 && s.route < 1 && s.points < 1;
   refreshLinks();
   missionSitesCount.textContent = String(s.sites);
@@ -5133,8 +5151,11 @@ function showResultCard() {
   const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
   const percentileLabel = modelKey === 'p1812' ? `${pct.p}% time` : null;
   const summary = summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds });
-  resultCard.show(summary, { modelKey, percentileLabel }, currentAssumptions());
   lastModelLabel = modelLabelText(modelKey, percentileLabel); // M52 rail
+  // M52 phase 3: in the Ops workspace the drawer strip carries the figures
+  // and assumptions; the floating result card is retired there.
+  if (opsDrawer) opsDrawer.setSummary(summary, lastModelLabel, currentAssumptions());
+  else resultCard.show(summary, { modelKey, percentileLabel }, currentAssumptions());
   opsRail?.event(`Coverage ready — ${Math.round(summary.coveredPct)} % covered, ${summary.deadZones.length} dead zone${summary.deadZones.length === 1 ? '' : 's'}`);
   refreshOpsRail();
 }
@@ -5228,9 +5249,33 @@ if (OPS_WS) {
     },
     onOpenFlyout() { if (focusCtl?.isActive()) focusCtl.exit(); },
   });
-  if (mission) {
-    opsShell.refresh({ sites: mission.getSites().length, links: mission.getLinks().length });
-  }
+  // Phase 3: the data drawer. Rows click through to the map; the strip
+  // carries what the result card used to show.
+  opsDrawer = createOpsDrawer(opsShell.drawer, {
+    app: $('#app'),
+    onSite(id) {
+      objList.select(id);
+      const e = registry.get(id);
+      if (e) map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 13), duration: 600 });
+    },
+    onLink(id) {
+      const l = mission.getLinks().find((x) => x.id === id);
+      const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+      const a = l && byId.get(l.a);
+      const b = l && byId.get(l.b);
+      if (!a || !b) return;
+      map.fitBounds(
+        [[Math.min(a.lng, b.lng), Math.min(a.lat, b.lat)], [Math.max(a.lng, b.lng), Math.max(a.lat, b.lat)]],
+        { padding: 90, maxZoom: 14, duration: 600 },
+      );
+    },
+    onProfile(id) { checkLink(id, { show: true }); },
+    actions: {
+      relay() { jumpToAnchor('siteTitle'); if (!recommendBtn.disabled) recommendBtn.click(); },
+      gaps() { openCoverageGapReport(); },
+      brief() { openMissionBrief(); },
+    },
+  });
   // Phase 2: the status rail. A tile opens the section that feeds it.
   const TILE_ANCHOR = { coverage: 'coverageTitle', readiness: 'paceTitle', link: 'missionTitle', gaps: 'coverageTitle', pace: 'paceTitle' };
   opsRail = createOpsRail(opsShell.rail, { onTile: (key) => jumpToAnchor(TILE_ANCHOR[key] ?? 'coverageTitle') });
@@ -5302,6 +5347,7 @@ document.addEventListener('objects:changed', (ev) => {
   if (e.kind !== 'drone' && recommender?.hasSites?.()) return; // recommend owns the raster
   planStale = true;
   resultCard.hide(); // the figures no longer describe the map
+  opsDrawer?.clearSummary();
   refreshWorkflowUi();
   pendingRecompute = e.kind === 'drone' ? () => drone?.computeRelay() : () => runCoverage();
   armStale(`${e.name} ${type === 'move' ? 'moved' : 'updated'}`);
