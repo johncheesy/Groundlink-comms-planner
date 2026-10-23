@@ -5168,7 +5168,9 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .map-notice {
   position: absolute;
   left: 12px;
-  bottom: calc(var(--status-h) + 14px);
+  /* top-left of the map: the bottom edge belongs to the result card, map key
+     and path-profile panel, which a 170 px notice covered on narrow windows */
+  top: 12px;
   z-index: calc(var(--z-toolbar) + 1);
   display: flex;
   flex-direction: column;
@@ -5186,6 +5188,8 @@ select.input--sm { text-align: left; padding-right: 6px; }
   box-shadow: var(--shadow);
 }
 .map-notice[hidden] { display: none; }
+/* Under the beta banner (54 px at top: 12px) while that is still shown. */
+.map-wrap:has(.alpha-notice:not([hidden])) .map-notice { top: 78px; }
 .map-notice--info { border-left-color: var(--accent2); }
 .map-notice__text { min-width: 0; }
 .map-notice__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
@@ -5200,8 +5204,10 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .map-notice__close:hover { color: var(--ink); }
 @media (max-width: 560px) {
-  /* above the mobile beta banner (bottom: 52px) and the panel button */
-  .map-notice { right: 12px; width: auto; bottom: 140px; }
+  /* the start card owns the top on a phone; sit above the panel button, and
+     above the beta banner (138 px tall at 375 px, bottom: 52px) while shown */
+  .map-notice { right: 12px; width: auto; top: auto; bottom: 140px; }
+  .map-wrap:has(.alpha-notice:not([hidden])) .map-notice { top: auto; bottom: 202px; }
 }
 
 .readiness-basis {
