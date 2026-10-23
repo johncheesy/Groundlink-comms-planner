@@ -5868,3 +5868,14 @@ select.input--sm { text-align: left; padding-right: 6px; }
   /* Map overlays keep clear of the sheets' handle area. */
   .app[data-ws='ops'] .map-key { bottom: 12px; }
 }
+
+/* Ops top bar: the User/Advanced switch reads as a compact pill. */
+.ops-top__actions .mode-toggle {
+  height: 30px;
+  border: 1px solid var(--hair2);
+  border-radius: 999px;
+}
+.ops-top__actions .mode-toggle.is-active { color: var(--accent); border-color: var(--accent); }
+@media (max-width: 760px) {
+  .ops-top__actions .mode-toggle { display: inline-flex !important; }
+}

@@ -1931,6 +1931,7 @@ whenStyleReady(() => {
           { label: 'Toggle 3D terrain', keywords: 'view tilt relief', run: () => toggle3dBtn?.click() },
           { label: 'Toggle buildings', keywords: 'view extrusion', run: () => buildingsBtn?.click() },
           { label: 'Toggle light / dark theme', keywords: 'appearance mode', run: () => $('#themeToggle')?.click() },
+          { label: 'Advanced mode (ADV) on / off', keywords: 'advanced adv user expert clutter mast height thresholds antenna settings', run: () => applyMode(!advancedMode) },
           { label: 'Open or import a file…', keywords: 'upload load open import mission kml kmz gpx geojson csv calibration rssi drag drop', hint: '⌘O', run: () => openFilePicker() },
           { label: 'Save mission file', keywords: 'groundlink download save export mission', run: () => openSaveDialog() },
           { label: 'Undo', keywords: 'undo revert back', run: () => { const op = undoStack.undo(); statusMode.textContent = op ? `Undone: ${op.label}` : 'Nothing to undo'; } },
@@ -5325,6 +5326,7 @@ if (OPS_WS) {
     modules: TOOLBAR_MODULES,
     sectionTabs,
     nodes: {
+      mode: modeToggleBtn, // ADV switch: lived in the hidden panel header
       brand: $('#toolbar .brand'),
       intel: $('#toolbarIntel'),
       open: $('#openFileBtn'),

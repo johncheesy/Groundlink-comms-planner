@@ -1,6 +1,6 @@
 {
   "name": "groundlink-comms-planner",
-  "version": "0.10.2-beta",
+  "version": "0.10.3-beta",
   "private": true,
   "description": "GroundLink — terrain-aware comms coverage and planning web app",
   "type": "module",
