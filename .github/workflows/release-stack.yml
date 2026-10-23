@@ -1,0 +1,71 @@
+name: Release — merge PR stack and tag
+
+# Run this from the Actions tab (or the GitHub mobile app): it merges the
+# listed pull requests into main in order with merge commits, closes the
+# superseded ones, tags main and starts the Pages deploy. The merge itself is
+# still a person's decision — pressing "Run workflow" is the review step.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: PR numbers to merge, in order (space-separated)
+        default: "32 33 34 35 38"
+      close:
+        description: PR numbers to close as superseded (space-separated, may be empty)
+        default: "37 36"
+      tag:
+        description: Tag to create on main (empty for none)
+        default: "v0.10.0-beta"
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Merge the stack in order
+        run: |
+          set -euo pipefail
+          for pr in ${{ inputs.stack }}; do
+            read -r st base <<<"$(gh pr view "$pr" --repo "$REPO" --json state,baseRefName --jq '"\(.state) \(.baseRefName)"')"
+            if [ "$st" = "MERGED" ]; then echo "#$pr already merged"; continue; fi
+            [ "$st" = "OPEN" ] || { echo "#$pr is $st"; exit 1; }
+            [ "$base" = "main" ] || gh pr edit "$pr" --repo "$REPO" --base main
+            for i in 1 2 3 4 5 6; do
+              m=$(gh pr view "$pr" --repo "$REPO" --json mergeable --jq .mergeable)
+              [ "$m" = "MERGEABLE" ] && break
+              [ "$m" = "CONFLICTING" ] && { echo "#$pr conflicts with main"; exit 1; }
+              sleep 5
+            done
+            gh pr merge "$pr" --repo "$REPO" --merge
+            sleep 3
+          done
+      - name: Close superseded PRs
+        if: inputs.close != ''
+        run: |
+          for pr in ${{ inputs.close }}; do
+            [ "$(gh pr view "$pr" --repo "$REPO" --json state --jq .state)" = "OPEN" ] && gh pr close "$pr" --repo "$REPO" --comment "Superseded: its change landed with the stack merged into main." || true
+          done
+      - name: Tag main
+        if: inputs.tag != ''
+        run: |
+          git fetch origin main
+          if git ls-remote --tags origin "refs/tags/${{ inputs.tag }}" | grep -q .; then echo "tag exists"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ inputs.tag }}" -m "GroundLink ${{ inputs.tag }}" origin/main
+          git push origin "${{ inputs.tag }}"
+      - name: Deploy
+        # A push made with the workflow token does not start other workflows,
+        # so start the Pages deploy explicitly.
+        run: gh workflow run deploy.yml --repo "$REPO" --ref main
