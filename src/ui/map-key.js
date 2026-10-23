@@ -19,17 +19,27 @@ export function createMapKey(container) {
 
   return {
     /** Show `title` with rows; hides when there are no rows. */
-    show({ title, rows = [], note = '' }) {
+    /**
+     * `warn` ({ text, action, onAction }) puts an amber line above the rows —
+     * used for "defaults in use", which must be visible next to the colours
+     * it explains rather than only in a card or a tooltip.
+     */
+    show({ title, rows = [], note = '', warn = null }) {
       if (!rows.length) {
         el.hidden = true;
         return;
       }
       el.innerHTML =
+        (warn
+          ? `<button type="button" class="map-key__warn" title="${htmlEsc(warn.title ?? warn.text)}">⚠ ${htmlEsc(warn.text)}` +
+            (warn.action ? ` <u>${htmlEsc(warn.action)}</u>` : '') + `</button>`
+          : '') +
         `<div class="map-key__title">${htmlEsc(title)}</div>` +
         rows.map((r) =>
           `<div class="map-key__row"><i class="map-key__swatch" style="background:${r.color}"></i>` +
           `<span>${htmlEsc(r.label)}</span>${r.value ? `<b data-numeric>${htmlEsc(r.value)}</b>` : ''}</div>`).join('') +
         (note ? `<div class="map-key__note">${htmlEsc(note)}</div>` : '');
+      if (warn?.onAction) el.querySelector('.map-key__warn')?.addEventListener('click', warn.onAction);
       el.hidden = false;
     },
     hide() { el.hidden = true; },

@@ -5725,3 +5725,21 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .ops-events__action:hover { border-color: var(--accent); }
 .ops-events__empty { padding: 6px 0; font-size: 11.5px; color: var(--dim); }
+
+/* Map key: "defaults in use" line above the colour rows (review F2). */
+.map-key__warn {
+  display: block;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+  font: 600 11.5px var(--ui);
+  text-align: left;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.map-key__warn u { text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
+.map-key__warn:hover { border-color: var(--warn); }

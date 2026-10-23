@@ -154,7 +154,7 @@ import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, receivedDbm } from 
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
-import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
+import { describeAssumptions, cellSizeM, DEFAULT_FREQ_MHZ, DEFAULT_POWER_W } from './analysis/assumptions.js';
 import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg, withGain } from './coverage/antenna.js';
 import { updateAntennaBeams } from './map/antenna-beams.js';
 import { linkFeatures, linkStatus, updateRadioLinks, RADIO_LINK_LAYERS, LINK_FADE_MARGIN_DB } from './map/radio-links.js';
@@ -4993,11 +4993,17 @@ function refreshMapKey() {
   }
   const view = coverage.getView?.() ?? 'quality';
   const pct = (f) => `${Math.round(f * 100)}%`;
+  // Defaults in use: say so on the map itself, where the colours are read
+  // (product review F2 — "100 % covered" with no radio chosen looked real).
+  const assump = currentAssumptions();
+  const warn = assump.source === 'defaults'
+    ? { text: `Default radio: ${DEFAULT_FREQ_MHZ} MHz · ${DEFAULT_POWER_W} W`, action: 'Pick a radio', title: assump.warnings[0], onAction: () => jumpToAnchor('radioTitle') }
+    : null;
   if (view === 'server') {
     const info = coverage.getServerInfo();
     const rows = info ? info.legend.map((r) => ({ color: info.colors[r.index % info.colors.length], label: r.name, value: pct(r.frac) })) : [];
     if (info?.interference) rows.push({ color: 'var(--srv-contest)', label: `Overlap < ${info.thresholdDb} dB`, value: pct(info.contestedFrac) });
-    mapKey.show({ title: 'Best server', rows, note: 'Where the signal is usable' });
+    mapKey.show({ title: 'Best server', rows, note: 'Where the signal is usable', warn });
     paintSiteZones(info);
     return;
   }
@@ -5011,6 +5017,7 @@ function refreshMapKey() {
       title: 'Interference (C/I)',
       rows: labels.map((label, i) => ({ color: ci.colors[i], label, value: pct(ci.fracs[i]) })),
       note: 'All sites on one channel',
+      warn,
     });
     return;
   }
@@ -5023,7 +5030,7 @@ function refreshMapKey() {
     { color: 'var(--s4)', label: 'Poor', value: `≥ ${t(thNone, -110)}` },
   ];
   if (showNone) rows.push({ color: 'var(--s5)', label: 'None', value: `< ${t(thNone, -110)}` });
-  mapKey.show({ title: 'Signal (dBm)', rows, note: showNone ? '' : 'No signal: not painted' });
+  mapKey.show({ title: 'Signal (dBm)', rows, note: showNone ? '' : 'No signal: not painted', warn });
 }
 
 viewQualityBtn?.addEventListener('click', () => {
