@@ -128,3 +128,35 @@ git tag -a v0.9.0-beta -m "GroundLink v0.9.0-beta — M47 feature-complete + BR1
 # Deploy
 npm run deploy
 ```
+
+---
+
+## Release 0.10.0-beta (23 Oct 2026) — runbook
+
+Everything is on `feat/site-rf-links` (PR #38), which sits on top of the
+PR stack. Merging has to be done by a person (the assistant's auto mode
+refuses to merge without review). In order, each with **Create a merge
+commit** (never squash — each PR contains the one below it):
+
+```bash
+gh pr merge 32 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 33 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 33 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 34 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 34 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 35 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 35 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 38 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 38 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr close 37 --repo johncheesy/Groundlink-comms-planner --comment "Landed via #38 (7f71587 was merged into feat/site-rf-links)."
+gh pr close 36 --repo johncheesy/Groundlink-comms-planner --comment "Superseded by #35 (b38c30e)."
+```
+
+Every push to `main` deploys (the workflow now runs `npm audit`, the tests
+and the build first; with cancel-in-progress only the last merge ships).
+Then tag on `main`:
+
+```bash
+git checkout main && git pull && git tag -a v0.10.0-beta -m "GroundLink v0.10.0-beta — Ops workspace, 3D masts, clutter worldwide, MapLibre 6" && git push origin v0.10.0-beta
+```
+
+Still manual after that: 5.5 custom domain (DNS CNAME `app` →
+`johncheesy.github.io`, then Pages → Custom domain, Enforce HTTPS), and a
+pass on a real phone (the phone layout was checked in the browser's
+375 px emulation only).

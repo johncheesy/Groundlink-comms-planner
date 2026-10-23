@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.10.0-beta] — 2026-10-23
+
+The **Ops workspace** release. One week of work on top of 0.9.0-beta: a new default UI (M52 — tool strip with section flyouts, an always-on status rail with eleven tiles and an events list, a tabbed data drawer, tablet and phone layouts), 3D masts (M51), worldwide clutter with real tree and building heights, Copernicus terrain, an AOI-following coverage grid, the antenna model with per-site aiming (M49), LEO/MEO passes (M48), feeder loss, per-site height/power and radio links (M50), the readability pass from the 22 Oct user test, a unified Open / import, the coverage raster fading beyond the AOI with a "default radio" line on the key, MapLibre 6, self-hosted fonts and `npm audit` in CI. 696 tests.
+
 ### Changed
 - **Opening and importing files is easy to find.** An **Open / import** button in the top bar (also ⌘O, the ⌘K palette and the start card) takes every file GroundLink reads: mission files, KML/KMZ, GPX, GeoJSON and field-calibration CSV, several at once. Dragging files over the app now says what you can drop, and a message after each import says what was loaded and where it went (calibration opens its panel). Files dropped while the map is still loading open once it is ready instead of being lost. GeoTIFFs open the Data panel, where you choose elevation or clutter. On narrow phones the header shows the logo mark without the name to make room.
 
