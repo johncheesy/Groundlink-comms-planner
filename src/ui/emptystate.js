@@ -34,8 +34,9 @@ export function createEmptyState(host, { onDrawAoi, onPlaceMast, onOpenMission, 
     `<div class="estate__actions">` +
     `<button type="button" class="btn btn--primary" data-act="aoi">Draw an area</button>` +
     `<button type="button" class="btn" data-act="mast">Place a mast</button>` +
-    `<button type="button" class="btn" data-act="open">Open mission / import</button>` +
+    `<button type="button" class="btn" data-act="open">Open or import a file</button>` +
     `</div>` +
+    `<p class="estate__hint estate__hint--drop">Or drop a mission file, KML/KMZ, GPX, GeoJSON or calibration CSV anywhere on the map.</p>` +
     `<p class="estate__hint">Everything stays in your browser — nothing is uploaded. <kbd>⌘K</kbd> opens the command palette.</p>`;
 
   const retire = () => {

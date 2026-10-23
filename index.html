@@ -82,6 +82,23 @@
           <span id="intelScoreNum">—</span>
         </div>
 
+        <!-- Open / import: one picker for every file type (src/io/route.js);
+             drag-drop anywhere on the app takes the same route. -->
+        <button
+          class="toolbar__btn toolbar__open-btn"
+          type="button"
+          id="openFileBtn"
+          title="Open or import a file (⌘O) — mission file, KML/KMZ, GPX, GeoJSON or calibration CSV. You can also drop files on the map."
+          aria-label="Open or import a file"
+          aria-keyshortcuts="Meta+O Control+O"
+        >
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 15V3M8 7l4-4 4 4" />
+            <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+          </svg>
+          <span class="toolbar__open-label">Open / import</span>
+        </button>
+
         <!-- E3c: Run All chain button -->
         <button
           class="toolbar__btn toolbar__run-all"
@@ -1042,7 +1059,7 @@
               <!-- Mission file (M21) — save / open the whole mission -->
               <div class="export-mission">
                 <button class="btn btn--block" type="button" id="saveMissionBtn">Save mission file</button>
-                <button class="btn btn--block" type="button" id="openMissionBtn">Open mission file</button>
+                <button class="btn btn--block" type="button" id="openMissionBtn">Open or import a file…</button>
                 <p class="help">Your full mission as a local <code>.groundlink.json</code> — inputs only, coverage recomputes on load. The file contains your coordinates — keep it local.</p>
               </div>
             </div>
@@ -1132,7 +1149,7 @@
             </svg>
           </button>
           <span class="map-rail__sep" aria-hidden="true"></span>
-          <button class="map-rail__btn" type="button" id="importBtn" aria-label="Import KML, KMZ, GPX or GeoJSON" title="Import KML / KMZ / GPX / GeoJSON">
+          <button class="map-rail__btn" type="button" id="importBtn" aria-label="Open or import a file" title="Open or import a file — mission, KML/KMZ, GPX, GeoJSON or calibration CSV">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3v12M8 11l4 4 4-4" />
               <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
@@ -1159,7 +1176,7 @@
             </svg>
           </button>
         </div>
-        <input type="file" id="importInput" accept=".kml,.kmz,.gpx,.geojson,.json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml,application/geo+json,application/json" hidden />
+        <input type="file" id="importInput" multiple hidden /><!-- accept: IMPORT_ACCEPT in src/io/route.js -->
 
         <!-- M36: Mission Ops Dashboard flyout -->
         <div class="map-flyout dash-ops-flyout" id="railFlyoutOps" role="region" aria-label="Mission ops dashboard" hidden>

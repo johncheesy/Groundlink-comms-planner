@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Opening and importing files is easy to find.** An **Open / import** button in the top bar (also ⌘O, the ⌘K palette and the start card) takes every file GroundLink reads: mission files, KML/KMZ, GPX, GeoJSON and field-calibration CSV, several at once. Dragging files over the app now says what you can drop, and a message after each import says what was loaded and where it went (calibration opens its panel). Files dropped while the map is still loading open once it is ready instead of being lost. GeoTIFFs open the Data panel, where you choose elevation or clutter. On narrow phones the header shows the logo mark without the name to make room.
+
 ### Fixed
 - **Bugs from a GUI-only planning run of a real multi-site network:**
   - Right-clicking a site armed a map drag that the context menu never released, so the next move over the map dragged the site away, for example while picking the far end of a radio link.

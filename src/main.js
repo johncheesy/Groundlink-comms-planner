@@ -58,7 +58,8 @@ import { createResultCard, createStalePill } from './ui/resultcard.js';
 import { createRailState } from './ui/rail.js';
 import { createLeftPanel } from './ui/lpanel.js';
 import { initDragMove } from './ui/dragmove.js';
-import { serializeMission, parseMission, missionFilename, looksLikeMissionFile, isMissionData } from './io/mission.js';
+import { serializeMission, parseMission, missionFilename } from './io/mission.js';
+import { IMPORT_ACCEPT, routeByName, routeJsonText, describeImports } from './io/route.js';
 import { createFocusMode } from './ui/focus.js';
 import { createObjectsDash } from './ui/dash-objects.js';
 import { createPowerDash } from './ui/dash-power.js';
@@ -825,6 +826,45 @@ let aoi = null;
 let coverage = null;
 let exportPanel = null; // M16 coverage/interop export panel
 let importer = null; // KML/KMZ/GPX/GeoJSON overlay importer (M21: feeds the empty state too)
+
+// ---- Open / import (one picker + drag-drop anywhere, src/io/route.js) -----
+// Live from first paint: the router needs the map style (whenStyleReady), so
+// files that arrive earlier wait in a queue instead of being lost — or, for a
+// drop, opening in the browser and leaving the app.
+const importInput = $('#importInput');
+importInput.accept = IMPORT_ACCEPT;
+const earlyFiles = [];
+let routeIncomingFiles = (files) => {
+  earlyFiles.push(...files);
+  statusMode.textContent = 'Map still loading — your file opens in a moment';
+};
+/** Every "open / import" entry (toolbar, rail, ⌘O, palette, start card, Output section). */
+const openFilePicker = () => importInput.click();
+$('#importBtn').addEventListener('click', openFilePicker);
+$('#openFileBtn')?.addEventListener('click', openFilePicker);
+importInput.addEventListener('change', () => {
+  const files = [...importInput.files];
+  importInput.value = ''; // allow re-importing the same file
+  if (files.length) routeIncomingFiles(files);
+});
+
+// Drag-drop anywhere on the app (M21 §A): same router as the picker.
+const appDropEl = $('#app');
+appDropEl.addEventListener('dragover', (e) => {
+  if ([...(e.dataTransfer?.types ?? [])].includes('Files')) {
+    e.preventDefault();
+    appDropEl.classList.add('is-dropping');
+  }
+});
+appDropEl.addEventListener('dragleave', (e) => {
+  if (!e.relatedTarget || !appDropEl.contains(e.relatedTarget)) appDropEl.classList.remove('is-dropping');
+});
+appDropEl.addEventListener('drop', (e) => {
+  e.preventDefault();
+  appDropEl.classList.remove('is-dropping');
+  const files = [...(e.dataTransfer?.files ?? [])];
+  if (files.length) routeIncomingFiles(files);
+});
 let drone = null;
 let recommender = null;
 let mission = null;
@@ -1786,9 +1826,8 @@ whenStyleReady(() => {
           { label: 'Toggle 3D terrain', keywords: 'view tilt relief', run: () => toggle3dBtn?.click() },
           { label: 'Toggle buildings', keywords: 'view extrusion', run: () => buildingsBtn?.click() },
           { label: 'Toggle light / dark theme', keywords: 'appearance mode', run: () => $('#themeToggle')?.click() },
-          { label: 'Import data file', keywords: 'kml kmz gpx geojson', run: () => $('#importBtn')?.click() },
+          { label: 'Open or import a file…', keywords: 'upload load open import mission kml kmz gpx geojson csv calibration rssi drag drop', hint: '⌘O', run: () => openFilePicker() },
           { label: 'Save mission file', keywords: 'groundlink download save export mission', run: () => openSaveDialog() },
-          { label: 'Open mission file', keywords: 'groundlink load open mission', run: () => $('#importBtn')?.click() },
           { label: 'Undo', keywords: 'undo revert back', run: () => { const op = undoStack.undo(); statusMode.textContent = op ? `Undone: ${op.label}` : 'Nothing to undo'; } },
         ],
       },
@@ -1818,70 +1857,70 @@ whenStyleReady(() => {
   });
 
   // ---- Import KML / KMZ / GPX (+ promote to mission input) -------------
-  const importInput = $('#importInput');
   const clearImportBtn = $('#clearImportBtn');
   const importPromote = $('#importPromote');
   const importPromoteText = $('#importPromoteText');
   const importPromoteBtns = $('#importPromoteBtns');
+  let lastImportError = '';
   importer = createImportController(map, {
-    onStatus(msg) { statusMode.textContent = msg; },
+    onStatus(msg, state) {
+      statusMode.textContent = msg;
+      if (state === 'error') lastImportError = msg;
+    },
   });
-  $('#importBtn').addEventListener('click', () => importInput.click());
 
   /**
-   * One router for every incoming file (picker, drag-drop): mission files go
-   * to the M21 loader — by extension, or by content sniff for a renamed plain
-   * .json — everything else takes the M16 overlay import path.
+   * One router for every incoming file (picker, drag-drop; src/io/route.js):
+   * mission files go to the M21 loader — by extension, or by content sniff for
+   * a renamed plain .json — KML/KMZ/GPX/GeoJSON to the M16 overlay import,
+   * CSV to M27 field calibration. GeoTIFFs open the Data flyout, where the
+   * user says whether it is elevation or clutter. One toast sums it up.
    */
   async function handleIncomingFiles(files) {
     let byType = null;
+    const results = [];
     for (const file of files) {
-      if (looksLikeMissionFile(file.name)) {
-        await loadMissionFromText(await file.text(), file.name);
-        continue;
+      let kind = routeByName(file.name);
+      let text = null;
+      if (kind === 'json') {
+        text = await file.text().catch(() => '');
+        kind = routeJsonText(text);
       }
-      if (/\.json$/i.test(file.name)) {
-        let text = null;
-        try {
-          text = await file.text();
-          if (isMissionData(JSON.parse(text))) {
-            await loadMissionFromText(text, file.name);
-            continue;
-          }
-        } catch {
-          /* not JSON at all — let the importer report it */
-        }
+      if (kind === 'mission') {
+        const r = await loadMissionFromText(text ?? (await file.text()), file.name);
+        results.push({ name: file.name, kind, ...r });
+      } else if (kind === 'overlay') {
+        lastImportError = '';
+        const r = await importer.importFile(file);
+        if (r.ok) { clearImportBtn.hidden = false; byType = r.byType; }
+        results.push({ name: file.name, kind, ...r, byType: r.fileByType, message: r.ok ? undefined : lastImportError || undefined });
+      } else if (kind === 'calibration') {
+        const r = await importCalText(await file.text()).catch((err) => ({ ok: false, error: err.message }));
+        results.push({ name: file.name, kind, ...r });
+        revealCalibration();
+      } else {
+        if (kind === 'geotiff' && !railState.isOpen('data')) railState.toggle('data');
+        results.push({ name: file.name, kind, ok: false });
       }
-      const r = await importer.importFile(file);
-      if (r.ok) { clearImportBtn.hidden = false; byType = r.byType; }
     }
     if (byType) offerImportPromotion(byType);
     refreshWorkflowUi(); // imported data retires the empty state
+    const summary = describeImports(results);
+    if (summary) showToast(summary, { durationMs: 6000 });
   }
 
-  importInput.addEventListener('change', async () => {
-    const files = [...importInput.files];
-    importInput.value = ''; // allow re-importing the same file
-    await handleIncomingFiles(files);
-  });
+  /** Calibration results live in an Advanced-mode panel: show it. */
+  function revealCalibration() {
+    if (!advancedMode) applyMode(true);
+    const panelEl = $('#calibrationPanel');
+    if (panelEl) panelEl.open = true;
+    jumpToAnchor('coverageTitle');
+    setTimeout(() => panelEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 260); // after the section reveal
+  }
 
-  // Drag-drop anywhere on the app (M21 §A): same router as the picker.
-  const appDropEl = $('#app');
-  appDropEl.addEventListener('dragover', (e) => {
-    if ([...(e.dataTransfer?.types ?? [])].includes('Files')) {
-      e.preventDefault();
-      appDropEl.classList.add('is-dropping');
-    }
-  });
-  appDropEl.addEventListener('dragleave', (e) => {
-    if (!e.relatedTarget || !appDropEl.contains(e.relatedTarget)) appDropEl.classList.remove('is-dropping');
-  });
-  appDropEl.addEventListener('drop', (e) => {
-    e.preventDefault();
-    appDropEl.classList.remove('is-dropping');
-    const files = [...(e.dataTransfer?.files ?? [])];
-    if (files.length) handleIncomingFiles(files);
-  });
+  routeIncomingFiles = handleIncomingFiles;
+  // Files that arrived while the map loaded: once the rest of this setup has run.
+  setTimeout(() => { if (earlyFiles.length) handleIncomingFiles(earlyFiles.splice(0)); }, 0);
   clearImportBtn.addEventListener('click', () => {
     importer.clear();
     clearImportBtn.hidden = true;
@@ -1955,7 +1994,7 @@ whenStyleReady(() => {
       jumpToAnchor('missionTitle');
       armMissionMode('sites');
     },
-    onOpenMission: () => $('#importBtn')?.click(),
+    onOpenMission: () => openFilePicker(),
     onRetire: revealBetaNotice,
   });
 
@@ -3040,12 +3079,15 @@ const fmtSignedDb = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`;
 
 const escapeHtml = htmlEsc; // alias — use htmlEsc (from util/esc.js) everywhere
 
-/** Import + predict + fit from CSV text (exposed on __gl for tests). */
+/**
+ * Import + predict + fit from CSV text (exposed on __gl for tests).
+ * Resolves { ok, count } or { ok: false, error } for the shared file router.
+ */
 async function importCalText(text) {
   const calReadout = $('#calReadout');
   const { parseRssiCsv, predictDbm, fitCalibration, deviationBucket } = await calMod();
   const { points, skipped, error } = parseRssiCsv(text);
-  if (error) { calReadout.textContent = error; return; }
+  if (error) { calReadout.textContent = error; return { ok: false, error }; }
 
   const sites = mission.getSites();
   const area = aoi?.getAoi?.();
@@ -3054,8 +3096,9 @@ async function importCalText(text) {
   if (sites.length) txs = sites.map((s) => siteTx(s, txHeightM, coverageParams().antenna));
   else if (area) txs = [{ lat: area.center.lat, lng: area.center.lng, txHeightM }];
   else {
-    calReadout.textContent = 'Set up the mission first — prediction needs your transmitter (fixed site or AOI centre).';
-    return;
+    const msg = 'Set up the mission first — prediction needs your transmitter (fixed site or AOI centre).';
+    calReadout.textContent = msg;
+    return { ok: false, error: msg };
   }
 
   calReadout.textContent = `Predicting at ${points.length} point${points.length === 1 ? '' : 's'}…`;
@@ -3086,6 +3129,7 @@ async function importCalText(text) {
   renderCalUi({ skipped, terrain: !!dem });
   updateCalLayer(samples);
   runFieldValidation(points, txs, dem);
+  return { ok: true, count: samples.length };
 }
 
 /**
@@ -3205,8 +3249,8 @@ function initCalibrationControls() {
     fileInput.value = '';
     if (!file) return;
     try {
-      await importCalText(await file.text());
-      statusMode.textContent = 'Calibration points imported';
+      const r = await importCalText(await file.text());
+      if (r?.ok) statusMode.textContent = 'Calibration points imported';
     } catch (err) {
       $('#calReadout').textContent = `Import failed: ${err.message}`;
     }
@@ -4031,12 +4075,15 @@ function applyMissionState(m) {
   setDirty(false);
 }
 
-/** Parse + confirm + apply mission-file text. Resolves true when loaded. */
+/**
+ * Parse + confirm + apply mission-file text. Resolves { ok, warnings } or
+ * { ok: false, error }; the file router turns that into the import toast.
+ */
 async function loadMissionFromText(text, name) {
   const r = parseMission(text);
   if (!r.ok) {
     statusMode.textContent = r.error;
-    return false;
+    return { ok: false, error: r.error };
   }
   if (missionDirty && !(await confirmDialog({
     title: 'Replace the current mission?',
@@ -4044,7 +4091,7 @@ async function loadMissionFromText(text, name) {
     confirmLabel: 'Replace mission',
   }))) {
     statusMode.textContent = 'Mission load cancelled';
-    return false;
+    return { ok: false, error: 'load cancelled.' };
   }
   try {
     applyMissionState(r.mission);
@@ -4052,15 +4099,13 @@ async function loadMissionFromText(text, name) {
     // The file is sanitised before it gets here, so this is a last resort: say
     // what happened instead of leaving a half-applied mission with no message.
     statusMode.textContent = `Mission file could not be fully applied: ${err?.message ?? err}`;
-    showToast('Mission file could not be fully applied. Check what is on the map.');
-    return false;
+    return { ok: false, error: 'it could not be fully applied. Check what is on the map.' };
   }
   const warnings = r.warnings ?? [];
   statusMode.textContent = warnings.length
     ? `Mission loaded from ${name} with skipped items: ${warnings.join(' ')}`
     : `Mission loaded from ${name}`;
-  if (warnings.length) showToast(`Mission loaded, but some items were skipped. ${warnings[0]}`);
-  return true;
+  return { ok: true, warnings };
 }
 
 /** Serialize and download the mission file (after the dialog confirms). */
@@ -4118,9 +4163,9 @@ document.addEventListener(
 
 // Output-group buttons (Data export section).
 $('#saveMissionBtn')?.addEventListener('click', openSaveDialog);
-$('#openMissionBtn')?.addEventListener('click', () => $('#importBtn')?.click());
+$('#openMissionBtn')?.addEventListener('click', () => openFilePicker());
 
-// ---- Global shortcuts: ⌘S save · ⌘Z / ⇧⌘Z undo / redo (M21 §A + §D) -------
+// ---- Global shortcuts: ⌘S save · ⌘O open / import · ⌘Z / ⇧⌘Z undo / redo (M21 §A + §D)
 document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (!mod || e.altKey) return;
@@ -4128,6 +4173,11 @@ document.addEventListener('keydown', (e) => {
   if (key === 's' && !e.shiftKey) {
     e.preventDefault(); // the browser's "save page" is never what we want here
     openSaveDialog();
+    return;
+  }
+  if (key === 'o' && !e.shiftKey) {
+    e.preventDefault(); // the browser's "open file" would leave the app
+    openFilePicker();
     return;
   }
   if (key !== 'z') return;

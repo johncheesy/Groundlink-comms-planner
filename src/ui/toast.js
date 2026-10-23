@@ -21,7 +21,7 @@ function ensureEl() {
 }
 
 /** Show a short transient message; repeated calls restart the timer. */
-export function showToast(message) {
+export function showToast(message, { durationMs = HIDE_AFTER_MS } = {}) {
   const t = ensureEl();
   t.textContent = message;
   t.hidden = false;
@@ -33,5 +33,5 @@ export function showToast(message) {
   hideTimer = window.setTimeout(() => {
     t.classList.remove('gl-toast--in');
     t.hidden = true;
-  }, HIDE_AFTER_MS);
+  }, durationMs);
 }
