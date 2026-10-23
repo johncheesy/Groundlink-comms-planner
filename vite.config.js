@@ -36,6 +36,22 @@ const isAppBundle = (bundle) =>
     (o) => o.type === 'chunk' && o.isEntry && /^assets\/index-/.test(o.fileName),
   );
 
+// MapLibre 6 parses tiles, GeoJSON and terrain in a worker it must be told
+// about (src/map/maplibre-worker.js). Without it nothing worker-backed draws
+// and nothing fails loudly — 0.10.0-beta shipped that way. Fail the build.
+function maplibreWorkerGuard() {
+  return {
+    name: 'gl-maplibre-worker-guard',
+    apply: 'build',
+    generateBundle(_, bundle) {
+      if (!isAppBundle(bundle)) return;
+      if (!Object.keys(bundle).some((k) => /maplibre-gl-worker-[^/]*\.js$/.test(k))) {
+        this.error('MapLibre worker missing from the build: import src/map/maplibre-worker.js before creating a map.');
+      }
+    },
+  };
+}
+
 function swAssetsPlugin() {
   return {
     name: 'gl-sw-assets',
@@ -89,7 +105,7 @@ function swStampPlugin() {
 // Relative base so the public-safe build works under a GitHub Pages subpath.
 export default defineConfig({
   base: './',
-  plugins: [swAssetsPlugin(), swStampPlugin()],
+  plugins: [maplibreWorkerGuard(), swAssetsPlugin(), swStampPlugin()],
   define: {
     __GL_BUILD__: JSON.stringify(build),
   },
