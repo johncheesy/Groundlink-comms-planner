@@ -207,3 +207,31 @@ describe('mission file — site pointing', () => {
     expect('azimuthDeg' in r.mission.sites[1]).toBe(false);
   });
 });
+
+describe('mission file — saved view and propagation model', () => {
+  const rt = (state) => parseMission(JSON.stringify(serializeMission(state, { savedAt: '2026-10-23T10:00:00.000Z' })));
+  it('round-trips the camera, 3D flag and engine', () => {
+    const s = fullState();
+    s.view = { center: [27.16, -8.9], zoom: 12.4, pitch: 62, bearing: -30, terrain3d: true };
+    s.coverage = { ...s.coverage, engine: 'auto' };
+    const r = rt(s);
+    expect(r.ok).toBe(true);
+    expect(r.mission.view).toEqual({ center: [27.16, -8.9], zoom: 12.4, pitch: 62, bearing: -30, terrain3d: true });
+    expect(r.mission.coverage.engine).toBe('auto');
+  });
+  it('drops a bad view and an unknown engine, clamps out-of-range camera values', () => {
+    const s = fullState();
+    s.view = { center: ['x', 1], zoom: 3 };
+    s.coverage = { ...s.coverage, engine: 'magic' };
+    const r = rt(s);
+    expect(r.mission.view).toBeNull();
+    expect(r.mission.coverage.engine).toBeUndefined();
+    s.view = { center: [5, 52], zoom: 40, pitch: 120, bearing: 999 };
+    expect(rt(s).mission.view).toEqual({ center: [5, 52], zoom: 22, pitch: 85, bearing: 360, terrain3d: false });
+  });
+  it('older files without a view still load', () => {
+    const s = fullState();
+    delete s.view;
+    expect(rt(s).mission.view).toBeNull();
+  });
+});

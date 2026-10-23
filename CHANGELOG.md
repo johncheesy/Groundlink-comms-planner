@@ -10,6 +10,18 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.10.4-beta] — 2026-10-23
+
+From a live walkthrough of the Upemba network plan on the hosted app.
+
+### Added
+- **Mission files remember the view and the model.** Saving stores the camera (centre, zoom, tilt, rotation), whether 3D terrain is on, and the propagation model; opening the file switches 3D on and lands on that view, so a demo or briefing file opens exactly as it was saved. Older files load as before. 3 tests.
+
+### Fixed
+- **3D masts are visible at network scale.** A 30 m mast is under a pixel at network zoom; masts are now drawn at least about 60 px tall (heights scaled together, so relative heights stay right) and return to true size as you zoom in. Labels keep the real height. 3 tests.
+- **Drawing an area:** the open panel steps aside when you start, the colour key and other overlays let clicks through while you draw (a corner placed under the key used to be lost), and finishing with a double-click no longer adds the last point twice.
+- The brand name stays on one line at tablet width.
+
 ## [0.10.3-beta] — 2026-10-23
 
 ### Fixed

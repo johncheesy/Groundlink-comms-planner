@@ -6,7 +6,7 @@ import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2
 import { createOpsDrawer, linkRows, siteRows, gapRows, radioRows } from './ui/ops-drawer.js'; // M52 phase 3–4
 import { relayRecommendation } from './export/gap-report.js';
 import { linksFromLines, polygonChoices } from './io/promote.js';
-import { updateMasts3d, setMasts3dVisible } from './map/masts-3d.js'; // M51
+import { updateMasts3d, setMasts3dVisible, mastScale } from './map/masts-3d.js'; // M51
 import { modelLabelText } from './ui/badges.js';
 
 // M52 phase 1: the Ops workspace is opt-in (?ws=ops). The grid switches
@@ -353,7 +353,7 @@ toggle3dBtn?.addEventListener('click', () => {
   toggle3dBtn.setAttribute('aria-pressed', String(on));
   viewSliders.hidden = !on;
   statusMode.textContent = on ? '3D terrain on' : '3D terrain off';
-  if (on) refreshMasts3d(); else setMasts3dVisible(map, false); // M51
+  if (on) { watchMastZoom(); refreshMasts3d(); } else setMasts3dVisible(map, false); // M51
 });
 
 // ---- Buildings toggle (independent of terrain 3D) -----------------------
@@ -1405,6 +1405,7 @@ whenStyleReady(() => {
     syncToolButtons();
     reflectMissionMode('area');
     if (mq.matches) closePanel();
+    opsShell?.close(); // M52: the flyout steps aside so the whole map is drawable
   });
   drawPolygonBtn.addEventListener('click', () => {
     missionTools.setMode(null);
@@ -1412,6 +1413,7 @@ whenStyleReady(() => {
     syncToolButtons();
     reflectMissionMode('area');
     if (mq.matches) closePanel();
+    opsShell?.close(); // M52: the flyout steps aside so the whole map is drawable
   });
   clearAoiBtn.addEventListener('click', () => {
     aoi.clear();
@@ -2244,12 +2246,19 @@ function refreshMasts3d() {
   const drone = d && lastDroneState?.hasDrone
     ? { lng: d.lngLat[0], lat: d.lngLat[1], altM: lastDroneState.altM ?? 100 }
     : null;
-  updateMasts3d(
-    map,
-    mission.getSites(),
-    { panelHeightM: clampNum(txHeightInput.value, 1, 300, 10), antenna: readAntenna(), drone },
-    { visible: Boolean(mapApi?.isTerrainOn?.()) },
-  );
+  const sites = mission.getSites();
+  const panelHeightM = clampNum(txHeightInput.value, 1, 300, 10);
+  const tallestM = Math.max(panelHeightM, ...sites.map((s) => s.txHeightM ?? panelHeightM), drone?.altM ?? 0);
+  // Masts are drawn at least ~60 px tall at any zoom (true size close up).
+  const scale = mastScale({ zoom: map.getZoom(), lat: map.getCenter().lat, tallestM });
+  updateMasts3d(map, sites, { panelHeightM, antenna: readAntenna(), drone, scale }, { visible: Boolean(mapApi?.isTerrainOn?.()) });
+}
+// Rebuild after zooming: the on-screen size, not the true size, is what changes.
+let mastZoomHook = false;
+function watchMastZoom() {
+  if (mastZoomHook || !map) return;
+  mastZoomHook = true;
+  map.on('zoomend', () => { if (mapApi?.isTerrainOn?.()) refreshMasts3d(); });
 }
 antennaPreset?.addEventListener('change', () => {
   const p = ANTENNA_PRESETS[antennaPreset.value];
@@ -4085,6 +4094,7 @@ function gatherMissionState() {
       txLossDb: txLossDb(),
       thresholds: coverageParams().thresholds,
       digitalMode: getDigitalMode(),
+      engine: backendSettings?.getBackend?.() ?? 'builtin',
     },
     pace: { ewThreat: $('#ewThreat')?.value ?? 'medium', cellForPace: $('#cellForPace')?.value ?? 'none' },
     power: {
@@ -4100,6 +4110,11 @@ function gatherMissionState() {
     teams: teams?.getTeams?.() ?? [],
     basemap: { category: basemapCategory, variant: mapApi.getVariant?.(basemapCategory) ?? null },
     opDatetime: opDatetime?.value || null,
+    // The camera, so the file opens on the view it was saved with (demo, brief).
+    view: (() => {
+      const c = map.getCenter();
+      return { center: [c.lng, c.lat], zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing(), terrain3d: Boolean(mapApi?.isTerrainOn?.()) };
+    })(),
   };
 }
 
@@ -4215,9 +4230,21 @@ function applyMissionState(m) {
       teamsPanel?.render?.();
     }
 
-    // Bring the mission into view.
+    if (m.coverage?.engine) backendSettings?.setBackend?.(m.coverage.engine);
+
+    // Bring the mission into view: the saved camera when the file has one
+    // (3D terrain switched on first, its own tilt then replaced), otherwise
+    // fit the area or the sites.
     const bbox = mission.bbox();
-    if (aoi.getAoi()) aoi.fitBounds({ padding: 80 });
+    if (m.view) {
+      const v = m.view;
+      const want3d = v.terrain3d && !mapApi.isTerrainOn?.();
+      if (want3d) toggle3dBtn?.click();
+      // jumpTo, not easeTo: it also cancels the 3D switch's own tilt animation,
+      // and it lands even when the tab is in the background (no frames).
+      const go = () => { map.stop(); map.jumpTo({ center: v.center, zoom: v.zoom, pitch: v.pitch, bearing: v.bearing }); };
+      if (want3d) setTimeout(go, 650); else go();
+    } else if (aoi.getAoi()) aoi.fitBounds({ padding: 80 });
     else if (bbox) {
       map.fitBounds([[bbox.west, bbox.south], [bbox.east, bbox.north]], { padding: 80, maxZoom: 14, duration: 800 });
     }
