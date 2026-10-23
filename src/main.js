@@ -5,6 +5,7 @@ import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
 import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2
 import { createOpsDrawer, linkRows, siteRows, gapRows, radioRows } from './ui/ops-drawer.js'; // M52 phase 3–4
 import { relayRecommendation } from './export/gap-report.js';
+import { linksFromLines, polygonChoices } from './io/promote.js';
 import { updateMasts3d, setMasts3dVisible } from './map/masts-3d.js'; // M51
 import { modelLabelText } from './ui/badges.js';
 
@@ -2035,18 +2036,26 @@ whenStyleReady(() => {
   /** Offer "Use as mission input" buttons appropriate to what was imported. */
   function offerImportPromotion(byType) {
     importPromoteBtns.innerHTML = '';
-    const add = (label, fn) => {
+    // Each button uses one kind of geometry; only that kind leaves the import
+    // overlay, so a network file can give sites, then links, then the area.
+    const add = (label, fn, used) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'btn btn--sm';
       b.textContent = label;
-      b.addEventListener('click', () => { fn(); finishPromotion(); });
+      b.addEventListener('click', () => { const done = fn(); finishPromotion(done === false ? null : used); });
       importPromoteBtns.appendChild(b);
     };
-    if (byType.lines) add('Lines → route', promoteLinesToRoute);
-    if (byType.points) add('Points → sites', () => promotePoints(true));
-    if (byType.points) add('Points → demand', () => promotePoints(false));
-    if (byType.polygons) add('Polygon → AOI', promotePolygonToAoi);
+    const feats = importer.getFeatures();
+    const linkPairs = byType.lines && mission?.getSites?.().length ? linksFromLines(feats, mission.getSites()) : [];
+    if (linkPairs.length) add(`Lines → ${linkPairs.length} radio link${linkPairs.length === 1 ? '' : 's'}`, promoteLinesToLinks, (f, i) => linkPairs.some((p) => p.featureIndex === i));
+    if (byType.lines) add('Lines → route', promoteLinesToRoute, (f) => f.geometry?.type === 'LineString');
+    if (byType.points) add('Points → sites', () => promotePoints(true), (f) => f.geometry?.type === 'Point');
+    if (byType.points) add('Points → demand', () => promotePoints(false), (f) => f.geometry?.type === 'Point');
+    const polys = polygonChoices(feats);
+    for (const p of polys) {
+      add(polys.length > 1 ? `AOI: ${p.name}` : 'Polygon → AOI', () => promotePolygonToAoi(p.featureIndex), (f) => f.geometry?.type === 'Polygon');
+    }
     if (!importPromoteBtns.children.length) { importPromote.hidden = true; return; }
 
     const bits = [];
@@ -2087,9 +2096,20 @@ whenStyleReady(() => {
     statusMode.textContent = parts.join(' ');
     if (overLimit || invalid) showToast(parts.slice(1).join(' '));
   }
-  function promotePolygonToAoi() {
-    const pg = importer.getFeatures().find((f) => f.geometry?.type === 'Polygon');
-    if (pg) aoi.setPolygon(pg.geometry.coordinates[0]);
+  function promotePolygonToAoi(featureIndex) {
+    const feats = importer.getFeatures();
+    const pg = feats[featureIndex]?.geometry?.type === 'Polygon' ? feats[featureIndex] : feats.find((f) => f.geometry?.type === 'Polygon');
+    if (!pg) return false;
+    aoi.setPolygon(pg.geometry.coordinates[0]);
+    statusMode.textContent = `Area of interest set from ${pg.properties?.name || 'the imported polygon'}`;
+    return true;
+  }
+  function promoteLinesToLinks() {
+    const pairs = linksFromLines(importer.getFeatures(), mission.getSites());
+    let added = 0;
+    for (const p of pairs) if (mission.addLink(p.a, p.b, { label: p.label })) added += 1;
+    statusMode.textContent = `Added ${added} radio link${added === 1 ? '' : 's'} from the imported lines — Check all links to profile them`;
+    return added > 0;
   }
   // ---- Empty state (M21 §C) — centred starter card on a fresh session ----
   emptyState = createEmptyState(document.querySelector('.map-wrap'), {
@@ -2106,17 +2126,27 @@ whenStyleReady(() => {
   refreshWorkflowUi();
   if (!emptyState.isVisible()) revealBetaNotice(); // no start card → the notice can show now
 
-  function finishPromotion() {
-    // Promoted data now lives in the mission (with its own markers); drop the
-    // passive overlay so nothing is shown twice.
+  /**
+   * After a promotion: the promoted features now live in the mission (with
+   * their own markers), so drop just those from the passive overlay and offer
+   * what is left. `used` is the (feature, index) predicate of the button; null
+   * when nothing was promoted.
+   */
+  function finishPromotion(used) {
     missionTools.refresh();
+    if (!used) return;
     if (recommender?.hasSites()) recommender.clear();
-    importer.clear();
-    clearImportBtn.hidden = true;
-    importPromote.hidden = true;
-    // Keep the specific message promotePoints/promoteLinesToRoute just wrote (it
-    // says what was skipped); only fall back to the generic one.
-    if (!/^(Added|Route set)/.test(statusMode.textContent)) statusMode.textContent = 'Imported data added to the mission';
+    const left = importer.removeWhere(used);
+    if (left.points + left.lines + left.polygons === 0) {
+      importer.clear();
+      clearImportBtn.hidden = true;
+      importPromote.hidden = true;
+    } else {
+      offerImportPromotion(left);
+    }
+    // Keep the specific message the promotion just wrote (it says what was
+    // skipped); only fall back to the generic one.
+    if (!/^(Added|Route set|Area of interest set)/.test(statusMode.textContent)) statusMode.textContent = 'Imported data added to the mission';
   }
 });
 

@@ -318,9 +318,21 @@ export function createImportController(map, { onStatus } = {}) {
     }
   }
 
+  /**
+   * Drop the features `keep` rejects (e.g. the points just promoted to sites)
+   * and leave the rest on the map for the next promotion. Returns the counts
+   * by type of what is left.
+   */
+  function removeWhere(drop) {
+    data = { type: 'FeatureCollection', features: data.features.filter((f, i) => !drop(f, i)) };
+    if (map.getSource(SRC)) map.getSource(SRC).setData(data);
+    return countByType(data.features);
+  }
+
   return {
     importFile,
     clear,
+    removeWhere,
     hasData: () => data.features.length > 0,
     getFeatures: () => data.features.slice(),
   };

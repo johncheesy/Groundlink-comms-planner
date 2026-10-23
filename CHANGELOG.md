@@ -10,6 +10,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.10.2-beta] — 2026-10-23
+
+### Fixed
+- **One imported network file now gives sites, links and the area.** After the first "use as" button (for example *Points → sites*) the whole import was cleared, so the polygons and lines of the same file were lost. Now only the promoted features leave the overlay and the remaining buttons stay. *Polygon → AOI* always took the first polygon; with several polygons each gets its own button (*AOI: Comms Priority*, *AOI: Upemba NP*). Found in the Upemba network test.
+
+### Added
+- **Lines → radio links.** Once sites exist, imported lines whose two ends sit on two sites (within 300 m) become radio links, named after the line — the way planning KMZs draw their links (`src/io/promote.js`, 4 tests).
+
 ## [0.10.1-beta] — 2026-10-23
 
 ### Fixed
