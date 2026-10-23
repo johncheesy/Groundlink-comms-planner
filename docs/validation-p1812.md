@@ -33,17 +33,15 @@ No coordinates, terrain heights or profile points.
 | Stage | Max \|Δ\| | Within 0.1 dB |
 | --- | --- | --- |
 | Lbfs, Lb0p, Ld50, Ldp, Lbs | < 0.001 dB | 63/63 each |
-| Lb (final) | 57.18 dB | 47/63 |
-| Lb without our terminal clutter loss | 14.38 dB | 61/63 |
+| Lb (final) | 14.38 dB | 61/63 |
 
-All 16 final-loss deviations are GroundLink predicting **more** loss:
+The two final-loss deviations are GroundLink predicting **more** loss:
+**no ducting** (1 GHz at 1 % time; §4.4 is omitted, E2 decision).
 
-- **Terminal clutter loss** (15 cases): our engine keeps the P.1812-6 §4.7
-  terminal clutter term, which -7/-8 dropped in favour of clutter along the
-  profile only. Kept on purpose: our profiles are sampled ~1 km apart, so the
-  -8 treatment would ignore clutter around a handheld receiver. Revisit when
-  the profile gets a dense near-terminal section.
-- **No ducting** (2 cases, 1 GHz at 1 % time): §4.4 is omitted (E2 decision).
+Until 22 Oct 2026 (later the same day) the engine also kept the P.1812-6
+§4.7 terminal clutter loss, which gave 14 more deviations of up to +57 dB.
+It now follows -8, with a dense near-terminal profile in the coverage worker
+(ADR 0010).
 
 ## What changed because of this run
 

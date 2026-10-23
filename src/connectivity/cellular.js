@@ -463,7 +463,7 @@ export function createCellularController(map, coverages, { onStatus } = {}) {
         meta = result.meta;
       } catch (err) {
         onStatus?.('error', { message: err.message });
-        return { count: 0, totals: {} };
+        return { count: 0, totals: {}, error: err.message };
       }
     }
 

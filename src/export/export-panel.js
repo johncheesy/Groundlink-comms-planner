@@ -158,9 +158,19 @@ export function createExportPanel({ els, getExport, onStatus }) {
   });
 
   /** Show/hide the export section — visible once there is anything to export
-   * (a coverage raster or any mission data). */
-  function refresh(hasExportable) {
+   * (a coverage raster or any mission data). The raster exports (GeoTIFF, KMZ,
+   * TAK) carry the coverage overlay, so they stay disabled, with the reason,
+   * until a coverage run exists (review F12). GeoJSON exports the mission alone. */
+  function refresh(hasExportable, hasCoverage = true) {
     if (wrap) wrap.hidden = !hasExportable;
+    const why = hasCoverage ? '' : 'Run coverage first — this export carries the coverage overlay.';
+    for (const btn of [geotiffBtn, kmzBtn, takBtn]) {
+      if (!btn) continue;
+      btn.disabled = !hasCoverage;
+      if (why) btn.title = why;
+      else btn.removeAttribute('title');
+    }
+    if (!hasCoverage && hasExportable) setHelp('GeoJSON exports your mission now. GeoTIFF, KMZ and TAK need a coverage run first.');
   }
 
   return { refresh };

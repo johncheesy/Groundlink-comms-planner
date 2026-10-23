@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { copyText } from '../util/clipboard.js';
 
 /**
  * Named map locations (M11) — click-to-place waypoints the user can name, tag
@@ -153,7 +154,10 @@ export function createWaypointController(map, { onUpdate, formatCoord, coordCycl
       copy.textContent = 'Copy';
       copy.title = 'Copy coordinate';
       copy.addEventListener('click', () => {
-        try { navigator.clipboard?.writeText(text); copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy'; }, 1200); } catch { /* clipboard unavailable */ }
+        copyText(text).then((ok) => {
+          copy.textContent = ok ? 'Copied' : 'Copy failed';
+          setTimeout(() => { copy.textContent = 'Copy'; }, 1200);
+        });
       });
       rowEl.appendChild(val);
       rowEl.appendChild(copy);

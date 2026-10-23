@@ -97,9 +97,6 @@ for (const file of readdirSync(profDir).filter((f) => f.endsWith('.csv')).sort()
     });
     const profile = pts.map((q) => ({ distM: q.d * 1000, terrainM: q.h, clutterM: q.R }));
     const res = run(profile);
-    // Same path without our terminal clutter loss (P.1812-6 §4.7, which -8
-    // dropped): clutter at the two end points only, not along the path.
-    const bare = run(profile.map((q, i) => (i === 0 || i === profile.length - 1 ? { ...q, clutterM: 0 } : q)));
     const c = res.components;
     const ours = {
       Lbfs: c.fsplDb,
@@ -133,9 +130,6 @@ for (const file of readdirSync(profDir).filter((f) => f.endsWith('.csv')).sort()
       // Ducting / layer reflection (omitted here) beats diffraction in the reference.
       ductingMatters: get('Lba (dB)') < get('Lbd (dB)'),
       dev,
-      // Lb deviation once our terminal clutter loss is left out.
-      devLbNoTerminalClutter: round(bare.lossDb - ref.Lb, 3),
-      ourClutterDb: round(c.clutterTxDb + c.clutterRxDb),
       devTheta: round(c.thetaMrad - get('th (mrad)'), 3),
       devBeta0: round(c.beta0 - get('b0 (%)'), 3),
     });
@@ -143,9 +137,8 @@ for (const file of readdirSync(profDir).filter((f) => f.endsWith('.csv')).sort()
 }
 
 const mean = (xs) => xs.reduce((s, v) => s + v, 0) / (xs.length || 1);
-const pick = (k) => (x) => (k === 'LbNoTerminalClutter' ? x.devLbNoTerminalClutter : x.dev[k]);
-const summary = Object.fromEntries(['Lbfs', 'Lb0p', 'Ld50', 'Ldp', 'Lbs', 'Lb', 'LbNoTerminalClutter'].map((k) => {
-  const v = cases.map(pick(k)).filter(Number.isFinite);
+const summary = Object.fromEntries(['Lbfs', 'Lb0p', 'Ld50', 'Ldp', 'Lbs', 'Lb'].map((k) => {
+  const v = cases.map((x) => x.dev[k]).filter(Number.isFinite);
   return [k, {
     mean: round(mean(v)),
     rms: round(Math.sqrt(mean(v.map((x) => x * x)))),
@@ -157,7 +150,7 @@ const summary = Object.fromEntries(['Lbfs', 'Lb0p', 'Ld50', 'Ldp', 'Lbs', 'Lb', 
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, `${JSON.stringify({
   generated: new Date().toISOString().slice(0, 10),
-  engine: 'GroundLink P.1812 (src/coverage/p1812.js): P.1812-6 core, path geometry per P.1812-8, no ducting, -6 terminal clutter loss',
+  engine: 'GroundLink P.1812 (src/coverage/p1812.js): P.1812-6 core, path geometry and terminal clutter per P.1812-8, no ducting',
   reference: 'ITU-R P.1812-8 validation set, ITU-R WP 3M (reference implementation logs)',
   settings: { pL: 50, sigmaL: 0 },
   count: cases.length,

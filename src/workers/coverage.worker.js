@@ -30,13 +30,11 @@
  * against the drawn area, not the bounding box. Without `aoi`, the AOI fields
  * are null and callers fall back to the bbox fraction (drone relay).
  */
-import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
-import { receivedDbmP1812 } from '../coverage/p1812.js';
+import { classifyDbm, haversineM } from '../coverage/model.js';
 import { NO_SERVER, MARGIN_SINGLE, CI_NONE, quantizeMarginDb, quantizeCiDb } from '../coverage/bestserver.js';
-import { patternLossDb, bearingDeg, isOmni } from '../coverage/antenna.js';
+import { txDbmAt, txAntenna } from '../coverage/cell.js';
 import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
 import { buildLidarDem } from './dem.js';
-import { buildProfile, buildProfileP1812 } from './profile.js';
 import { createYielder } from './yield.js';
 
 // Cancellation: `activeId` is the only job allowed to finish. A newer 'compute'
@@ -118,9 +116,6 @@ self.onmessage = async (e) => {
   // available (it is a terrain model — without one we fall back, matching the
   // spec's "Auto" semantics). Anything else keeps the FSPL+Deygout path.
   const useP1812 = params.engine === 'p1812' && !!dem;
-  // Below the P.1812 validity floor (0.25 km) the cell is essentially at the
-  // mast — plain free space is the honest answer there for either engine.
-  const P1812_MIN_DIST_M = 250;
 
   // Transmitter list. Single `tx` is always accepted (backward compatible);
   // when `txs` is supplied (M3 multi-site) each cell takes the strongest of all
@@ -131,10 +126,7 @@ self.onmessage = async (e) => {
   const txElevs = txList.map((t) => (dem ? dem.sample(t.lng, t.lat) : 0) + (t.txHeightM ?? 10));
   // Directional tx antennas: per-site override, else the run's antenna.
   // eirpDbm already carries the peak gain; the pattern takes off the rest.
-  const txAntennas = txList.map((t) => {
-    const a = t.antenna ?? params.antenna;
-    return a && !isOmni(a) ? a : null;
-  });
+  const txAntennas = txList.map((t) => txAntenna(t, params));
 
   let inAoiCount = 0;
   let coveredInAoiCount = 0;
@@ -160,28 +152,10 @@ self.onmessage = async (e) => {
       let bestIdx = -1;
       let sumMw = 0; // linear power of every site above the floor
       for (let ti = 0; ti < txList.length; ti++) {
-        const t = txList[ti];
-        const dist = haversineM(t.lat, t.lng, lat, lng);
-        let dbm;
-        if (useP1812 && dist > P1812_MIN_DIST_M) {
-          // Clutter rides in the profile (heights) + terminal correction —
-          // never also as the per-class dB term, so nothing counts twice.
-          const prof = buildProfileP1812(t, { lng, lat }, dist, dem, params.useClutter ? clutter : null);
-          dbm = receivedDbmP1812(params, prof, {
-            p: params.p ?? 50,
-            pL: params.pL ?? 50,
-            txHeightM: t.txHeightM ?? params.txHeightM ?? 10,
-            rxHeightM: rxHeight,
-            latDeg: (t.lat + lat) / 2,
-          });
-        } else {
-          let diffraction = 0;
-          if (dem && dist > 50) {
-            diffraction = deygoutLossDb(buildProfile(t, { lng, lat }, dist, dem), txElevs[ti], rxElev, params.freqMHz, dist);
-          }
-          dbm = receivedDbm(params, dist, diffraction, useP1812 ? 0 : clutterDb);
-        }
-        if (txAntennas[ti]) dbm -= patternLossDb(txAntennas[ti], bearingDeg(t.lat, t.lng, lat, lng));
+        const dbm = txDbmAt({
+          t: txList[ti], txElev: txElevs[ti], lng, lat, rxElev, clutterDb,
+          params, dem, clutter, useP1812, antenna: txAntennas[ti],
+        });
         if (collectServer && dbm >= floorDbm) sumMw += 10 ** (dbm / 10);
         if (dbm > maxDbm) {
           secondDbm = maxDbm;

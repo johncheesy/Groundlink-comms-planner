@@ -78,3 +78,14 @@ describe('mission events + bbox', () => {
     expect(m.summary().isEmpty).toBe(false);
   });
 });
+
+describe('site antenna pointing (M49)', () => {
+  it('stores a wrapped bearing per site and clears it with null', () => {
+    const m = createMission();
+    const s = m.addSite(0.1, 0.2, 'A');
+    m.setSiteAzimuth(s.id, -90);
+    expect(m.getSites()[0].azimuthDeg).toBe(270);
+    m.setSiteAzimuth(s.id, null);
+    expect('azimuthDeg' in m.getSites()[0]).toBe(false);
+  });
+});

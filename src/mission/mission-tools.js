@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { LIMITS } from '../geo/validate.js';
+import { copyText } from '../util/clipboard.js';
 
 /**
  * Mission map tools (M4) — click-to-place Site / Route / Point editing for
@@ -137,7 +138,9 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       name: site.name || undefined,
       lngLat: [site.lng, site.lat],
       marker: m,
+      settings: { azimuthDeg: site.azimuthDeg ?? null },
       apply: {
+        settings: (s) => mission.setSiteAzimuth(site.id, s.azimuthDeg ?? null), // M49 per-site pointing
         move: ([lng, lat]) => { mission.moveSite(site.id, lat, lng); m.setLngLat([lng, lat]); },
         rename: (v) => { mission.renameSite(site.id, v); el.title = v; },
         remove: () => { mission.removeSite(site.id); refresh(); },
@@ -266,7 +269,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
     wrap.querySelector('.mission-popup__coord').textContent = coordText;
     wrap.querySelector('.mission-popup__del').addEventListener('click', () => { closePopup(); onDelete(); });
     wrap.querySelector('.mission-popup__copy').addEventListener('click', () => {
-      try { navigator.clipboard?.writeText(coordText); onStatus?.('Coordinate copied'); } catch { /* clipboard unavailable */ }
+      copyText(coordText).then((ok) => onStatus?.(ok ? 'Coordinate copied' : 'Copy failed — clipboard not available here'));
     });
     popup = new maplibregl.Popup({ closeButton: false, offset: 16 })
       .setLngLat(lngLat)

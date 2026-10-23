@@ -5015,3 +5015,16 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .basemap-hires input { accent-color: var(--accent); }
 .basemap-hires__now { font-size: 11px; color: var(--ink); min-height: 1.2em; padding: 0 2px; }
 .basemap-hires__cov { font-size: 10.5px; line-height: 1.4; color: var(--dim); padding: 2px 2px 8px; }
+
+/* Screen-reader-only text (review F26: the page needs an h1 without showing one). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

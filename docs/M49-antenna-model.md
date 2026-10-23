@@ -30,9 +30,19 @@ planned.
 - Saved in the mission file (`coverage.antenna`, `coverage.rxGainDbi`); older
   files load as dipole / 0 dBi. Shown in the result card's assumptions line.
 
+## Per-site pointing and beam wedges (22 Oct 2026)
+
+- Right-click a fixed site → **Aim antenna…**, then click the map where it
+  should point; the bearing is stored on the site (`azimuthDeg`), undoable,
+  saved in the mission file. **Use panel pointing** clears it. The antenna
+  *type* stays one setting in the Coverage panel.
+- Coverage, team coverage and calibration pass the site's pointing to the
+  worker (`siteTx` in `main.js` → `txs[i].antenna`).
+- A translucent wedge per site shows the pointing and beamwidth for
+  directional antennas (`src/map/antenna-beams.js`, `--feat-site` colour,
+  constant on-screen size, turns with the map). Omni antennas draw none.
+
 ## Open
 
-- Per-site pointing (one antenna setting applies to every transmitter; the
-  worker already accepts `txs[i].antenna`).
 - Pattern file import (e.g. MSI/Planet), vertical pattern and tilt.
-- A pointing arrow on the map.
+- A different antenna type per site.

@@ -81,7 +81,8 @@ import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
 import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
-import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText } from './coverage/antenna.js';
+import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg } from './coverage/antenna.js';
+import { updateAntennaBeams } from './map/antenna-beams.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { terrainCredit } from './data/terrain-tiles.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
@@ -89,6 +90,7 @@ import { packageAoi, readManifest, clearOfflinePack } from './data/offline.js';
 import { buildElevationSampler, buildClutterSampler } from './data/sources.js';
 import { landcoverReasonText } from './workers/worldcover.js';
 import { createMastWizard } from './ui/mast-wizard.js';
+import { copyText } from './util/clipboard.js';
 // analysis/calibration.js (M27) loads lazily on the first CSV import /
 // calibration export — see calMod() below.
 
@@ -160,7 +162,7 @@ map.on('contextmenu', (e) => {
     `<button type="button" class="coord-popup__copy" title="Copy coordinate">Copy</button>`;
   wrap.querySelector('.coord-popup__text').textContent = text;
   wrap.querySelector('.coord-popup__copy').addEventListener('click', () => {
-    try { navigator.clipboard?.writeText(text); statusMode.textContent = 'Coordinate copied'; } catch { /* clipboard unavailable */ }
+    copyText(text).then((ok) => { statusMode.textContent = ok ? 'Coordinate copied' : 'Copy failed — clipboard not available here'; });
   });
   coordPopup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, offset: 12 })
     .setLngLat(e.lngLat)
@@ -312,6 +314,11 @@ profileToolBtn?.addEventListener('click', () => {
   if (profileTool.isActive()) {
     profileTool.deactivate();
   } else {
+    // Review F21: one map tool at a time — drop an armed waypoint placement.
+    if (waypoints?.isPlacing?.()) {
+      waypoints.cancelPlacing();
+      $('#placeWaypointBtn')?.classList.remove('is-active');
+    }
     profileTool.removeMarkers();
     profilePanel.hide();
     profileTool.activate();
@@ -792,7 +799,7 @@ let cellular = null; // M9 cellular controller (own coverage layer)
 // M27 field calibration — fitted per-radio offsets; offsets + choice persist
 // (gl.calibration.v1, try/catch), measurement points stay in-memory only.
 const CAL_STORE_KEY = 'gl.calibration.v1';
-const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applied: false };
+const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applied: false, fieldSummary: null };
 let hfPanel = null; // M12 HF ionosphere panel
 let satPanel = null; // M38 satcom look-angle panel
 let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
@@ -1151,7 +1158,7 @@ whenStyleReady(() => {
     onModeChange(m) {
       const key = m === 'site' ? 'sites' : m === 'point' ? 'points' : m === 'route' ? 'route' : 'area';
       reflectMissionMode(key);
-      if (m) statusMode.textContent = `Placing ${m}`;
+      statusMode.textContent = m ? `Placing ${m}` : 'Ready';
     },
     onStatus(msg) { statusMode.textContent = msg; },
     formatCoord: (ll) => formatCoordinate({ lat: ll[1], lng: ll[0] }, COORD_CYCLE[coordFmtIndex]),
@@ -1177,6 +1184,7 @@ whenStyleReady(() => {
     if (waypoints.isPlacing()) {
       waypoints.cancelPlacing();
     } else {
+      if (profileTool.isActive()) { profileTool.deactivate(); reflectProfileBtn(); } // F21
       waypoints.startPlacing();
       statusMode.textContent = 'Click map to place waypoint';
       // The placement click is one-shot — drop the armed state once it lands.
@@ -1985,16 +1993,23 @@ function writeAntenna(a) {
 }
 /** Peak transmit antenna gain (dBi) — the EIRP term. */
 const txGainDbi = () => readAntenna().gainDbi;
+/** M49: beam wedges for directional antennas, one per fixed site. */
+function refreshBeams() {
+  if (mission) updateAntennaBeams(map, mission.getSites(), readAntenna());
+}
 antennaPreset?.addEventListener('change', () => {
   const p = ANTENNA_PRESETS[antennaPreset.value];
   writeAntenna(p ? { ...p, preset: antennaPreset.value, azimuthDeg: antennaAzimuth?.value } : readAntenna());
+  refreshBeams();
 });
 for (const el of [antennaGain, antennaBeam, antennaFb]) {
   el?.addEventListener('input', () => {
     if (antennaPreset) antennaPreset.value = 'custom';
     if (antennaAzimuth) antennaAzimuth.disabled = isOmni(readAntenna());
+    refreshBeams();
   });
 }
+antennaAzimuth?.addEventListener('input', refreshBeams);
 
 // Manual threshold edits should move the Signal legend too (B8).
 for (const el of [thExcellent, thGood, thMarginal, thNone]) {
@@ -2077,7 +2092,7 @@ function refreshExportPanel() {
     (recommender?.getSites?.().length ?? 0) ||
     aoi?.getAoi?.(),
   );
-  exportPanel?.refresh(hasCoverage || hasMission);
+  exportPanel?.refresh(hasCoverage || hasMission, hasCoverage);
 }
 
 /**
@@ -2112,6 +2127,7 @@ function refreshSatcom() {
 function onMissionChange(s) {
   markDirty(); // any mission edit is unsaved work (M21 §A)
   refreshExportPanel();
+  refreshBeams();
   refreshSatcom();
   hfPanel?.refresh();
   if (!missionElements) return;
@@ -2880,7 +2896,7 @@ async function importCalText(text) {
   const area = aoi?.getAoi?.();
   const txHeightM = clampNum(txHeightInput.value, 1, 300, 10);
   let txs;
-  if (sites.length) txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM }));
+  if (sites.length) txs = sites.map((s) => siteTx(s, txHeightM, coverageParams().antenna));
   else if (area) txs = [{ lat: area.center.lat, lng: area.center.lng, txHeightM }];
   else {
     calReadout.textContent = 'Set up the mission first — prediction needs your transmitter (fixed site or AOI centre).';
@@ -2914,7 +2930,66 @@ async function importCalText(text) {
   );
   renderCalUi({ skipped, terrain: !!dem });
   updateCalLayer(samples);
+  runFieldValidation(points, txs, dem);
 }
+
+/**
+ * Validation part 2: score each coverage model against the imported
+ * measurements with the map's own per-cell math (analysis/field-validation.js).
+ * One radio id across the file → that radio's frequency/power; otherwise the
+ * Coverage panel settings.
+ */
+async function runFieldValidation(points, txs, dem) {
+  const wrap = $('#fieldValWrap');
+  const table = $('#fieldValTable');
+  const help = $('#fieldValHelp');
+  if (!wrap || !table) return;
+  const { compareEngines, fieldSummary, HIT_DB } = await import('./analysis/field-validation.js');
+  const ids = [...new Set(points.map((p) => p.radioId).filter(Boolean))];
+  const params = {
+    ...(ids.length === 1 ? calParamsForRadio(ids[0]) : coverageParams()),
+    txHeightM: clampNum(txHeightInput.value, 1, 300, 10),
+  };
+  const lats = points.map((p) => p.lat).concat(txs.map((t) => t.lat));
+  const lngs = points.map((p) => p.lon).concat(txs.map((t) => t.lng));
+  const bounds = {
+    west: Math.min(...lngs) - 0.02, east: Math.max(...lngs) + 0.02,
+    south: Math.min(...lats) - 0.02, north: Math.max(...lats) + 0.02,
+  };
+  wrap.hidden = false;
+  table.innerHTML = '';
+  help.textContent = 'Loading clutter and comparing the models…';
+  const clutter = await buildClutterSampler({ bounds, cog: dataFiles.clutterCog }).catch(() => null);
+  const results = compareEngines(points, txs, params, { dem, clutter });
+  const fmt = (v) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1)}`);
+  table.innerHTML =
+    `<thead><tr><th>Model</th><th>Bias</th><th>RMSE</th><th>Within ±${HIT_DB} dB</th><th>Too optimistic</th></tr></thead><tbody>` +
+    results.map(({ label, stats: s }) => s.n
+      ? `<tr><td>${escapeHtml(label)}</td><td>${fmt(s.biasDb)} dB</td><td>${s.rmseDb.toFixed(1)} dB</td><td>${s.withinPct}%</td><td>${s.optimisticPct}%</td></tr>`
+      : `<tr><td>${escapeHtml(label)}</td><td colspan="4">needs terrain</td></tr>`).join('') + '</tbody>';
+  help.textContent = `${points.length} measurements, ${ids.length === 1 ? `radio ${ids[0]}` : 'Coverage panel settings'}` +
+    `${clutter ? '' : ', no clutter data for this area'}. Error is model minus measured: a plus means the map promised more signal than you measured.`;
+  calState.fieldSummary = fieldSummary({
+    results, points, txs, params,
+    terrain: dem ? terrainCredit(dem.id) : null,
+    clutter: clutter ? clutter.id : null,
+  });
+}
+
+function downloadJson(obj, filename) {
+  const url = URL.createObjectURL(new Blob([`${JSON.stringify(obj, null, 2)}\n`], { type: 'application/json' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+$('#fieldValExportBtn')?.addEventListener('click', () => {
+  if (!calState.fieldSummary) return;
+  downloadJson(calState.fieldSummary, `groundlink-field-validation_${calState.fieldSummary.generated}.json`);
+  statusMode.textContent = 'Validation summary exported — statistics only, no coordinates';
+});
 
 function renderCalUi({ skipped = 0, terrain = false } = {}) {
   const calReadout = $('#calReadout');
@@ -2928,6 +3003,9 @@ function renderCalUi({ skipped = 0, terrain = false } = {}) {
   if (!n) {
     calReadout.textContent = '';
     wrap.hidden = true; applyRow.hidden = true; actionRow.hidden = true; clearBtn.hidden = true;
+    const fieldWrap = $('#fieldValWrap');
+    if (fieldWrap) fieldWrap.hidden = true;
+    calState.fieldSummary = null;
     return;
   }
   const agree = calState.samples.filter((s) => s.bucket === 'agree').length;
@@ -3086,7 +3164,9 @@ function initCellularControls() {
       const srcLabel = meta.source === 'opencellid'
         ? `OpenCelliD ${meta.region}`
         : 'live OpenStreetMap (Overpass)';
-      if (result.count === 0) {
+      if (result.error) {
+        cellReadout.textContent = `Could not load towers: the tower services did not answer (${result.error}). Check the connection and try again.`;
+      } else if (result.count === 0) {
         cellReadout.textContent = isSample
           ? `No sample towers here — the bundled OpenCelliD ${meta.region} set only covers a few NL cities. Pan to one, or move outside NL to use live OpenStreetMap data.`
           : `No cell towers found in view (source: ${srcLabel}) — pan/zoom to a populated area and try again.`;
@@ -3170,6 +3250,26 @@ function renderSiteList(sites) {
   });
 }
 
+// Review F13: number fields are clamped when read (clampNum), so show the value
+// that is actually used — when a field is left outside its min/max, snap it to
+// the limit (or back to its default when it isn't a number) and say so.
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || el.type !== 'number') return;
+  const min = el.min === '' ? -Infinity : Number(el.min);
+  const max = el.max === '' ? Infinity : Number(el.max);
+  const n = Number.parseFloat(el.value);
+  let fixed = null;
+  if (!Number.isFinite(n)) fixed = el.defaultValue;
+  else if (n < min) fixed = String(min);
+  else if (n > max) fixed = String(max);
+  if (fixed == null || fixed === el.value) return;
+  el.value = fixed;
+  const label = (el.id && document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim()) || el.getAttribute('aria-label') || 'Value';
+  const range = Number.isFinite(min) && Number.isFinite(max) ? ` (allowed ${min}–${max})` : '';
+  if (statusMode) statusMode.textContent = `${label} set to ${fixed}${range}`;
+}, true);
+
 function clampNum(v, min, max, fallback) {
   const n = Number.parseFloat(v);
   if (!Number.isFinite(n)) return fallback;
@@ -3245,6 +3345,16 @@ function omniParams(params) {
   if (isOmni(params.antenna)) return params;
   const omni = normalizeAntenna({ preset: 'dipole' });
   return { ...params, eirpDbm: params.eirpDbm - params.antenna.gainDbi + omni.gainDbi, antenna: omni };
+}
+
+/**
+ * One fixed site as a coverage transmitter. A site aimed on its own (M49)
+ * carries the panel's antenna with its own pointing; others use the panel's.
+ */
+function siteTx(s, txHeightM, antenna) {
+  const tx = { lat: s.lat, lng: s.lng, txHeightM };
+  if (s.azimuthDeg != null && antenna && !isOmni(antenna)) tx.antenna = { ...antenna, azimuthDeg: s.azimuthDeg };
+  return tx;
 }
 
 /** Shared link/engine params (everything except bounds/tx/txHeightM). */
@@ -3348,7 +3458,7 @@ function runCoverage() {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM: params.txHeightM }));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3542,7 +3652,7 @@ async function runTeamCoverage(team) {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => ({ lat: s.lat, lng: s.lng, txHeightM: params.txHeightM }));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3581,7 +3691,7 @@ function gatherMissionState() {
         ? { type: 'radius', center: area.center, radiusM: area.radiusM }
         : { type: 'polygon', ring: area.ring }
       : null,
-    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
+    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name, azimuthDeg }) => ({ lat, lng, name, ...(azimuthDeg != null ? { azimuthDeg } : {}) })),
     points: (mission?.getPoints?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
     route: mission?.getRoute?.() ?? [],
     waypoints: (waypoints?.getAll?.() ?? []).map(({ lat, lng, name, icon }) => ({ lat, lng, name, icon })),
@@ -3643,7 +3753,10 @@ function applyMissionState(m) {
     if (m.aoi?.type === 'radius') aoi.setRadius([m.aoi.center.lng, m.aoi.center.lat], m.aoi.radiusM);
     else if (m.aoi?.type === 'polygon') aoi.setPolygon(m.aoi.ring);
 
-    for (const s of m.sites) mission.addSite(s.lat, s.lng, s.name);
+    for (const s of m.sites) {
+      const added = mission.addSite(s.lat, s.lng, s.name);
+      if (added && s.azimuthDeg != null) mission.setSiteAzimuth(added.id, s.azimuthDeg);
+    }
     for (const p of m.points) mission.addPoint(p.lat, p.lng, p.name);
     if (m.route.length) mission.setRoute(m.route);
     missionTools?.refresh?.();
@@ -3967,8 +4080,52 @@ const ctxMenu = createContextMenu({
     if (action === 'settings') jumpToAnchor(anchorForEntry(entry));
     else if (action === 'move') dragMove.armMove(entry.id);
     else if (action === 'optimise') mastWizard.openFor(entry.id); // M35
+    else if (action === 'aim') startAim(entry); // M49
+    else if (action === 'aimReset') setSiteAim(entry.id, null);
   },
 });
+
+// ---- M49: aim one site's antenna by clicking where it should point ---------
+function setSiteAim(id, deg) {
+  const e = registry.get(id);
+  if (!e) return;
+  const from = e.settings?.azimuthDeg ?? null;
+  const apply = (v) => registry.update(id, { settings: { azimuthDeg: v } });
+  apply(deg);
+  undoStack.push({
+    label: deg == null ? `${e.name} pointing reset` : `${e.name} aimed ${deg}°`,
+    undo: () => apply(from),
+    redo: () => apply(deg),
+  });
+  statusMode.textContent = deg == null
+    ? `${e.name} follows the panel pointing again`
+    : `${e.name} points ${deg}°${isOmni(readAntenna()) ? ' — pick a directional antenna in Coverage to use it' : ''}`;
+}
+
+function startAim(entry) {
+  const canvas = map.getCanvas();
+  const finish = () => {
+    canvas.style.cursor = '';
+    map.off('click', onClick);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    finish();
+    statusMode.textContent = 'Aiming cancelled';
+  };
+  const onClick = (ev) => {
+    finish();
+    const cur = registry.get(entry.id);
+    if (!cur) return;
+    const [lng, lat] = cur.lngLat;
+    setSiteAim(entry.id, Math.round(bearingDeg(lat, lng, ev.lngLat.lat, ev.lngLat.lng)));
+  };
+  canvas.style.cursor = 'crosshair';
+  map.on('click', onClick);
+  document.addEventListener('keydown', onKey, true);
+  statusMode.textContent = `Click where ${entry.name} should point — Esc cancels`;
+}
 
 // ---- Mast-height wizard (M35) — advisory minimum clearing height -----------
 // Applying routes through the normal flows: drone altitude via registry.sync

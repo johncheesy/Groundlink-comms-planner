@@ -9,6 +9,7 @@
  */
 import { KIND_LABEL, RF_KINDS } from './objects.js';
 import { objectIconSvg } from './icons.js';
+import { copyText } from '../util/clipboard.js';
 
 /**
  * els:  { list, empty, detail }
@@ -101,10 +102,7 @@ export function createObjectList(els, opts) {
       copy.className = 'objdetail__copy';
       copy.textContent = 'Copy';
       copy.addEventListener('click', () => {
-        try {
-          navigator.clipboard?.writeText(val.textContent);
-          onStatus?.('Coordinate copied');
-        } catch { /* clipboard unavailable */ }
+        copyText(val.textContent).then((ok) => onStatus?.(ok ? 'Coordinate copied' : 'Copy failed — clipboard not available here'));
       });
       row.append(val, copy);
       els.detail.appendChild(row);

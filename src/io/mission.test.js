@@ -196,3 +196,14 @@ describe('mission file — antenna', () => {
     expect(r.mission.coverage.rxGainDbi).toBe(3);
   });
 });
+
+describe('mission file — site pointing', () => {
+  it('keeps a site azimuth, wrapped, and leaves unaimed sites alone', async () => {
+    const { serializeMission, parseMission } = await import('./mission.js');
+    const r = parseMission(JSON.stringify(serializeMission({
+      sites: [{ lat: 0.1, lng: 0.2, name: 'A', azimuthDeg: 370 }, { lat: 0.3, lng: 0.4, name: 'B' }],
+    })));
+    expect(r.mission.sites[0].azimuthDeg).toBe(10);
+    expect('azimuthDeg' in r.mission.sites[1]).toBe(false);
+  });
+});

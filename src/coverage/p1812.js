@@ -13,8 +13,6 @@
  *   §4.3  Troposcatter.
  *   §4.5  Probabilistic combination of the LoS/diffraction/troposcatter terms
  *         by time percentage p.
- *   §4.7  Terminal clutter loss from representative clutter heights
- *         (knife-edge J(ν) height-gain form).
  *   §4.8  Location variability by pL (log-normal, σL default 5.5 dB).
  *
  * Path geometry follows P.1812-8 (22 Oct 2026): horizon angles, angular
@@ -24,9 +22,11 @@
  * (Lbfs, Lb0p, Ld50, Ldp, Lbs) within 0.01 dB in all 63 cases — see
  * docs/validation-p1812.md and scripts/validate-p1812.mjs.
  *
- * Still P.1812-6 on purpose: the §4.7 terminal clutter loss (dropped in -7),
- * because our profiles are sampled ~1 km apart and would otherwise miss the
- * clutter right around a handheld receiver.
+ * Clutter at the terminals also follows P.1812-8 (since 22 Oct 2026): no
+ * separate terminal clutter loss (the -6 §4.7 term); the terminals stay bare
+ * and clutter along the profile blocks the path through Bullington. The
+ * coverage worker samples the profile densely near both ends
+ * (workers/profile.js) so the trees or buildings around a handheld count.
  *
  * Deliberately omitted in v1 (documented in docs/E2-p1812-engine.md):
  *   §4.4  Ducting / layer reflection (Lba). The duct term mainly lifts small-p
@@ -266,20 +266,6 @@ function deltaBullington(d, g, hZeros, hts, hrs, hstd, hsrd, ap, fGHz, omega, po
   return Lbulla + Math.max(Ldsph - Lbulls, 0);
 }
 
-/**
- * Terminal clutter loss Ah (§4.7) — knife-edge height-gain over the
- * representative clutter height R (m above ground) for a terminal whose
- * antenna sits hg metres above ground. 0 when the antenna clears the clutter.
- */
-export function terminalClutterDb(fGHz, R, hg) {
-  if (!(R > 0) || hg >= R) return 0;
-  const hdif = R - hg;
-  const thetaClut = (Math.atan(hdif / 27) * 180) / Math.PI; // degrees
-  const Knu = 0.342 * Math.sqrt(fGHz);
-  const v = Knu * Math.sqrt(hdif * thetaClut);
-  return Math.max(0, knifeEdgeJ(v) - 6.03);
-}
-
 /* ------------------------------------------------------------------ */
 /* Main prediction.                                                   */
 /* ------------------------------------------------------------------ */
@@ -435,12 +421,9 @@ export function p1812Loss({
     10.125 * Math.max(0, log10(50 / pp)) ** 0.7;
   const Lbc = -5 * log10(10 ** (-0.2 * Lbs) + 10 ** (-0.2 * Lbam));
 
-  // §4.7 — terminal clutter from the representative heights at each end.
-  const clutterTxDb = terminalClutterDb(fGHz, profile[0].clutterM || 0, txHeightM);
-  const clutterRxDb = terminalClutterDb(fGHz, profile[n - 1].clutterM || 0, rxHeightM);
-
-  // Final 50%-locations loss: never better than the notional LoS loss.
-  const Lb50loc = Math.max(Lb0p, Lbc + clutterTxDb + clutterRxDb);
+  // Final 50%-locations loss: never better than the notional LoS loss
+  // (eq. 69). Terminal clutter is in Lbc via the Bullington profile (-8).
+  const Lb50loc = Math.max(Lb0p, Lbc);
 
   // §4.8 — location variability (log-normal about the median).
   const locationDb = ppL === 50 ? 0 : -sigmaL * invCumNorm(ppL / 100);
@@ -456,8 +439,6 @@ export function p1812Loss({
       diffractionDb: Ldp,
       diffraction50Db: Ld50,
       troposcatterDb: Lbs,
-      clutterTxDb,
-      clutterRxDb,
       locationDb,
       beta0,
       thetaMrad: theta,

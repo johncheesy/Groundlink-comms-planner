@@ -9,6 +9,7 @@
  */
 import { formatCoordinate } from '../geo/coords.js';
 import { KIND_LABEL } from './objects.js';
+import { copyText } from '../util/clipboard.js';
 
 export const COORD_MENU_FORMATS = ['latlng', 'mgrs', 'utm'];
 const FMT_LABEL = { latlng: 'Lat/Long', mgrs: 'MGRS', utm: 'UTM' };
@@ -31,6 +32,11 @@ export function buildMenuModel(entry) {
   if (SETTINGS_KINDS.includes(entry.kind)) {
     items.push({ id: 'settings', label: 'Settings…' });
     items.push({ id: 'optimise', label: 'Optimise height…' }); // M35 wizard
+  }
+  // M49: a fixed site can point its own antenna (click the map to aim).
+  if (entry.kind === 'mast' && entry.owner === 'mission') {
+    items.push({ id: 'aim', label: 'Aim antenna…' });
+    if (entry.settings?.azimuthDeg != null) items.push({ id: 'aimReset', label: 'Use panel pointing' });
   }
   items.push(entry.locked ? { id: 'unlock', label: 'Unlock' } : { id: 'move', label: 'Move' });
   items.push({ id: 'delete', label: 'Delete' });
@@ -88,10 +94,7 @@ export function createContextMenu(opts) {
   }
 
   function copyRow(text) {
-    try {
-      navigator.clipboard?.writeText(text);
-      onStatus?.('Coordinate copied');
-    } catch { /* clipboard unavailable */ }
+    copyText(text).then((ok) => onStatus?.(ok ? 'Coordinate copied' : 'Copy failed — clipboard not available here'));
   }
 
   /** Open the menu for a registry entry at viewport coords (x, y). */
