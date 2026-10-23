@@ -28,10 +28,16 @@ const MODEL_ACCURACY = {
  * @param {string} modelKey  — 'p1812' | 'deygout' | 'cloudrf' | 'flat'
  * @param {string|null} percentileLabel — e.g. '50% time' or null
  */
+/** "P.1812 · ±8 dB · 50% time" — the badge text without markup (M52 rail). */
+export function modelLabelText(modelKey, percentileLabel) {
+  const info = MODEL_ACCURACY[modelKey] ?? { label: modelKey, margin: '±? dB' };
+  const pct = percentileLabel ? ` · ${percentileLabel}` : '';
+  return `${info.label} · ${info.margin}${pct}`;
+}
+
 export function modelBadge(modelKey, percentileLabel) {
   const info = MODEL_ACCURACY[modelKey] ?? { label: modelKey, margin: '±? dB', tooltip: 'Unknown model' };
-  const pct = percentileLabel ? ` · ${percentileLabel}` : '';
-  return `<span class="badge badge--ref result-card__model-badge" title="${info.tooltip}">${info.label} · ${info.margin}${pct}</span>`;
+  return `<span class="badge badge--ref result-card__model-badge" title="${info.tooltip}">${modelLabelText(modelKey, percentileLabel)}</span>`;
 }
 
 /**

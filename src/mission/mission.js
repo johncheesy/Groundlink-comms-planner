@@ -2,9 +2,10 @@
  * Mission model (M4) — one source of truth for what the user is planning for.
  *
  *   aoi:    null | { type, center, bounds, radiusM, ring }   // mirrors aoi.js
- *   sites:  [{ id, lat, lng, name }]   // fixed masts / repeaters (infrastructure)
+ *   sites:  [{ id, lat, lng, name, azimuthDeg?, txHeightM?, powerW? }] // fixed masts
  *   route:  [{ lat, lng }]             // ordered vertices, one route to start
  *   points: [{ id, lat, lng, name }]   // positions that need comms (demand)
+ *   links:  [{ id, a, b, label, freqMHz? }] // radio links between two sites (M50)
  *
  * Pure + DOM-free so it is unit-testable and importable from a worker. The map
  * markers and interactions live in the mission-tools controller, which drives
@@ -25,6 +26,7 @@ export function createMission({ onChange } = {}) {
     sites: [],
     route: [],
     points: [],
+    links: [],
   };
   let seq = 0;
   const nextId = () => `m${++seq}`;
@@ -36,6 +38,7 @@ export function createMission({ onChange } = {}) {
       sites: state.sites.length,
       route: state.route.length,
       points: state.points.length,
+      links: state.links.length,
       // A mission is "active" once any element exists.
       isEmpty: !state.aoi && !state.sites.length && state.route.length < 2 && !state.points.length,
     };
@@ -81,11 +84,53 @@ export function createMission({ onChange } = {}) {
     else s.azimuthDeg = ((Number(deg) % 360) + 360) % 360;
     emit();
   }
-  function removeSite(id) {
-    state.sites = state.sites.filter((x) => x.id !== id);
+  /**
+   * Per-site transmitter overrides: antenna height (m above ground) and
+   * conducted power (W). null clears one, so the site follows the Coverage
+   * panel again.
+   */
+  function setSiteRf(id, { txHeightM, powerW } = {}) {
+    const s = state.sites.find((x) => x.id === id);
+    if (!s) return;
+    setOverride(s, 'txHeightM', txHeightM, SITE_RF_LIMITS.txHeightM);
+    setOverride(s, 'powerW', powerW, SITE_RF_LIMITS.powerW);
     emit();
   }
-  function clearSites() { state.sites = []; emit(); }
+  function removeSite(id) {
+    state.sites = state.sites.filter((x) => x.id !== id);
+    state.links = state.links.filter((l) => l.a !== id && l.b !== id); // a link needs both ends
+    emit();
+  }
+  function clearSites() { state.sites = []; state.links = []; emit(); }
+
+  // ── Radio links (M50) ──────────────────────────────────────────────────
+  /**
+   * Link two sites (a point-to-point radio link / backhaul). Null when either
+   * site is missing, both are the same, the pair is already linked (either
+   * direction), or LIMITS.links is reached.
+   */
+  function addLink(a, b, { label = '', freqMHz = null } = {}) {
+    if (a === b || state.links.length >= LIMITS.links) return null;
+    if (!state.sites.some((s) => s.id === a) || !state.sites.some((s) => s.id === b)) return null;
+    if (state.links.some((l) => (l.a === a && l.b === b) || (l.a === b && l.b === a))) return null;
+    const link = { id: nextId(), a, b, label: clipName(label) };
+    const f = Number(freqMHz);
+    if (freqMHz != null && freqMHz !== '' && Number.isFinite(f) && f >= 1 && f <= 100000) link.freqMHz = f;
+    state.links.push(link);
+    emit();
+    return link;
+  }
+  function renameLink(id, label) {
+    const l = state.links.find((x) => x.id === id);
+    if (!l) return;
+    l.label = clipName(label);
+    emit();
+  }
+  function removeLink(id) {
+    state.links = state.links.filter((x) => x.id !== id);
+    emit();
+  }
+  function clearLinks() { state.links = []; emit(); }
 
   // ── Points ─────────────────────────────────────────────────────────────
   /** Add a demand point. Null for an invalid position or at LIMITS.points. */
@@ -178,6 +223,7 @@ export function createMission({ onChange } = {}) {
     state.sites = [];
     state.route = [];
     state.points = [];
+    state.links = [];
     emit();
   }
 
@@ -191,7 +237,8 @@ export function createMission({ onChange } = {}) {
     summary,
     capacity,
     setAoi,
-    addSite, moveSite, renameSite, setSiteAzimuth, removeSite, clearSites,
+    addSite, moveSite, renameSite, setSiteAzimuth, setSiteRf, removeSite, clearSites,
+    addLink, renameLink, removeLink, clearLinks,
     addPoint, movePoint, renamePoint, removePoint, clearPoints,
     setRoute, addRouteVertex, updateRouteVertex, removeRouteVertex, clearRoute,
     demandPoints,
@@ -200,9 +247,20 @@ export function createMission({ onChange } = {}) {
     clearAll,
     getSites: () => state.sites.map((s) => ({ ...s })),
     getPoints: () => state.points.map((p) => ({ ...p })),
+    getLinks: () => state.links.map((l) => ({ ...l })),
     getRoute: () => state.route.map((v) => ({ ...v })),
     getAoi: () => state.aoi,
   };
+}
+
+/** Valid ranges for per-site overrides (same as the Coverage panel inputs). */
+export const SITE_RF_LIMITS = Object.freeze({ txHeightM: [1, 300], powerW: [0.01, 100] });
+
+function setOverride(site, key, value, [lo, hi]) {
+  if (value === undefined) return; // not part of this change
+  const n = value === null || value === '' ? NaN : Number(value);
+  if (!Number.isFinite(n)) delete site[key];
+  else site[key] = Math.min(hi, Math.max(lo, n));
 }
 
 /** Reduce the stored AOI to the mask shape demandGrid/inAoi expect. */

@@ -44,6 +44,20 @@ export function normalizeAntenna(a = {}) {
 
 export const isOmni = (a) => !a || a.beamwidthDeg >= 360;
 
+/**
+ * The antenna with a new peak gain (e.g. from the radio set), keeping its
+ * shape and pointing: the preset of the same shape and gain if there is one,
+ * otherwise Custom.
+ */
+export function withGain(a, gainDbi) {
+  const n = normalizeAntenna(a);
+  const g = Number(gainDbi);
+  if (!Number.isFinite(g) || g === n.gainDbi) return n;
+  const match = Object.entries(ANTENNA_PRESETS).find(([, p]) =>
+    p.gainDbi === g && p.beamwidthDeg === n.beamwidthDeg && p.fbDb === n.fbDb);
+  return normalizeAntenna({ ...n, gainDbi: g, preset: match ? match[0] : 'custom' });
+}
+
 /** Initial bearing (° from north, clockwise) from point 1 to point 2. */
 export function bearingDeg(lat1, lng1, lat2, lng2) {
   const toRad = Math.PI / 180;

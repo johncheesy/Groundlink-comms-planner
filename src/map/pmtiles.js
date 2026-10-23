@@ -10,7 +10,7 @@
  * OpenFreeMap layer it can stand in for.
  */
 
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 // pmtiles loads lazily on first use (buildings toggle / metadata discovery) —
 // statically it pulled fflate into the main chunk for users who never enable
 // the Overture layer.

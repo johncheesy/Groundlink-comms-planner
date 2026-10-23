@@ -11,6 +11,26 @@
 
 import { haversineM, wavelengthM, fsplDb } from '../coverage/model.js';
 
+/** Margin (dB) a link needs to count as solid — room for fading. */
+export const LINK_FADE_MARGIN_DB = 10;
+
+/**
+ * One verdict for a checked link, shared by the profile table, the links list,
+ * the map line and the status bar. The margin already includes the diffraction
+ * loss, so a partly blocked Fresnel zone is a caution (fading risk when the
+ * refraction changes), not a failure.
+ * @param {{ budget:{marginDb:number}, obstructed:boolean } | null} check
+ * @returns {{ status:'unknown'|'ok'|'warn'|'bad', text:string, short:string }}
+ */
+export function linkVerdict(check) {
+  const m = check?.budget?.marginDb;
+  if (!Number.isFinite(m)) return { status: 'unknown', text: 'not checked', short: 'not checked' };
+  if (m < 0) return { status: 'bad', text: 'does not close', short: 'no link' };
+  if (check.obstructed) return { status: 'warn', text: 'Fresnel zone partly blocked', short: 'Fresnel' };
+  if (m < LINK_FADE_MARGIN_DB) return { status: 'warn', text: `tight margin (aim for ≥ ${LINK_FADE_MARGIN_DB} dB)`, short: 'tight' };
+  return { status: 'ok', text: 'clear', short: '' };
+}
+
 /** Fraction of the first Fresnel zone that must stay clear (60% rule of thumb). */
 export const FRESNEL_CLEAR_FRAC = 0.6;
 
@@ -94,13 +114,13 @@ export function fresnelClearance(elevations, distances, distanceM, txElev, rxEle
 
 /**
  * Simple two-end link budget.
- *   rxSignal = EIRP − FSPL − diffraction
+ *   rxSignal = EIRP − FSPL − diffraction + rx antenna gain
  *   margin   = rxSignal − rxThreshold
  * @returns {{ fsplDb, diffractionDb, eirpDbm, rxSignalDbm, marginDb, viable: boolean }}
  */
-export function linkBudget({ distanceM, freqMHz, txEirpDbm, rxThreshDbm, diffractionDb = 0 }) {
+export function linkBudget({ distanceM, freqMHz, txEirpDbm, rxThreshDbm, diffractionDb = 0, rxGainDbi = 0 }) {
   const fspl = fsplDb(distanceM, freqMHz);
-  const rxSignalDbm = txEirpDbm - fspl - diffractionDb;
+  const rxSignalDbm = txEirpDbm - fspl - diffractionDb + rxGainDbi;
   const marginDb = rxSignalDbm - rxThreshDbm;
   return {
     fsplDb: fspl,

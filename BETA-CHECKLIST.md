@@ -1,7 +1,7 @@
 # BR1 — Beta Readiness Checklist
 
-Target version: `v0.9.0-beta`  
-Status: **IN PROGRESS** (BR1 sprint, July 2026)
+Target version: `v0.9.0-beta` (shipped) → **`v0.10.0-beta`** (23 Oct 2026: Ops workspace, 3D masts, raster fade, MapLibre 6, self-hosted fonts, jargon sweep, audit in CI)  
+Status: **READY TO TAG** once the PR stack #32→#38 is merged — see "Release 0.10.0-beta" at the bottom. Still manual: a real-phone pass (4.4 was done in the browser's phone emulation) and the `app.groundlink.org` DNS + Pages settings (5.5).
 
 Legend: ✅ done · 🔄 in progress · ⏸ deferred · ❌ blocked
 
@@ -27,9 +27,9 @@ Legend: ✅ done · 🔄 in progress · ⏸ deferred · ❌ blocked
 | 1.3 | `no-referrer` meta policy | ✅ | |
 | 1.4 | Remove maps.mail.ru from Overpass endpoints | ✅ | Down from 3 → 2 endpoints; test updated |
 | 1.5 | Unified escape helper `src/util/esc.js` | ✅ | 15 local variants replaced in 7 files |
-| 1.6 | Self-host Sora + Hanken Grotesk fonts | ⏸ | Removes Google Fonts IP leak; planned for v1.0 |
-| 1.7 | `npm audit --audit-level=high` in CI | ⏸ | Add to `deploy.yml`; planned for v1.0 |
-| 1.8 | Domain-neutral UI jargon sweep | ⏸ | Remove EW/jamming/SITREP/ATAK EUD from visible strings; v1.0 |
+| 1.6 | Self-host Sora + Hanken Grotesk fonts | ✅ | `styles/fonts.css` + `styles/fonts/*.woff2` (OFL variable fonts, weight 400–700, latin + latin-ext, 4 files, 96 kB); Google Fonts links and CSP entries removed; verified: 0 requests to fonts.g* (23 Oct 2026) |
+| 1.7 | `npm audit --audit-level=high` in CI | ✅ | In `deploy.yml` since 0.10.0-beta; MapLibre 6.15 + `npm audit fix` cleared the tree (23 Oct 2026) |
+| 1.8 | Domain-neutral UI jargon sweep | ✅ | Visible strings now say interference threat / interception / check-in / ATAK device (23 Oct 2026); ids and mission-file keys (`ewThreat`) unchanged |
 
 ---
 
@@ -63,7 +63,7 @@ Legend: ✅ done · 🔄 in progress · ⏸ deferred · ❌ blocked
 | 4.1 | Aria-label on icon-only buttons | ✅ | structure-item__remove (radios.js) fixed; toolbar/panel already labelled |
 | 4.2 | Focus trap in palette (⌘K) | ✅ | Scrim click closes; Esc returns focus to map canvas |
 | 4.3 | ⌘K empty state | ✅ | Shows top 6 items from each section by default; "Type to search" fallback |
-| 4.4 | Keyboard round-trip test | 🔄 | Manual verification needed before tag |
+| 4.4 | Keyboard round-trip test | ✅ | Ops workspace, 23 Oct 2026: Tab runs tool strip → rail tiles → drawer tabs/actions → map canvas → map rail; Esc closes a flyout or sheet; ⌘K, ⌘Z, ⌘S work |
 
 ---
 
@@ -128,3 +128,42 @@ git tag -a v0.9.0-beta -m "GroundLink v0.9.0-beta — M47 feature-complete + BR1
 # Deploy
 npm run deploy
 ```
+
+---
+
+## Release 0.10.0-beta (23 Oct 2026) — runbook
+
+Everything is on `feat/site-rf-links` (PR #38), which sits on top of the
+PR stack. Merging has to be done by a person (the assistant's auto mode
+refuses to merge without review), but it is **one action**, either:
+
+- **GitHub → Actions → "Release — merge PR stack and tag" → Run workflow**
+  (works from the GitHub app on a phone; the defaults are this release), or
+- in a terminal: `bash scripts/release-stack.sh` (add `--dry-run` to see the
+  steps first; it also waits for the deploy and prints the served build id).
+
+Both do the steps below. By hand, in order, each with **Create a merge
+commit** (never squash — each PR contains the one below it):
+
+```bash
+gh pr merge 32 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 33 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 33 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 34 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 34 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 35 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 35 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr edit 38 --repo johncheesy/Groundlink-comms-planner --base main && gh pr merge 38 --repo johncheesy/Groundlink-comms-planner --merge
+gh pr close 37 --repo johncheesy/Groundlink-comms-planner --comment "Landed via #38 (7f71587 was merged into feat/site-rf-links)."
+gh pr close 36 --repo johncheesy/Groundlink-comms-planner --comment "Superseded by #35 (b38c30e)."
+```
+
+Every push to `main` deploys (the workflow now runs `npm audit`, the tests
+and the build first; with cancel-in-progress only the last merge ships).
+Then tag on `main`:
+
+```bash
+git checkout main && git pull && git tag -a v0.10.0-beta -m "GroundLink v0.10.0-beta — Ops workspace, 3D masts, clutter worldwide, MapLibre 6" && git push origin v0.10.0-beta
+```
+
+Still manual after that: 5.5 custom domain (DNS CNAME `app` →
+`johncheesy.github.io`, then Pages → Custom domain, Enforce HTTPS), and a
+pass on a real phone (the phone layout was checked in the browser's
+375 px emulation only).

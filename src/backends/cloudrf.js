@@ -90,7 +90,7 @@ function buildBody(bounds, tx, radio) {
     },
     antenna: {
       txg: txGainDbi,
-      txl: 0, // feeder loss, dB
+      txl: num(radio?.txLossDb, 0), // feeder loss, dB
       ant: ant ? 0 : 1, // 0 = custom pattern from hbw/vbw/fbr, 1 = omni dipole
       azi: ant ? ant.azimuthDeg : 0,
       tlt: 0,

@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { parseCoordinate } from '../geo/coords.js';
 import { rankPalette } from './palette.js';
 

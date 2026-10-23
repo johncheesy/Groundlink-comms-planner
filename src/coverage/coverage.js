@@ -1,5 +1,6 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { gridDims, ringBounds } from './grid.js';
+import { aoiAlpha, applyAlpha } from './aoi-fade.js';
 import { COVERAGE_CLASS } from './model.js';
 import {
   buildServerImage, serverLegend, SERVER_PALETTE_FALLBACK, CONTEST_FALLBACK,
@@ -84,6 +85,8 @@ export function createCoverageController(
   let hasLayer = false;
   let currentBounds = null; // bbox of the in-flight / last job (worker omits it)
   let currentRender = true; // whether the current job paints to the map
+  let currentAoi = null; // AOI of the in-flight / last job: the on-screen raster fades outside it
+  let aoiMask = null; // { key, alpha } cache for currentAoi × grid
   let currentMarker = true; // whether the current job (re)places the tx marker
   let lastStats = null; // { total, covered, byClass:[5], coveredFrac }
   let lastCanvas = null; // last rendered coverage canvas (for M16 raster export)
@@ -146,7 +149,7 @@ export function createCoverageController(
     if (!bounds) return;
     // Keep the raw worker arrays so the M24 view toggle re-renders without a
     // recompute (classes for quality, servers/marginQ for best-server).
-    lastRaw = { classes, servers: msg.servers ?? null, marginQ: msg.marginQ ?? null, ciQ: msg.ciQ ?? null, cols, rows, bounds };
+    lastRaw = { classes, servers: msg.servers ?? null, marginQ: msg.marginQ ?? null, ciQ: msg.ciQ ?? null, cols, rows, bounds, aoi: currentAoi };
     if (!lastRaw.servers && view !== 'quality') view = 'quality'; // single-tx run
     const byClass = [0, 0, 0, 0, 0];
     let covered = 0;
@@ -176,6 +179,14 @@ export function createCoverageController(
     // Let callers paint a derived overlay (e.g. the M15 digital-cliff band) from
     // the same class grid and bbox we just rendered.
     onPaint?.(classes, cols, rows, bounds);
+  }
+
+  /** AOI alpha for this grid, cached: a view toggle re-renders without recomputing it. */
+  function maskFor(aoi, bounds, cols, rows) {
+    if (!aoi) return null;
+    const key = `${cols}x${rows}:${bounds.west},${bounds.south},${bounds.east},${bounds.north}:${aoi.type}:${aoi.radiusM ?? ''}:${aoi.center?.lat ?? ''},${aoi.center?.lng ?? ''}:${aoi.ring?.length ?? 0}:${aoi.ring?.[0] ?? ''}`;
+    if (aoiMask?.key !== key) aoiMask = { key, alpha: aoiAlpha(bounds, cols, rows, aoi) };
+    return aoiMask.alpha;
   }
 
   /** Paint lastRaw to the image source according to the active view (M24). */
@@ -229,7 +240,12 @@ export function createCoverageController(
     shown.width = cols;
     shown.height = rows;
     const faded = new ImageData(new Uint8ClampedArray(img.data), cols, rows);
-    fadeEdges(faded.data, cols, rows);
+    // Inside the AOI at full strength, fading out over a margin beyond it, so
+    // the raster reads as the area's coverage and not as the compute window.
+    // Without an AOI (drone relay, hosted runs) only the window border softens.
+    const alpha = maskFor(lastRaw.aoi, bounds, cols, rows);
+    if (alpha) applyAlpha(faded.data, alpha);
+    else fadeEdges(faded.data, cols, rows);
     shown.getContext('2d').putImageData(faded, 0, 0);
     const url = shown.toDataURL('image/png');
     // image-source coordinates: TL, TR, BR, BL
@@ -302,6 +318,7 @@ export function createCoverageController(
     }
     jobId += 1;
     currentBounds = bounds;
+    currentAoi = opts.aoi ?? null;
     currentRender = opts.render !== false;
     currentMarker = opts.marker !== false;
     if (currentMarker) placeTx(tx);

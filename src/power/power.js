@@ -270,7 +270,7 @@ export function networkBom(input = {}) {
       if (rec.fullOffBankSizeMah > size) size = rec.fullOffBankSizeMah;
     }
     lines.push({
-      item: 'ATAK EUD powerbanks',
+      item: 'ATAK device powerbanks',
       qty: totalPacks,
       unitSpec: `${size} mAh`,
       rationale: `Keeps ${ataks.length} ATAK device(s) powered over ${missionHours} h (65% usable deration).`,

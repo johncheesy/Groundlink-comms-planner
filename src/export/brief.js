@@ -64,9 +64,9 @@ export function generateBrief({
       `<tr>
         <td>${esc(l.tier ?? '—')}</td>
         <td>${esc(l.band ?? '—')}</td>
-        <td>${esc(l.primary ?? l.assets?.join(', ') ?? '—')}</td>
+        <td>${esc(l.status === 'recommend' ? 'Not carried — acquire' : l.radios?.length ? l.radios.join(', ') : l.asset ?? l.role ?? '—')}</td>
         <td>${esc(l.freqMHz ? l.freqMHz + ' MHz' : '—')}</td>
-        <td>${esc(l.rationale ?? '')}</td>
+        <td>${esc(l.why ?? '')}</td>
       </tr>`,
     ).join('');
     paceSection = `<section class="brief-pace">

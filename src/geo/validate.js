@@ -10,6 +10,7 @@
 
 export const LIMITS = Object.freeze({
   sites: 300,
+  links: 600,
   points: 300,
   routeVertices: 2000,
   waypoints: 200,

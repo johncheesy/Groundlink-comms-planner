@@ -688,6 +688,30 @@
   background: color-mix(in srgb, var(--accent) 14%, var(--raise));
 }
 
+/* M50: per-site mast height and power popover */
+.site-rf {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  min-width: 220px;
+  font-size: 12.5px;
+}
+.site-rf__title {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-weight: 600;
+}
+.site-rf .field-label { display: grid; gap: 2px; margin: 0; }
+.site-rf__hint,
+.site-rf__err { grid-column: 1 / -1; margin: 0; }
+.site-rf__err { color: var(--bad); }
+.site-rf__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 /* Right-click coordinate readout popup */
 .coord-popup {
   display: flex;
@@ -870,6 +894,63 @@ input.wp-popup-name:focus {
 }
 .waypoint-chip__del:hover { color: var(--bad); }
 
+/* ---- M50 radio links list ------------------------------------------------ */
+.links-panel {
+  display: grid;
+  gap: 6px;
+  margin-top: var(--sp-2);
+}
+.links-panel .help { margin: 0; }
+.links-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 4px 6px 4px 9px;
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  background: var(--surface2);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.link-row__name {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.link-row__meta { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.link-row__acts { display: flex; align-items: center; gap: 2px; }
+.link-row__km { color: var(--dim); }
+.link-row__del {
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.link-row__del:hover { color: var(--bad); }
+
+/* Link popup on the map */
+.link-popup {
+  display: grid;
+  gap: 6px;
+  min-width: 200px;
+  font-size: 12.5px;
+}
+.link-popup__meta { color: var(--dim); }
+.link-popup__actions { display: flex; gap: 6px; justify-content: flex-end; }
+
 /* ---- M5 radios: active set, picker, FCC/manual, mix card --------------- */
 
 .radio-active {
@@ -989,6 +1070,13 @@ input.wp-popup-name:focus {
 }
 
 .radio-editor { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: 6px; }
+/* Seven numeric fields wrap instead of clipping the last ones off the panel. */
+.radio-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+}
+.radio-editor__grid .input { width: 100%; }
 .fcc-fallback { margin-top: var(--sp-2); }
 
 .radio-mix {
@@ -1042,7 +1130,14 @@ input.wp-popup-name:focus {
   color: var(--ink);
   flex: 1 1 auto;
 }
-.pace-tag { font-weight: 500; color: var(--dim); font-size: 11px; }
+.pace-tag { font-weight: 500; color: var(--dim); font-size: 12px; }
+.pace-kit {
+  display: block;
+  font-family: var(--ui);
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--ink);
+}
 .pace-why { font-size: 12px; color: var(--dim); flex: 1 1 100%; line-height: 1.4; }
 
 .pace-structure {
@@ -1263,7 +1358,17 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-radius: var(--r-sm);
   font-size: 12px;
 }
-.structure-item__name { font-weight: 600; flex-shrink: 0; color: var(--accent); }
+.structure-item__name {
+  font-weight: 600;
+  flex: 0 1 auto;
+  max-width: 55%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+}
+.structure-item__use { flex-shrink: 0; }
 .structure-item__radios { color: var(--dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .structure-item__remove {
   flex-shrink: 0;
@@ -1450,6 +1555,12 @@ select.input--sm { text-align: left; padding-right: 6px; }
   gap: 6px;
   white-space: nowrap;
 }
+/* A long status message truncates instead of pushing the bar (and the
+   page) wider than the window; the full text is in its tooltip. */
+.statusbar { overflow: hidden; }
+.statusbar__item { flex-shrink: 0; }
+#statusModeItem { min-width: 0; flex: 0 1 auto; flex-shrink: 1; }
+#statusMode { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 .statusbar__item .k {
   color: var(--faint);
@@ -1974,7 +2085,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   left: 50%;
   bottom: calc(var(--status-h) + 14px);
   transform: translate(-50%, 6px);
-  z-index: calc(var(--z-toolbar) + 2);
+  z-index: calc(var(--z-panel) + 2); /* import summaries are long: never under the left panel */
   padding: 8px 14px;
   border: 1px solid var(--hair);
   border-radius: var(--r-md);
@@ -1982,6 +2093,8 @@ select.input--sm { text-align: left; padding-right: 6px; }
   color: var(--ink);
   font-size: 12.5px;
   font-weight: 500;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
   box-shadow: var(--shadow);
   opacity: 0;
   transition: opacity 0.18s ease-out, transform 0.18s ease-out;
@@ -2531,60 +2644,66 @@ select.input--sm { text-align: left; padding-right: 6px; }
   min-height: 0;
 }
 
-/* Chart fills the available width; budget table sits beside it (stacks narrow). */
-.profile-chart__svg {
-  display: block;
-  width: 100%;
-  height: 100%;
+/* Chart fills the available width; budget table sits beside it (stacks narrow).
+   The SVG is drawn at the plot's real pixel size (profile-chart.js), so text
+   is never stretched. */
+.profile-chart__plot {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   border: 1px solid var(--hair);
   border-radius: var(--r-sm);
   background: var(--bg);
 }
+.profile-chart__svg { display: block; }
 
 .profile-chart__ground { fill: var(--surface2); stroke: var(--dim); stroke-width: 1; }
-.profile-chart__grid { stroke: var(--hair); stroke-width: 0.5; }
+.profile-chart__grid { stroke: var(--hair); stroke-width: 1; }
 .profile-chart__tick {
   fill: var(--dim);
-  font-size: 9px;
+  font-size: 11px;
   font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
 }
 .profile-chart__los {
   stroke: var(--accent);
-  stroke-width: 1.4;
+  stroke-width: 1.5;
   stroke-dasharray: 5 3;
   fill: none;
 }
-.profile-chart__fresnel { fill: none; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.profile-chart__fresnel { fill: none; stroke-width: 1.25; }
 .profile-chart__fresnel--clear { stroke: var(--s1); }
-.profile-chart__fresnel--blocked { stroke: var(--bad); }
-.profile-chart__node { fill: var(--accent); stroke: #fff; stroke-width: 1; }
+.profile-chart__fresnel--blocked { stroke: var(--warn); }
+.profile-chart__node { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
 .profile-chart__end {
   fill: var(--ink);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   font-family: var(--ui);
 }
-.profile-chart__obstruction { fill: var(--bad); stroke: #fff; stroke-width: 1; }
+.profile-chart__obstruction { fill: var(--warn); stroke: var(--surface); stroke-width: 1.5; }
 .profile-chart__obstruction-label {
-  fill: var(--bad);
-  font-size: 9px;
+  fill: var(--warn);
+  font-size: 11px;
   font-weight: 600;
   font-family: var(--ui);
 }
 
 /* Link-budget table beside the chart. */
 .profile-budget-table {
-  flex: 0 0 200px;
+  flex: 0 0 236px;
   align-self: flex-start;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.35;
 }
 .profile-budget-table th,
 .profile-budget-table td {
-  padding: 3px 6px;
+  padding: 4px 6px;
   text-align: left;
+  vertical-align: baseline;
   border-bottom: 1px solid var(--hair);
 }
 .profile-budget-table th {
@@ -2596,13 +2715,19 @@ select.input--sm { text-align: left; padding-right: 6px; }
   color: var(--ink);
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
+.profile-budget-table tr:last-child th,
+.profile-budget-table tr:last-child td { border-bottom: 0; }
+.profile-budget-table tr:last-child td { white-space: normal; }
 .profile-budget__status { font-weight: 600; }
 .profile-budget__status--ok { color: var(--ok); }
+.profile-budget__status--warn { color: var(--warn); }
 .profile-budget__status--bad { color: var(--bad); }
 
 @media (max-width: 640px) {
   .profile-panel__body { flex-direction: column; }
+  .profile-chart__plot { flex: 1 1 140px; height: auto; }
   .profile-budget-table { flex: 0 0 auto; align-self: stretch; }
 }
 
@@ -3133,6 +3258,36 @@ select.input--sm { text-align: left; padding-right: 6px; }
   .plan-stepper {
     display: none;
   }
+}
+
+/* ---- Open / import button (one picker for every file type) --------------- */
+
+.toolbar__open-btn {
+  width: auto;
+  height: 28px;
+  gap: 6px;
+  padding: 0 10px 0 8px;
+  margin-left: var(--sp-3);
+  border: 1px solid var(--hair2);
+  border-radius: 5px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.toolbar__open-btn .ico {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+}
+@media (max-width: 700px) {
+  .toolbar__open-btn { width: 32px; padding: 0; }
+  .toolbar__open-label { display: none; }
+}
+/* Narrow phones: the Open / import button costs the wordmark its room, so
+   only the mark stays (the h1 keeps the name for screen readers). */
+@media (max-width: 430px) {
+  .toolbar .brand__name { display: none; }
 }
 
 /* ---- E3c: Run All button ------------------------------------------------- */
@@ -3986,6 +4141,10 @@ select.input--sm { text-align: left; padding-right: 6px; }
   font-size: 12px;
   color: var(--faint);
 }
+.estate__hint--drop {
+  margin-bottom: var(--sp-2);
+  color: var(--dim);
+}
 
 /* ---- Save mission dialog --------------------------------------------------- */
 
@@ -4039,13 +4198,37 @@ select.input--sm { text-align: left; padding-right: 6px; }
   border-top: 1px solid var(--hair);
 }
 
-.app.is-dropping::after {
+/* Dragging files over the app: a dashed frame plus a label saying what can
+   be dropped (the router in src/io/route.js takes them all). */
+.app.is-dropping::before {
   content: '';
   position: fixed;
   inset: 10px;
   z-index: 1200;
   border: 2px dashed var(--accent);
   border-radius: var(--r);
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  pointer-events: none;
+}
+.app.is-dropping::after {
+  content: 'Drop to import: mission file, KML/KMZ, GPX, GeoJSON or calibration CSV';
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 1201;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: calc(100vw - 48px);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--disp);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: var(--shadow);
   pointer-events: none;
 }
 
@@ -4985,7 +5168,9 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .map-notice {
   position: absolute;
   left: 12px;
-  bottom: calc(var(--status-h) + 14px);
+  /* top-left of the map: the bottom edge belongs to the result card, map key
+     and path-profile panel, which a 170 px notice covered on narrow windows */
+  top: 12px;
   z-index: calc(var(--z-toolbar) + 1);
   display: flex;
   flex-direction: column;
@@ -5003,6 +5188,8 @@ select.input--sm { text-align: left; padding-right: 6px; }
   box-shadow: var(--shadow);
 }
 .map-notice[hidden] { display: none; }
+/* Under the beta banner (54 px at top: 12px) while that is still shown. */
+.map-wrap:has(.alpha-notice:not([hidden])) .map-notice { top: 78px; }
 .map-notice--info { border-left-color: var(--accent2); }
 .map-notice__text { min-width: 0; }
 .map-notice__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
@@ -5017,8 +5204,10 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .map-notice__close:hover { color: var(--ink); }
 @media (max-width: 560px) {
-  /* above the mobile beta banner (bottom: 52px) and the panel button */
-  .map-notice { right: 12px; width: auto; bottom: 140px; }
+  /* the start card owns the top on a phone; sit above the panel button, and
+     above the beta banner (138 px tall at 375 px, bottom: 52px) while shown */
+  .map-notice { right: 12px; width: auto; top: auto; bottom: 140px; }
+  .map-wrap:has(.alpha-notice:not([hidden])) .map-notice { top: auto; bottom: 202px; }
 }
 
 .readiness-basis {
@@ -5153,6 +5342,7 @@ select.input--sm { text-align: left; padding-right: 6px; }
   #statusMode { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .toolbar__brief-btn { display: none; } /* Brief: result card and ⌘K */
   .toolbar__btn[data-module='basemap'] { display: none; } /* the map rail has it */
+  .toolbar__open-btn { margin-left: 0; }
   .estate {
     left: 12px;
     right: 76px; /* clear of the map rail */
@@ -5162,4 +5352,519 @@ select.input--sm { text-align: left; padding-right: 6px; }
   .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib {
     max-width: calc(100vw - 110px); /* clear of the menu button */
   }
+}
+
+/* M50: the path-profile panel (260 px at the map's foot, also opened by a radio
+   link check) lifts the docked result card and the map key above it. */
+.map-wrap:has(.profile-panel:not([hidden])) .result-card { bottom: calc(260px + var(--sp-3)); max-height: calc(100% - 260px - 80px); }
+.map-wrap:has(.profile-panel:not([hidden])) .map-key { bottom: calc(260px + 12px); }
+
+/* ---- M52 Ops workspace shell (?ws=ops) ---------------------------------
+   Phase 1: top bar, tool strip, rail host, drawer host, one section flyout.
+   Finish rules from docs/M52-ops-workspace.md §6: four type sizes, one
+   spacing scale, status colour by meaning only. */
+
+.ops-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3) 0 var(--sp-2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--hair);
+  z-index: var(--z-panel);
+  min-width: 0;
+}
+.ops-top .brand { margin-right: var(--sp-1); }
+.ops-top__mission {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--hair2);
+  border-radius: 999px;
+  background: var(--surface2);
+  color: var(--ink);
+  font: 500 12.5px var(--ui);
+  cursor: pointer;
+  max-width: 260px;
+}
+.ops-top__mission:hover { border-color: var(--accent); }
+.ops-top__mission-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-top__mission-chev { color: var(--dim); font-size: 11px; }
+.ops-top__spacer { flex: 1; }
+.ops-top__actions { display: flex; align-items: center; gap: var(--sp-2); }
+.ops-top .toolbar__right { display: flex; align-items: center; gap: 2px; }
+
+.ops-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-2) 0;
+  background: var(--surface);
+  border-right: 1px solid var(--hair);
+  overflow-y: auto;
+  min-height: 0;
+  z-index: var(--z-panel);
+}
+.ops-strip__btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+.ops-strip__btn svg { width: 18px; height: 18px; }
+.ops-strip__btn:hover { color: var(--ink); background: var(--raise); }
+.ops-strip__btn[aria-pressed='true'] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.ops-strip__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.ops-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--surface);
+  border-left: 1px solid var(--hair);
+  overflow-y: auto;
+  min-height: 0;
+  z-index: var(--z-panel);
+}
+.ops-rail__head {
+  font: 600 14px var(--disp);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  padding-bottom: var(--sp-1);
+}
+.ops-rail__note { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--dim); }
+
+.ops-drawer {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--hair);
+  z-index: var(--z-panel);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.ops-drawer__bar {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-2);
+  height: var(--ops-drawer-h-bar, 36px);
+  flex: none;
+  padding: 0 var(--sp-2) 0 var(--sp-2);
+  min-width: 0;
+}
+.ops-drawer__tabs { display: flex; align-items: stretch; gap: 2px; flex: none; }
+.ops-drawer__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-top: 2px solid transparent;
+  background: transparent;
+  color: var(--dim);
+  font: 500 12.5px var(--ui);
+  cursor: pointer;
+}
+.ops-drawer__tab:disabled { cursor: default; opacity: 0.55; }
+.ops-drawer__tab:not(:disabled):hover { color: var(--ink); }
+.ops-drawer__tab[aria-selected='true'] { color: var(--accent); border-top-color: var(--accent); }
+.ops-drawer__tab-count {
+  font-size: 11.5px;
+  color: var(--ink);
+  background: var(--raise);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.ops-drawer__strip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: var(--sp-2);
+  border-left: 1px solid var(--hair);
+  font-size: 12.5px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.ops-drawer__figs { display: inline-flex; align-items: baseline; gap: var(--sp-3); flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.ops-drawer__fig { flex: none; }
+.ops-drawer__fig b { font: 600 14px var(--disp); color: var(--ink); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.ops-drawer__fig i { font-style: normal; font-size: 11.5px; color: var(--dim); }
+.ops-drawer__model {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent2);
+  background: color-mix(in srgb, var(--accent2) 14%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  min-width: 0;
+}
+.ops-drawer__assump { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; font-size: 11.5px; }
+.ops-drawer__warn {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+  cursor: help;
+}
+.ops-drawer__warn[hidden] { display: none; }
+.ops-drawer__actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.ops-drawer__act {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--hair2);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 11.5px var(--ui);
+  cursor: pointer;
+}
+.ops-drawer__act:hover { border-color: var(--accent); color: var(--accent); }
+.ops-drawer__act[hidden] { display: none; }
+.ops-drawer__toggle {
+  width: 28px;
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ops-drawer__toggle:hover { color: var(--ink); }
+.ops-drawer__body { flex: 1 1 auto; min-height: 0; overflow: auto; border-top: 1px solid var(--hair); }
+.ops-drawer__body[hidden] { display: none; }
+
+.ops-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ops-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface2);
+  text-align: left;
+  padding: 0 10px;
+  height: 28px;
+  border-bottom: 1px solid var(--hair);
+  font: 600 11.5px var(--ui);
+  color: var(--dim);
+  white-space: nowrap;
+}
+.ops-table th.is-num, .ops-table td.is-num { text-align: right; }
+.ops-table__sort { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+.ops-table__sort.is-on, .ops-table__sort:hover { color: var(--ink); }
+.ops-table td { padding: 0 10px; height: 30px; border-bottom: 1px solid var(--hair); white-space: nowrap; color: var(--ink); }
+.ops-table td.is-num { font-variant-numeric: tabular-nums; }
+.ops-table td.is-default { color: var(--dim); }
+.ops-table td.is-act { text-align: right; width: 1%; }
+.ops-table__row { cursor: pointer; }
+.ops-table__row:hover td { background: var(--raise); }
+.ops-table__row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ops-table__empty { color: var(--dim); padding: 12px 10px !important; white-space: normal !important; }
+.ops-table__btn {
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--hair2);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+  font: 500 11.5px var(--ui);
+  cursor: pointer;
+}
+.ops-table__btn:hover { border-color: var(--accent); }
+.ops-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: var(--hair2); vertical-align: 0; }
+.ops-dot--ok { background: var(--accent); }
+.ops-dot--warn { background: var(--warn); }
+.ops-dot--bad { background: var(--bad); }
+
+.ops-flyout {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  bottom: 8px;
+  width: min(var(--ops-flyout-w), calc(100% - 16px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: 11px;
+  box-shadow: var(--shadow);
+  z-index: calc(var(--z-toolbar) + 3); /* over map notice, key and result card */
+  animation: ops-flyout-in 160ms ease-out;
+}
+.ops-flyout[hidden] { display: none; }
+.ops-flyout__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 8px 14px;
+  border-bottom: 1px solid var(--hair);
+}
+.ops-flyout__title { font: 600 14px var(--disp); letter-spacing: -0.01em; }
+.ops-flyout__close {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+}
+.ops-flyout__close svg { width: 16px; height: 16px; }
+.ops-flyout__close:hover { color: var(--ink); background: var(--raise); }
+.ops-flyout__body { overflow-y: auto; min-height: 0; flex: 1; }
+.ops-flyout__body > .section { border-top: 0; }
+.ops-flyout__body > .section > .section__head--tab { pointer-events: none; } /* the flyout owns open/close */
+.ops-flyout__body > .section > .section__head--tab::after { display: none; }
+.ops-flyout__note { margin: 0; padding: 12px 14px; font-size: 12.5px; color: var(--dim); }
+@keyframes ops-flyout-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ops-flyout { animation: none; } }
+
+/* ---- M52 phase 2: status rail tiles + events --------------------------- */
+.ops-rail__tiles { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ops-rail__head--events { margin-top: var(--sp-3); }
+.ops-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 64px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--hair2);
+  border-radius: 11px;
+  background: var(--surface2);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--ui);
+}
+.ops-tile:hover { border-color: var(--hair2); background: var(--raise); }
+.ops-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ops-tile--ok { border-left-color: var(--accent); }
+.ops-tile--warn { border-left-color: var(--warn); }
+.ops-tile--bad { border-left-color: var(--bad); }
+.ops-tile--none { border-left-color: var(--hair2); }
+.ops-tile__label { font-size: 12.5px; color: var(--dim); }
+.ops-tile__value {
+  font: 600 22px var(--disp);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.ops-tile--warn .ops-tile__value { color: var(--warn); }
+.ops-tile--bad .ops-tile__value { color: var(--bad); }
+.ops-tile--none .ops-tile__value { color: var(--dim); }
+.ops-tile__sub { font-size: 11.5px; color: var(--dim); line-height: 1.35; }
+.ops-tile__boxes { display: flex; gap: 4px; margin: 4px 0 2px; }
+.ops-tile__box {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hair2);
+  border-radius: 6px;
+  font: 600 11.5px var(--disp);
+  color: var(--dim);
+}
+.ops-tile__box--ok { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ops-tile__box--warn { border-color: var(--warn); color: var(--warn); }
+.ops-tile__dots { display: flex; gap: 4px; margin: 4px 0 2px; }
+.ops-tile__dot { width: 8px; height: 8px; border-radius: 999px; background: var(--hair2); }
+.ops-tile__dot.is-ok { background: var(--accent); }
+.ops-tile__dot.is-warn { background: var(--warn); }
+.ops-tile__dot.is-bad { background: var(--bad); }
+
+.ops-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ops-events__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--hair);
+  font-size: 12.5px;
+}
+.ops-events__item:first-child { border-top: 0; }
+.ops-events__time { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ops-events__text { color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
+.ops-events__action {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--hair2);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--accent);
+  font: 500 11.5px var(--ui);
+  cursor: pointer;
+}
+.ops-events__action:hover { border-color: var(--accent); }
+.ops-events__empty { padding: 6px 0; font-size: 11.5px; color: var(--dim); }
+
+/* Map key: "defaults in use" line above the colour rows (review F2). */
+.map-key__warn {
+  display: block;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+  font: 600 11.5px var(--ui);
+  text-align: left;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.map-key__warn u { text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
+.map-key__warn:hover { border-color: var(--warn); }
+
+/* M52 phase 4: the M36 ops flyout is the rail now; hide its rail button. */
+.app[data-ws='ops'] #railOpsBtn { display: none; }
+/* Section header inside a flyout: the flyout already carries the title. */
+.ops-flyout__body > .section > .section__head .section__title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ---- M52 phase 5: tablet and phone ------------------------------------- */
+
+/* Tablet: the rail is one horizontal row of tiles; events move out of view. */
+@media (min-width: 761px) and (max-width: 1099px) {
+  .ops-rail {
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+    border-left: 0;
+    border-top: 1px solid var(--hair);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .ops-rail__head, .ops-rail__head--events, .ops-events { display: none; }
+  .ops-rail__tiles { flex-direction: row; gap: var(--sp-2); }
+  .ops-tile { flex: 0 0 148px; min-height: 0; padding: 8px 12px; }
+  .ops-tile__value { font-size: 18px; }
+  .ops-tile__sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 124px; }
+  .ops-top__mission { max-width: 180px; }
+}
+
+/* Phone: bottom tab bar, sheets over the map, a lean top bar. */
+.ops-tabbar {
+  align-items: stretch;
+  justify-content: space-around;
+  background: var(--surface);
+  border-top: 1px solid var(--hair);
+  z-index: var(--z-panel);
+  padding: 4px 4px 0;
+}
+.ops-tabbar__btn {
+  flex: 1 1 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--dim);
+  font: 500 11px var(--ui);
+  cursor: pointer;
+}
+.ops-tabbar__btn svg { width: 20px; height: 20px; }
+.ops-tabbar__btn[aria-pressed='true'] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ops-plan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 72%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--hair);
+  border-radius: 14px 14px 0 0;
+  box-shadow: var(--shadow);
+  z-index: calc(var(--z-toolbar) + 3);
+}
+.ops-plan[hidden] { display: none; }
+.ops-plan__list { overflow-y: auto; min-height: 0; padding: 4px 8px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.ops-plan__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--hair);
+  border-radius: 9px;
+  background: var(--surface2);
+  color: var(--ink);
+  font: 500 12.5px var(--ui);
+  text-align: left;
+  cursor: pointer;
+}
+.ops-plan__item svg { width: 18px; height: 18px; color: var(--dim); flex: none; }
+@media (max-width: 760px) {
+  .ops-top { padding: 0 var(--sp-2); gap: 6px; }
+  .ops-top .brand__name .brand__alpha, .ops-top .brand__sub { display: none; }
+  .ops-top .brand__name { font-size: 13px; }
+  .ops-top__mission { max-width: 40vw; }
+  .ops-top__actions > :not(#runAllBtn) { display: none; }
+  .ops-top .toolbar__right { display: none; }
+  /* Sheets: the rail and the drawer come up over the map, above the tab bar. */
+  .app[data-ws='ops'][data-sheet='status'] .ops-rail,
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--ops-tabbar-h) + var(--status-h));
+    height: 62vh;
+    border-left: 0;
+    border-top: 1px solid var(--hair);
+    border-radius: 14px 14px 0 0;
+    box-shadow: var(--shadow);
+    z-index: calc(var(--z-toolbar) + 3);
+  }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__body { display: block; }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__bar { flex-wrap: wrap; height: auto; padding: 6px 8px; gap: 4px; }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__strip { flex-basis: 100%; border-left: 0; padding-left: 0; order: 3; }
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer__toggle { display: none; }
+  .ops-flyout {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    max-height: 72%;
+    border-radius: 14px 14px 0 0;
+    animation: none;
+  }
+  .ops-flyout__body > .section .section__body { padding-bottom: 12px; }
+  /* Map overlays keep clear of the sheets' handle area. */
+  .app[data-ws='ops'] .map-key { bottom: 12px; }
 }

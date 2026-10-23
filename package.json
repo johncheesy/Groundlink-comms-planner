@@ -1,6 +1,6 @@
 {
   "name": "groundlink-comms-planner",
-  "version": "0.9.0-beta",
+  "version": "0.10.0-beta",
   "private": true,
   "description": "GroundLink — terrain-aware comms coverage and planning web app",
   "type": "module",
@@ -16,7 +16,7 @@
   "dependencies": {
     "geotiff": "^3.0.5",
     "jszip": "^3.10.1",
-    "maplibre-gl": "^5.24.0",
+    "maplibre-gl": "^6.15.0",
     "mgrs": "^2.1.0",
     "pmtiles": "^4.4.1",
     "satellite.js": "^6.0.2"

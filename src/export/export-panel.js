@@ -92,7 +92,7 @@ export function createExportPanel({ els, getExport, onStatus }) {
     if (!data) return;
     try {
       const { buildKmz } = await writers();
-      const { canvas, bounds, sites, waypoints, points, route, aoi, missionName } = data;
+      const { canvas, bounds, sites, waypoints, points, route, aoi, missionName, mastHeightM } = data;
       const kmz = await buildKmz({
         overlayPng: canvas.toDataURL('image/png'),
         bounds,
@@ -102,6 +102,7 @@ export function createExportPanel({ els, getExport, onStatus }) {
         route,
         aoi,
         missionName,
+        mastHeightM: mastHeightM ?? null, // M51: extruded site placemarks
       });
       downloadBytes(kmz, 'application/vnd.google-earth.kmz', `groundlink-${stamp()}.kmz`);
       setHelp('Exported KMZ (sites, waypoints, points, route, AOI + coverage overlay) — opens in Google Earth. Generated locally.');

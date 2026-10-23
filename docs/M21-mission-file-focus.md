@@ -155,3 +155,22 @@ DOM/interaction verified manually in the browser (standing rule).
 - [ ] Move/rename/delete each undo and redo correctly, with recompute.
 - [ ] `npm test` green; `npm run build` clean; both themes; ≤ 900 px OK
       (focus surface becomes the full viewport; mission file unchanged).
+
+## Addendum (Oct 2026): one Open / import entry
+
+User feedback: importing was hard to find (mission open sat in the Output
+section, overlay import was a bare rail icon, calibration CSV was in an
+Advanced-mode panel). Now:
+
+- **One picker** (`#importInput`, `accept` = `IMPORT_ACCEPT`) behind the
+  toolbar **Open / import** button, the rail import icon, ⌘O, the ⌘K entry
+  "Open or import a file…", the start card and the Output section button.
+- **One router** (`src/io/route.js`, unit-tested): `*.groundlink.json` →
+  mission loader; plain `.json` sniffed (mission or GeoJSON); KML/KMZ/GPX/
+  GeoJSON → overlay import; `.csv` → M27 calibration (switches to Advanced
+  mode and opens the calibration panel); `.tif/.tiff` → opens the Data flyout
+  (elevation vs clutter stays the user's choice); anything else is named.
+- **One toast** per batch (`describeImports`) says what loaded and where.
+- **Drop overlay** labels what can be dropped; picker and drop are wired at
+  first paint and queue files until the map style is ready.
+

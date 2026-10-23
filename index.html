@@ -7,7 +7,7 @@
          connect-src is an explicit allowlist — no wildcard https:. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'sha256-W2WFH2+T7LHw/LY8j3NwAfximvYUToqraYOvJKGTymg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://fonts.openmaptiles.org; img-src https: data: blob:; connect-src 'self' https://overpass-api.de https://overpass.kumi.systems https://api.cloudrf.com https://planetarycomputer.microsoft.com https://ows.digitalearth.africa https://s3.amazonaws.com https://tiles.mapterhorn.com https://data.source.coop https://jrc-ghsl.s3.amazonaws.com https://apps.fcc.gov https://www.fcc.gov https://fccid.io https://photon.komoot.io https://celestrak.org https://server.arcgisonline.com https://service.pdok.nl https://data.geopf.fr https://www.ign.es https://wmts.geo.admin.ch https://mapsneu.wien.gv.at https://mapy.geoportal.gov.pl https://wmts3.geoportail.lu https://geo.api.vlaanderen.be https://www.wms.nrw.de https://geoservices.bayern.de https://basemap.nationalmap.gov https://cyberjapandata.gsi.go.jp https://wmts.nlsc.gov.tw https://maps.six.nsw.gov.au https://tiles.maaamet.ee https://ags.cuzk.cz https://geodienste.sachsen.de https://tiles.maps.eox.at https://a.tile.opentopomap.org https://b.tile.opentopomap.org https://c.tile.opentopomap.org https://tile.openstreetmap.org https://tiles.openfreemap.org https://fonts.openmaptiles.org data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
+      content="default-src 'self'; script-src 'self' 'sha256-W2WFH2+T7LHw/LY8j3NwAfximvYUToqraYOvJKGTymg='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src https: data: blob:; connect-src 'self' https://overpass-api.de https://overpass.kumi.systems https://api.cloudrf.com https://planetarycomputer.microsoft.com https://ows.digitalearth.africa https://s3.amazonaws.com https://tiles.mapterhorn.com https://data.source.coop https://jrc-ghsl.s3.amazonaws.com https://apps.fcc.gov https://www.fcc.gov https://fccid.io https://photon.komoot.io https://celestrak.org https://server.arcgisonline.com https://service.pdok.nl https://data.geopf.fr https://www.ign.es https://wmts.geo.admin.ch https://mapsneu.wien.gv.at https://mapy.geoportal.gov.pl https://wmts3.geoportail.lu https://geo.api.vlaanderen.be https://www.wms.nrw.de https://geoservices.bayern.de https://basemap.nationalmap.gov https://cyberjapandata.gsi.go.jp https://wmts.nlsc.gov.tw https://maps.six.nsw.gov.au https://tiles.maaamet.ee https://ags.cuzk.cz https://geodienste.sachsen.de https://tiles.maps.eox.at https://a.tile.opentopomap.org https://b.tile.opentopomap.org https://c.tile.opentopomap.org https://tile.openstreetmap.org https://tiles.openfreemap.org https://fonts.openmaptiles.org data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
     />
     <!-- No-referrer: suppress Referer header on cross-origin requests. -->
     <meta name="referrer" content="no-referrer" />
@@ -34,12 +34,6 @@
     />
 
     <!-- Sora (display) + Hanken Grotesk (body). No Inter/Roboto/Arial. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body data-mode="user">
     <div class="app" id="app">
@@ -82,6 +76,23 @@
           <span id="intelScoreNum">—</span>
         </div>
 
+        <!-- Open / import: one picker for every file type (src/io/route.js);
+             drag-drop anywhere on the app takes the same route. -->
+        <button
+          class="toolbar__btn toolbar__open-btn"
+          type="button"
+          id="openFileBtn"
+          title="Open or import a file (⌘O) — mission file, KML/KMZ, GPX, GeoJSON or calibration CSV. You can also drop files on the map."
+          aria-label="Open or import a file"
+          aria-keyshortcuts="Meta+O Control+O"
+        >
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 15V3M8 7l4-4 4 4" />
+            <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+          </svg>
+          <span class="toolbar__open-label">Open / import</span>
+        </button>
+
         <!-- E3c: Run All chain button -->
         <button
           class="toolbar__btn toolbar__run-all"
@@ -90,7 +101,7 @@
           title="Run full analysis — coverage → relay advice → PACE plan"
           aria-label="Run full analysis"
         >
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polygon points="5,3 19,12 5,21" fill="currentColor" stroke="none"/>
           </svg>
           <span class="toolbar__run-all-label">Run</span>
@@ -104,7 +115,7 @@
           title="Export mission brief — map + PACE + link budgets (Ctrl+P to print)"
           aria-label="Export mission brief"
         >
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
             <line x1="16" y1="13" x2="8" y2="13"/>
@@ -121,10 +132,10 @@
             title="Toggle light / dark"
             aria-label="Toggle light or dark theme"
           >
-            <svg class="ico ico--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico ico--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z" />
             </svg>
-            <svg class="ico ico--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico ico--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="4" />
               <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
             </svg>
@@ -176,7 +187,7 @@
               title="Collapse panel"
               aria-label="Collapse mission panel"
             >
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M15 6l-6 6 6 6" />
               </svg>
             </button>
@@ -188,7 +199,7 @@
               title="Close panel"
               aria-label="Close mission panel"
             >
-              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" />
               </svg>
             </button>
@@ -199,7 +210,7 @@
           <!-- M20 §2: Mission group -->
           <div class="panel-group" data-group="mission">
             <button class="panel-group__head" type="button" aria-expanded="true">
-              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
               <span class="panel-group__label">Mission</span>
               <span class="panel-group__badge" hidden></span>
             </button>
@@ -257,6 +268,18 @@
                   <span class="mission-el-count" id="missionPointsCount" data-numeric>0</span>
                   <button class="btn btn--sm mission-el-clear" type="button" data-clear="points">Clear</button>
                 </div>
+                <div class="mission-el-row" data-type="links" hidden>
+                  <span class="mission-el-dot" style="background: var(--mapink)"></span>
+                  <span class="mission-el-label">Radio links</span>
+                  <span class="mission-el-count" id="missionLinksCount" data-numeric>0</span>
+                  <button class="btn btn--sm mission-el-clear" type="button" data-clear="links">Clear</button>
+                </div>
+              </div>
+              <!-- M50: radio links between sites — right-click a site → Add radio link -->
+              <div class="links-panel" id="linksPanel" hidden>
+                <ul class="links-list" id="linksList"></ul>
+                <button class="btn btn--sm" type="button" id="checkLinksBtn" title="Path profile and link budget for every link, each site with its own height and power">Check all links</button>
+                <p class="help">Right-click a site → <strong>Add radio link</strong>. Margin is over the receiver sensitivity; 10 dB or more is solid. Assumes both antennas face each other.</p>
               </div>
 
               <button class="btn btn--block tool-btn" id="placeWaypointBtn" type="button" title="Place a named location">
@@ -330,7 +353,7 @@
           <!-- M20 §2: Radios group -->
           <div class="panel-group" data-group="radios">
             <button class="panel-group__head" type="button" aria-expanded="true">
-              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
               <span class="panel-group__label">Radios</span>
               <span class="panel-group__badge" hidden></span>
             </button>
@@ -406,11 +429,13 @@
                       <label class="field-label">Role<select class="input" name="role"></select></label>
                     </div>
                   </div>
-                  <div class="input-row">
+                  <div class="radio-editor__grid">
                     <label class="field-label" style="flex:1">Freq lo<input class="input input--mini" name="lo" type="number" step="0.1" /></label>
                     <label class="field-label" style="flex:1">Freq hi<input class="input input--mini" name="hi" type="number" step="0.1" /></label>
                     <label class="field-label" style="flex:1">Power W<input class="input input--mini" name="power" type="number" step="0.1" /></label>
                     <label class="field-label" style="flex:1">Sens dBm<input class="input input--mini" name="sens" type="number" step="1" /></label>
+                    <label class="field-label" style="flex:1" title="Antenna gain of this radio's antenna. Empty = the role's default.">Ant dBi<input class="input input--mini" name="gain" type="number" step="0.5" /></label>
+                    <label class="field-label" style="flex:1" title="Cable, connector and duplexer loss between radio and antenna">Loss dB<input class="input input--mini" name="loss" type="number" min="0" max="30" step="0.5" /></label>
                     <label class="field-label" style="flex:1" title="Optional unit price for the costed BOM (M26) — your figure, never fetched">Price €<input class="input input--mini" name="price" type="number" min="0" step="1" /></label>
                   </div>
                   <div class="input-row">
@@ -458,7 +483,7 @@
           <!-- M20 §2: Analysis group -->
           <div class="panel-group" data-group="analysis">
             <button class="panel-group__head" type="button" aria-expanded="true">
-              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
               <span class="panel-group__label">Analysis</span>
               <span class="panel-group__badge" hidden></span>
             </button>
@@ -556,7 +581,17 @@
                     <span class="input-suffix">dBi</span>
                   </div>
                 </div>
-                <div style="flex:2"></div>
+                <div style="flex:1">
+                  <label class="field-label" for="txLoss">Cable/duplexer loss</label>
+                  <div class="input-row">
+                    <input class="input" id="txLoss" type="number" value="0" min="0" max="30" step="0.5" title="Loss between transmitter and antenna: cable, connectors and (on a repeater) the duplexer. Typical repeater: 2–4 dB." />
+                    <span class="input-suffix">dB</span>
+                  </div>
+                </div>
+                <div style="flex:1">
+                  <span class="field-label">EIRP</span>
+                  <output class="help" id="eirpReadout" data-numeric title="Power + antenna gain − loss: what actually leaves the antenna">—</output>
+                </div>
               </div>
 
               <label class="check">
@@ -872,7 +907,7 @@
           <!-- M20 §2: Output group -->
           <div class="panel-group" data-group="output">
             <button class="panel-group__head" type="button" aria-expanded="true">
-              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              <svg class="ico panel-group__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
               <span class="panel-group__label">Output</span>
               <span class="panel-group__badge" hidden></span>
             </button>
@@ -885,12 +920,12 @@
             </div>
             <div class="section__body">
               <div class="input-row adv-flex">
-                <label class="field-label" for="ewThreat" style="flex:0 0 auto">EW threat</label>
+                <label class="field-label" for="ewThreat" style="flex:0 0 auto">Interference threat</label>
                 <select class="input input--sm" id="ewThreat">
                   <option value="none">None — permissive</option>
                   <option value="low">Low — ELINT risk</option>
-                  <option value="medium" selected>Medium — jamming possible</option>
-                  <option value="high">High — active jamming</option>
+                  <option value="medium" selected>Medium — interference possible</option>
+                  <option value="high">High — active interference</option>
                 </select>
               </div>
               <div class="input-row">
@@ -937,7 +972,7 @@
 
               <p class="help" id="paceHelp">Synthesises the radio mix, your sites and the last coverage run into a PACE plan — Primary · Alternate · Contingency · Emergency. Run the radio mix and a coverage compute first for a complete plan.</p>
 
-              <p class="adv-hint" id="paceAdvHint">Switch to <strong>ADV</strong> mode to set the EW threat level.</p>
+              <p class="adv-hint" id="paceAdvHint">Switch to <strong>ADV</strong> mode to set the interference threat level.</p>
             </div>
           </section>
 
@@ -956,10 +991,10 @@
 
               <span class="field-label">Comms tempo (timings plan)</span>
               <div class="input-row">
-                <span class="input-suffix">SITREP every</span>
-                <input class="input input--sm" type="number" id="powerEveryMin" aria-label="SITREP interval in minutes" min="1" max="240" step="1" value="30" />
+                <span class="input-suffix">Check-in every</span>
+                <input class="input input--sm" type="number" id="powerEveryMin" aria-label="Check-in interval in minutes" min="1" max="240" step="1" value="30" />
                 <span class="input-suffix">min ·</span>
-                <input class="input input--sm" type="number" id="powerTxMin" aria-label="Transmit minutes per SITREP" min="0" max="60" step="0.5" value="2" />
+                <input class="input input--sm" type="number" id="powerTxMin" aria-label="Transmit minutes per check-in" min="0" max="60" step="0.5" value="2" />
                 <span class="input-suffix">min TX</span>
               </div>
               <div class="input-row adv-flex">
@@ -980,7 +1015,7 @@
               </div>
 
               <div class="input-row adv-flex">
-                <label class="field-label" for="powerAtakMa">ATAK EUD draw</label>
+                <label class="field-label" for="powerAtakMa">ATAK device draw</label>
                 <input class="input input--sm" type="number" id="powerAtakMa" min="50" max="3000" step="10" value="600" />
                 <span class="input-suffix">mA ·</span>
                 <input class="input input--sm" type="number" id="powerAtakMah" aria-label="ATAK device battery capacity in mAh" min="1000" max="20000" step="100" value="5000" />
@@ -1018,7 +1053,7 @@
               <!-- Mission file (M21) — save / open the whole mission -->
               <div class="export-mission">
                 <button class="btn btn--block" type="button" id="saveMissionBtn">Save mission file</button>
-                <button class="btn btn--block" type="button" id="openMissionBtn">Open mission file</button>
+                <button class="btn btn--block" type="button" id="openMissionBtn">Open or import a file…</button>
                 <p class="help">Your full mission as a local <code>.groundlink.json</code> — inputs only, coverage recomputes on load. The file contains your coordinates — keep it local.</p>
               </div>
             </div>
@@ -1063,7 +1098,7 @@
           aria-controls="panel"
           aria-expanded="false"
         >
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </button>
@@ -1077,65 +1112,65 @@
              (open/close state machine in src/ui/rail.js, wired in main.js). -->
         <div class="map-rail" id="mapRail" role="toolbar" aria-orientation="vertical" aria-label="Map tools">
           <button class="map-rail__btn" type="button" id="zoomIn" aria-label="Zoom in">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           </button>
           <button class="map-rail__btn" type="button" id="zoomOut" aria-label="Zoom out">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
           </button>
           <!-- M36: Mission Ops Dashboard -->
           <button class="map-rail__btn" type="button" id="railOpsBtn" aria-label="Mission ops dashboard" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutOps" title="Mission ops — RF, cellular, drone, PACE, teams">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
               <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
             </svg>
           </button>
           <span class="map-rail__sep" aria-hidden="true"></span>
           <button class="map-rail__btn" type="button" id="railBasemapBtn" aria-label="Basemap and variants" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutBasemap" title="Basemap &amp; variants">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" />
             </svg>
           </button>
           <button class="map-rail__btn" type="button" id="railViewBtn" aria-label="View — 3D, buildings, tilt, operation time" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutView" title="View — 3D, buildings, tilt, op time">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 18l5.5-8 4 5.5L16 11l5 7H3z" /><path d="M16 5.5h.01" />
             </svg>
           </button>
           <button class="map-rail__btn" type="button" id="railDataBtn" aria-label="Data sources and offline" aria-haspopup="true" aria-expanded="false" aria-controls="railFlyoutData" title="Data — local COGs, PMTiles buildings, offline AOI">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <ellipse cx="12" cy="5.5" rx="8" ry="2.8" />
               <path d="M4 5.5v6c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8v-6" />
               <path d="M4 11.5v6c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8v-6" />
             </svg>
           </button>
           <span class="map-rail__sep" aria-hidden="true"></span>
-          <button class="map-rail__btn" type="button" id="importBtn" aria-label="Import KML, KMZ, GPX or GeoJSON" title="Import KML / KMZ / GPX / GeoJSON">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button class="map-rail__btn" type="button" id="importBtn" aria-label="Open or import a file" title="Open or import a file — mission, KML/KMZ, GPX, GeoJSON or calibration CSV">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 3v12M8 11l4 4 4-4" />
               <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
             </svg>
           </button>
           <button class="map-rail__btn" type="button" id="clearImportBtn" aria-label="Clear imported data" title="Clear imported data" hidden>
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" />
             </svg>
           </button>
           <span class="map-rail__sep" aria-hidden="true"></span>
           <button class="map-rail__btn" type="button" id="profileToolBtn" aria-label="Terrain path profile" aria-pressed="false" title="Path profile — click two points for a terrain cross-section, Fresnel zone &amp; link budget">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M3 17l5-7 4 4 5-8 4 6" />
               <path d="M3 21h18" />
             </svg>
           </button>
           <span class="map-rail__sep" aria-hidden="true"></span>
           <button class="map-rail__btn" type="button" id="locateBtn" aria-label="Show my location" aria-pressed="false" title="Show my location">
-            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3" />
               <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
               <circle cx="12" cy="12" r="8" />
             </svg>
           </button>
         </div>
-        <input type="file" id="importInput" accept=".kml,.kmz,.gpx,.geojson,.json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml,application/geo+json,application/json" hidden />
+        <input type="file" id="importInput" multiple hidden /><!-- accept: IMPORT_ACCEPT in src/io/route.js -->
 
         <!-- M36: Mission Ops Dashboard flyout -->
         <div class="map-flyout dash-ops-flyout" id="railFlyoutOps" role="region" aria-label="Mission ops dashboard" hidden>

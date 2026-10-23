@@ -130,6 +130,9 @@ export default defineConfig({
   // Vitest 4 removed `poolOptions` — the equivalent single persistent worker
   // is now expressed top-level: one threads worker, no per-file parallelism.
   test: {
+    // Sibling worktrees under .claude/worktrees/ carry a full copy of src/;
+    // without this exclude every test file runs twice and the count doubles.
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.claude/**'],
     pool: 'threads',
     maxWorkers: 1,
     minWorkers: 1,

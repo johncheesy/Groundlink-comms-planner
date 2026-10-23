@@ -24,7 +24,7 @@ const fmtKm = (m) => (m >= 10000 ? `${(m / 1000).toFixed(0)} km` : `${(m / 1000)
  * @param {() => Array} deps.getPoints      demand points [{lat,lng,name}]
  * @param {() => number} deps.getFreqMHz
  * @param {() => number} deps.getRxHeightM
- * @param {() => number} deps.getEirpDbm
+ * @param {(entry) => number} deps.getEirpDbm  the entry's EIRP (a site may carry its own power)
  * @param {() => number} deps.getThresholdDbm
  * @param {(entry) => number} deps.getMaxM  cap (mast 30 default / drone ceiling)
  * @param {(bounds) => Promise<{dem, clutter}>} deps.buildSamplers  E1 seam
@@ -202,7 +202,7 @@ export function createMastWizard(mapContainer, deps) {
       budget: linkBudget({
         distanceM: p.distanceM,
         freqMHz: deps.getFreqMHz(),
-        txEirpDbm: deps.getEirpDbm(),
+        txEirpDbm: deps.getEirpDbm(entry),
         rxThreshDbm: deps.getThresholdDbm(),
         diffractionDb,
       }),

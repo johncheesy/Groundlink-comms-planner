@@ -72,6 +72,32 @@ button {
   grid-template-columns: var(--panel-w-collapsed) 1fr;
 }
 
+/* M52 Ops workspace (?ws=ops): tool strip · map · status rail, with the
+   data drawer as its own row under the map so no overlay needs an offset.
+   The classic toolbar and panel stay in the DOM (their handlers live on)
+   but are not shown. */
+.app[data-ws='ops'],
+.app[data-ws='ops'][data-collapsed='true'] {
+  grid-template-columns: var(--ops-strip-w) minmax(0, 1fr) var(--ops-rail-w);
+  grid-template-rows: var(--toolbar-h) minmax(0, 1fr) var(--ops-drawer-h) var(--status-h);
+  grid-template-areas:
+    'top top top'
+    'strip map rail'
+    'strip drawer rail'
+    'status status status';
+}
+.app[data-ws='ops'] > .toolbar,
+.app[data-ws='ops'] > .panel,
+.app[data-ws='ops'] .panel-toggle {
+  display: none;
+}
+.app[data-ws='ops'][data-drawer='open'] { --ops-drawer-h: clamp(220px, 38vh, 420px); }
+.ops-top { grid-area: top; }
+.ops-strip { grid-area: strip; }
+.ops-rail { grid-area: rail; }
+.ops-drawer { grid-area: drawer; }
+.ops-tabbar { grid-area: tabbar; display: none; }
+
 .toolbar {
   grid-area: toolbar;
   background: var(--surface);
@@ -208,6 +234,27 @@ button {
       'map'
       'status';
   }
+  /* Ops shell on a phone (M52 phase 5): top bar, map, bottom tab bar,
+     status bar. The strip, rail and drawer leave the grid; the tab bar
+     shows them as sheets over the map. */
+  .app[data-ws='ops'],
+  .app[data-ws='ops'][data-collapsed='true'],
+  .app[data-ws='ops'][data-drawer='open'] {
+    --ops-drawer-h: 0px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--toolbar-h) minmax(0, 1fr) var(--ops-tabbar-h) var(--status-h);
+    grid-template-areas:
+      'top'
+      'map'
+      'tabbar'
+      'status';
+  }
+  .app[data-ws='ops'] .ops-strip,
+  .app[data-ws='ops'] .ops-rail,
+  .app[data-ws='ops'] .ops-drawer { display: none; }
+  .app[data-ws='ops'] .ops-tabbar { display: flex; }
+  .app[data-ws='ops'][data-sheet='status'] .ops-rail,
+  .app[data-ws='ops'][data-sheet='data'] .ops-drawer { display: flex; }
 
   .panel {
     position: fixed;
@@ -334,5 +381,22 @@ button {
   .basemap-switch,
   .panel.panel {
     transition: none;
+  }
+}
+
+/* Ops shell on a tablet (761–1099 px, M52 phase 5): strip + map, the rail as
+   a tile row above the drawer, narrower flyouts. */
+@media (min-width: 761px) and (max-width: 1099px) {
+  .app[data-ws='ops'],
+  .app[data-ws='ops'][data-collapsed='true'] {
+    --ops-flyout-w: 320px;
+    grid-template-columns: var(--ops-strip-w) minmax(0, 1fr);
+    grid-template-rows: var(--toolbar-h) minmax(0, 1fr) var(--ops-rail-row-h) var(--ops-drawer-h) var(--status-h);
+    grid-template-areas:
+      'top top'
+      'strip map'
+      'strip rail'
+      'strip drawer'
+      'status status';
   }
 }

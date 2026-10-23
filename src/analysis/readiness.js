@@ -17,6 +17,8 @@
  *   ≥75 = high (teal)   40–74 = mid (amber)   <40 = low (red)
  */
 
+import { legFilled } from '../pace/pace.js';
+
 export const READINESS_DIMS = [
   { key: 'coverage',      label: 'Coverage' },
   { key: 'pace',          label: 'PACE plan' },
@@ -42,7 +44,7 @@ export function dimCoverage(coverage) {
  */
 export function dimPace(pace) {
   if (!pace?.legs?.length) return null;
-  const filled = pace.legs.filter((l) => l.primary || l.assets?.length).length;
+  const filled = pace.legs.filter(legFilled).length;
   return Math.round((filled / pace.legs.length) * 100);
 }
 

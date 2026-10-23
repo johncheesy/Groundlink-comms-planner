@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { LIMITS } from '../geo/validate.js';
 import { copyText } from '../util/clipboard.js';
 
@@ -107,7 +107,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
     el.title = site.name || 'Site';
     const label = document.createElement('span');
     label.className = 'mission-marker__label';
-    label.textContent = site.name || 'Site';
+    label.textContent = siteLabel(site);
     el.appendChild(label);
     // M19: drag is owned by the shared registry drag behaviour; without a
     // registry (tests / standalone) fall back to the original handler.
@@ -130,7 +130,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
         onRename: (v) => {
           mission.renameSite(site.id, v);
           el.title = v || 'Site';
-          label.textContent = v || 'Site';
+          label.textContent = siteLabel({ ...site, name: v });
           registry?.sync(site.id, { name: v || 'Site' });
         },
       });
@@ -143,11 +143,20 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       name: site.name || undefined,
       lngLat: [site.lng, site.lat],
       marker: m,
-      settings: { azimuthDeg: site.azimuthDeg ?? null },
+      settings: { azimuthDeg: site.azimuthDeg ?? null, txHeightM: site.txHeightM ?? null, powerW: site.powerW ?? null },
       apply: {
-        settings: (s) => mission.setSiteAzimuth(site.id, s.azimuthDeg ?? null), // M49 per-site pointing
+        // M49 per-site pointing; M50 per-site mast height and power.
+        settings: (s) => {
+          const cur = mission.state.sites.find((x) => x.id === site.id);
+          if (!cur) return;
+          if ((s.azimuthDeg ?? null) !== (cur.azimuthDeg ?? null)) mission.setSiteAzimuth(site.id, s.azimuthDeg ?? null);
+          if ((s.txHeightM ?? null) !== (cur.txHeightM ?? null) || (s.powerW ?? null) !== (cur.powerW ?? null)) {
+            mission.setSiteRf(site.id, { txHeightM: s.txHeightM ?? null, powerW: s.powerW ?? null });
+          }
+          label.textContent = siteLabel(cur);
+        },
         move: ([lng, lat]) => { mission.moveSite(site.id, lat, lng); m.setLngLat([lng, lat]); },
-        rename: (v) => { mission.renameSite(site.id, v); el.title = v; label.textContent = v; },
+        rename: (v) => { mission.renameSite(site.id, v); el.title = v; label.textContent = siteLabel({ ...site, name: v }); },
         remove: () => { mission.removeSite(site.id); refresh(); },
       },
     });
@@ -358,6 +367,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       if (type === 'sites') mission.clearSites();
       else if (type === 'points') mission.clearPoints();
       else if (type === 'route') mission.clearRoute();
+      else if (type === 'links') mission.clearLinks();
       refresh();
     },
     destroy() {
@@ -376,4 +386,12 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       if (map.getSource(SRC_ROUTE_PREVIEW)) map.removeSource(SRC_ROUTE_PREVIEW);
     },
   };
+}
+
+/** Marker label: the name, plus the site's own height/power when it has them. */
+export function siteLabel(site) {
+  const extra = [];
+  if (site.txHeightM != null) extra.push(`${+Number(site.txHeightM).toFixed(1)} m`);
+  if (site.powerW != null) extra.push(`${+Number(site.powerW).toFixed(2)} W`);
+  return [site.name || 'Site', ...extra].join(' · ');
 }

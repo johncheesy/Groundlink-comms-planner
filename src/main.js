@@ -1,7 +1,103 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import '../styles/index.css';
+import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
+import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2
+import { createOpsDrawer, linkRows, siteRows, gapRows, radioRows } from './ui/ops-drawer.js'; // M52 phase 3–4
+import { relayRecommendation } from './export/gap-report.js';
+import { updateMasts3d, setMasts3dVisible } from './map/masts-3d.js'; // M51
+import { modelLabelText } from './ui/badges.js';
+
+// M52 phase 1: the Ops workspace is opt-in (?ws=ops). The grid switches
+// before first paint; the shell itself mounts once everything is wired.
+const OPS_WS = isOpsWorkspace(window.location.search);
+if (OPS_WS) document.getElementById('app').dataset.ws = 'ops';
+let opsShell = null;
+let opsRail = null; // M52 phase 2: status rail (src/ui/ops-rail.js)
+let opsDrawer = null; // M52 phase 3: data drawer (src/ui/ops-drawer.js)
+
+let lastDroneState = null; // drone controller onState() snapshot (M52 tile)
+let decoPanel = null; // M39 deconfliction panel; also read by the M52 spectrum tile
+
+/** M52: rebuild the drawer's rows from the mission, checks, run and arsenal. */
+function refreshOpsDrawer(summary = null, arsenal = radios?.getArsenal?.() ?? []) {
+  if (!opsDrawer) return;
+  const sites = mission?.getSites?.() ?? [];
+  const links = mission?.getLinks?.() ?? [];
+  const byId = new Map(sites.map((s) => [s.id, s]));
+  const lr = linkRows(links, sites, (l) => currentCheck(l, byId));
+  const sr = siteRows(sites, lr, links, {
+    heightM: clampNum(txHeightInput.value, 1, 300, 10),
+    powerW: clampNum(powerInput.value, 0.01, 100, 5),
+    eirpDbm: (w) => txEirpDbm(w),
+  });
+  const gaps = summary ? gapRows(summary.deadZones ?? [], sites, relayRecommendation) : null;
+  const rr = radioRows(arsenal, arsenal.length ? assignRoles(arsenal, gatherRoleContext()) : []);
+  opsDrawer.refresh({ sites: sr, links: lr, gaps, radios: rr });
+}
+let lastReadiness = null; // computeReadiness() output of the last badge refresh
+let lastModelLabel = null; // "P.1812 · ±8 dB" of the last painted run
+
+/** M52: redraw the rail tiles from existing state. No-op without the rail. */
+function refreshOpsRail() {
+  if (!opsRail) return;
+  const a = aoi?.getAoi?.();
+  const summary = lastPaint
+    ? summarizeCoverage({
+        ...lastPaint,
+        aoi: a ? { type: a.type, center: a.center, radiusM: a.radiusM, ring: a.ring } : null,
+        thresholds: coverageParams().thresholds,
+      })
+    : null;
+  const sites = mission?.getSites?.() ?? [];
+  const byId = new Map(sites.map((s) => [s.id, s]));
+  const allLinks = mission?.getLinks?.() ?? [];
+  const links = allLinks
+    .map((l) => {
+      const c = currentCheck(l, byId);
+      if (!c?.budget) return null;
+      const sa = byId.get(l.a);
+      const sb = byId.get(l.b);
+      return { name: l.label || `${sa?.name || 'Site'} – ${sb?.name || 'Site'}`, marginDb: c.budget.marginDb, status: linkStatus(c) };
+    })
+    .filter(Boolean);
+  // Tiles 6–11 read the modules' own state; each one is cheap.
+  const arsenal = radios?.getArsenal?.() ?? [];
+  const deco = decoPanel?.check?.(arsenal) ?? null;
+  const centre = missionCentre();
+  let satcom = null;
+  if (centre) {
+    try { satcom = { bestGeo: satcomAssessment(centre.lat, centre.lng).bestGeo }; } catch (_) { satcom = null; }
+  }
+  const teamList = teams?.getTeams?.() ?? [];
+  const cellOn = Boolean(cellEnabled?.checked && cellular?.hasData?.());
+  opsRail.update({
+    coverage: summary,
+    coverageStale: planStale,
+    modelLabel: lastModelLabel,
+    cellM: lastPaint ? cellSizeM(lastPaint.bounds, lastPaint.cols) : null,
+    readiness: lastReadiness,
+    pace: lastPlan ?? null,
+    links,
+    linkCount: allLinks.length,
+    drone: lastDroneState,
+    power: lastPowerModel,
+    cellular: cellOn ? { on: true, towerCount: cellular.getCount?.() ?? null, best: cellular.bestNetworkAt(probePoint()) } : null,
+    spectrum: { radios: arsenal.length, errors: deco?.errors ?? 0, warnings: deco?.warnings ?? 0 },
+    satcom,
+    teams: { teamCount: teamList.length, operatorCount: teamList.reduce((a, t) => a + (Number(t.members) || 0), 0) },
+  });
+  refreshOpsDrawer(summary, arsenal); // the same inputs feed the tables
+}
+
+/** Arm the stale-plan pill and log it on the rail with a Recompute action. */
+function armStale(label) {
+  stalePill.arm(label);
+  opsRail?.event(`${label} — plan is stale`, { action: 'Recompute', onAction: () => runCoverage() });
+  refreshOpsRail();
+}
 import { esc as htmlEsc } from './util/esc.js';
+import { confirmDialog } from './ui/confirm.js';
 
 import { initMap, keepMapSized } from './map/map.js';
 import { createAoiController } from './map/aoi.js';
@@ -11,6 +107,7 @@ import { createCoverageController } from './coverage/coverage.js';
 import { updateCliffLayer, clearCliffLayer } from './coverage/dual-contour.js';
 import { createBackendSettings } from './ui/backend-settings.js';
 import { runCloudRFCoverage } from './backends/cloudrf.js';
+import { openSiteRfPopup } from './ui/site-rf-popup.js';
 import { createDroneController } from './drone/drone.js';
 import { createRecommendController } from './recommend/recommend.js';
 import { createMission } from './mission/mission.js';
@@ -56,7 +153,8 @@ import { createResultCard, createStalePill } from './ui/resultcard.js';
 import { createRailState } from './ui/rail.js';
 import { createLeftPanel } from './ui/lpanel.js';
 import { initDragMove } from './ui/dragmove.js';
-import { serializeMission, parseMission, missionFilename, looksLikeMissionFile, isMissionData } from './io/mission.js';
+import { serializeMission, parseMission, missionFilename } from './io/mission.js';
+import { IMPORT_ACCEPT, routeByName, routeJsonText, describeImports } from './io/route.js';
 import { createFocusMode } from './ui/focus.js';
 import { createObjectsDash } from './ui/dash-objects.js';
 import { createPowerDash } from './ui/dash-power.js';
@@ -64,7 +162,6 @@ import { createOpsDashboard } from './ui/dash-ops.js'; // M36
 import { createSatcomPanel } from './ui/satcom-panel.js'; // M38
 import { satcomAssessment } from './connectivity/satcom.js'; // M47: best satcom status
 import { createDeconflictPanel } from './ui/deconflict-panel.js'; // M39
-import { generateFreqPlan, openFreqPlan } from './export/freq-plan.js'; // M40
 import { createTopologyPanel } from './ui/topology.js'; // M41
 import { optimizeDroneHeight, DEFAULT_ALTITUDES } from './analysis/drone-optimizer.js'; // M42
 import { generateGapReport, openGapReport } from './export/gap-report.js'; // M43
@@ -76,13 +173,15 @@ import {
 } from './analysis/readiness.js'; // M47
 import { createEmptyState } from './ui/emptystate.js';
 import { createUndoStack } from './ui/undo.js';
-import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, fsplDb, receivedDbm } from './coverage/model.js';
+import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, receivedDbm } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';
-import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
-import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg } from './coverage/antenna.js';
+import { describeAssumptions, cellSizeM, DEFAULT_FREQ_MHZ, DEFAULT_POWER_W } from './analysis/assumptions.js';
+import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg, withGain } from './coverage/antenna.js';
 import { updateAntennaBeams } from './map/antenna-beams.js';
+import { linkFeatures, linkStatus, updateRadioLinks, RADIO_LINK_LAYERS, LINK_FADE_MARGIN_DB } from './map/radio-links.js';
+import { linkVerdict } from './analysis/path-profile.js';
 import { createMapKey } from './ui/map-key.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { terrainCredit } from './data/terrain-tiles.js';
@@ -253,6 +352,7 @@ toggle3dBtn?.addEventListener('click', () => {
   toggle3dBtn.setAttribute('aria-pressed', String(on));
   viewSliders.hidden = !on;
   statusMode.textContent = on ? '3D terrain on' : '3D terrain off';
+  if (on) refreshMasts3d(); else setMasts3dVisible(map, false); // M51
 });
 
 // ---- Buildings toggle (independent of terrain 3D) -----------------------
@@ -325,7 +425,7 @@ const profileTool = createProfileTool(map, {
   getTxHeight: () => parseFloat($('#txHeight')?.value) || 10,
   getRxHeight: () => 1.5,
   getThreshold: () => clampNum($('#thNone')?.value, -200, 0, -110),
-  getEirp: () => wattsToDbm(clampNum($('#powerInput')?.value, 0.01, 100, 5)) + txGainDbi(),
+  getEirp: () => txEirpDbm(clampNum($('#powerInput')?.value, 0.01, 100, 5)),
   onProfile(data) { profilePanel.show(data); },
   onStatus(msg) { statusMode.textContent = msg; },
   onDone: reflectProfileBtn,
@@ -510,6 +610,7 @@ function handleBasemapFailover(info) {
     message = `${from.label} can't be reached from this network, so the map switched to ${to.label}.${note ? ` ${note}` : ''}`;
   }
   mapNotice.show({ message, tone: 'warn', actions: [retry] });
+  opsRail?.event(kind === 'none' ? `${from.label} unreachable, no map source` : `Map switched to ${to.label} (${from.label} unreachable)`);
 }
 
 // ---- Variant list (M20 §5: inline in the basemap flyout) ------------------
@@ -822,6 +923,45 @@ let aoi = null;
 let coverage = null;
 let exportPanel = null; // M16 coverage/interop export panel
 let importer = null; // KML/KMZ/GPX/GeoJSON overlay importer (M21: feeds the empty state too)
+
+// ---- Open / import (one picker + drag-drop anywhere, src/io/route.js) -----
+// Live from first paint: the router needs the map style (whenStyleReady), so
+// files that arrive earlier wait in a queue instead of being lost — or, for a
+// drop, opening in the browser and leaving the app.
+const importInput = $('#importInput');
+importInput.accept = IMPORT_ACCEPT;
+const earlyFiles = [];
+let routeIncomingFiles = (files) => {
+  earlyFiles.push(...files);
+  statusMode.textContent = 'Map still loading — your file opens in a moment';
+};
+/** Every "open / import" entry (toolbar, rail, ⌘O, palette, start card, Output section). */
+const openFilePicker = () => importInput.click();
+$('#importBtn').addEventListener('click', openFilePicker);
+$('#openFileBtn')?.addEventListener('click', openFilePicker);
+importInput.addEventListener('change', () => {
+  const files = [...importInput.files];
+  importInput.value = ''; // allow re-importing the same file
+  if (files.length) routeIncomingFiles(files);
+});
+
+// Drag-drop anywhere on the app (M21 §A): same router as the picker.
+const appDropEl = $('#app');
+appDropEl.addEventListener('dragover', (e) => {
+  if ([...(e.dataTransfer?.types ?? [])].includes('Files')) {
+    e.preventDefault();
+    appDropEl.classList.add('is-dropping');
+  }
+});
+appDropEl.addEventListener('dragleave', (e) => {
+  if (!e.relatedTarget || !appDropEl.contains(e.relatedTarget)) appDropEl.classList.remove('is-dropping');
+});
+appDropEl.addEventListener('drop', (e) => {
+  e.preventDefault();
+  appDropEl.classList.remove('is-dropping');
+  const files = [...(e.dataTransfer?.files ?? [])];
+  if (files.length) routeIncomingFiles(files);
+});
 let drone = null;
 let recommender = null;
 let mission = null;
@@ -836,6 +976,18 @@ const calState = { fits: [], samples: [], offsets: {}, formRadioId: null, applie
 let hfPanel = null; // M12 HF ionosphere panel
 let satPanel = null; // M38 satcom look-angle panel
 let backendSettings = null; // M18 coverage backend (built-in / CloudRF)
+// The radio set's antenna gain + feeder loss land in the antenna controls,
+// which are looked up further down: a set restored at start-up waits for them.
+let pendingRadioRf = null;
+// Coverage fields the planner set by hand or loaded from a mission file
+// ('freq' | 'txHeight' | 'rxHeight' | 'thresholds'). Applying a radio set keeps
+// them: a talk-in-corrected threshold or a site's real mast height is not the
+// radio's default to overwrite.
+const plannerSet = new Set();
+let antennaUiReady = false;
+// M50: last path-profile check per radio link: id → { key, data }. A check
+// only counts while its inputs (ends, heights, power, band) are unchanged.
+const linkChecks = new Map();
 let palette = null; // M20 ⌘K command palette (created once the style is ready)
 let teams = null; // M13 per-team/operator model
 let teamsPanel = null; // M13 teams panel UI
@@ -1034,6 +1186,7 @@ whenStyleReady(() => {
         planStale = false; // nothing painted → nothing to be stale
         stalePill.disarm();
         resultCard.hide();
+        opsDrawer?.clearSummary();
         updateOpsDash(); // M36
         updateIntelChip('idle'); // Maven intel chip
       }
@@ -1137,6 +1290,7 @@ whenStyleReady(() => {
         route: mission?.getRoute?.() ?? [],
         aoi: aoi?.getAoi?.() ?? null,
         missionName: 'GroundLink mission',
+        mastHeightM: clampNum(txHeightInput.value, 1, 300, 10), // M51: KML extrudes sites to their mast height
       };
     },
     onStatus: (msg) => { statusMode.textContent = msg; },
@@ -1305,6 +1459,9 @@ whenStyleReady(() => {
     coverageParams,
     registry,
     onState(st) {
+      lastDroneState = st; // M52 drone tile
+      refreshOpsRail();
+      refreshMasts3d(); // M51 hovering body follows the drone
       if ('hasDrone' in st) {
         dronePanel.hidden = !st.hasDrone;
         const pace = st.pace;
@@ -1465,22 +1622,8 @@ whenStyleReady(() => {
 
   // ---- Radios (M5): active set, picker, FCC/manual, mix ----------------
   radios = createRadios(radioEls(), {
-    onApply(vals) {
-      freqInput.value = String(Math.round(vals.freqMHz));
-      powerInput.value = String(vals.powerW);
-      txHeightInput.value = String(vals.txHeightM);
-      rxHeightInput.value = String(vals.rxHeightM);
-      thExcellent.value = String(vals.thresholds.excellent);
-      thGood.value = String(vals.thresholds.good);
-      thMarginal.value = String(vals.thresholds.marginal);
-      thNone.value = String(vals.thresholds.none);
-      updateSignalLegend();
-      coverageHelp.textContent = vals.rasterMeaningful
-        ? `Coverage controls set from the active radio set — talk-in at ${vals.rxHeightM} m, ` +
-          `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`
-        : `Active tx is ${vals.txRole.toUpperCase()} — a PACE asset, not a terrestrial line-of-sight band. ` +
-          `The FSPL raster won't represent ${vals.txRole === 'hf' ? 'HF (NVIS/ALE — a separate module)' : 'satcom'}; ` +
-          `use the radio mix for the PACE plan. Controls are set for VHF/UHF comparison only.`;
+    onApply(vals, { infra } = {}) {
+      applyRadioVals(vals, { txRange: infra?.freqRangeMHz });
     },
     onStatus(msg) { statusMode.textContent = msg; },
     onArsenalChange() {
@@ -1497,7 +1640,6 @@ whenStyleReady(() => {
   });
 
   // ---- M39: Freq deconfliction panel -------------------------------------
-  let decoPanel = null;
   (() => {
     const host = $('#deconflictPanel');
     if (!host) return;
@@ -1620,6 +1762,8 @@ whenStyleReady(() => {
 
   function updateOpsDashReadiness(readiness) {
     opsDash?.update({ readiness });
+    lastReadiness = readiness; // M52 rail reads the same result
+    refreshOpsRail();
   }
 
   // ---- M42: Drone height optimizer -------------------------------------
@@ -1720,6 +1864,7 @@ whenStyleReady(() => {
   buildPaceBtn.addEventListener('click', () => {
     lastPlan = buildPace(gatherPaceContext());
     renderPace(lastPlan);
+    refreshOpsRail(); // M52 PACE + readiness tiles
     statusMode.textContent = 'Comms plan ready';
     refreshWorkflowUi();
     updateOpsDash(); // M36
@@ -1785,9 +1930,8 @@ whenStyleReady(() => {
           { label: 'Toggle 3D terrain', keywords: 'view tilt relief', run: () => toggle3dBtn?.click() },
           { label: 'Toggle buildings', keywords: 'view extrusion', run: () => buildingsBtn?.click() },
           { label: 'Toggle light / dark theme', keywords: 'appearance mode', run: () => $('#themeToggle')?.click() },
-          { label: 'Import data file', keywords: 'kml kmz gpx geojson', run: () => $('#importBtn')?.click() },
+          { label: 'Open or import a file…', keywords: 'upload load open import mission kml kmz gpx geojson csv calibration rssi drag drop', hint: '⌘O', run: () => openFilePicker() },
           { label: 'Save mission file', keywords: 'groundlink download save export mission', run: () => openSaveDialog() },
-          { label: 'Open mission file', keywords: 'groundlink load open mission', run: () => $('#importBtn')?.click() },
           { label: 'Undo', keywords: 'undo revert back', run: () => { const op = undoStack.undo(); statusMode.textContent = op ? `Undone: ${op.label}` : 'Nothing to undo'; } },
         ],
       },
@@ -1817,70 +1961,70 @@ whenStyleReady(() => {
   });
 
   // ---- Import KML / KMZ / GPX (+ promote to mission input) -------------
-  const importInput = $('#importInput');
   const clearImportBtn = $('#clearImportBtn');
   const importPromote = $('#importPromote');
   const importPromoteText = $('#importPromoteText');
   const importPromoteBtns = $('#importPromoteBtns');
+  let lastImportError = '';
   importer = createImportController(map, {
-    onStatus(msg) { statusMode.textContent = msg; },
+    onStatus(msg, state) {
+      statusMode.textContent = msg;
+      if (state === 'error') lastImportError = msg;
+    },
   });
-  $('#importBtn').addEventListener('click', () => importInput.click());
 
   /**
-   * One router for every incoming file (picker, drag-drop): mission files go
-   * to the M21 loader — by extension, or by content sniff for a renamed plain
-   * .json — everything else takes the M16 overlay import path.
+   * One router for every incoming file (picker, drag-drop; src/io/route.js):
+   * mission files go to the M21 loader — by extension, or by content sniff for
+   * a renamed plain .json — KML/KMZ/GPX/GeoJSON to the M16 overlay import,
+   * CSV to M27 field calibration. GeoTIFFs open the Data flyout, where the
+   * user says whether it is elevation or clutter. One toast sums it up.
    */
   async function handleIncomingFiles(files) {
     let byType = null;
+    const results = [];
     for (const file of files) {
-      if (looksLikeMissionFile(file.name)) {
-        loadMissionFromText(await file.text(), file.name);
-        continue;
+      let kind = routeByName(file.name);
+      let text = null;
+      if (kind === 'json') {
+        text = await file.text().catch(() => '');
+        kind = routeJsonText(text);
       }
-      if (/\.json$/i.test(file.name)) {
-        let text = null;
-        try {
-          text = await file.text();
-          if (isMissionData(JSON.parse(text))) {
-            loadMissionFromText(text, file.name);
-            continue;
-          }
-        } catch {
-          /* not JSON at all — let the importer report it */
-        }
+      if (kind === 'mission') {
+        const r = await loadMissionFromText(text ?? (await file.text()), file.name);
+        results.push({ name: file.name, kind, ...r });
+      } else if (kind === 'overlay') {
+        lastImportError = '';
+        const r = await importer.importFile(file);
+        if (r.ok) { clearImportBtn.hidden = false; byType = r.byType; }
+        results.push({ name: file.name, kind, ...r, byType: r.fileByType, message: r.ok ? undefined : lastImportError || undefined });
+      } else if (kind === 'calibration') {
+        const r = await importCalText(await file.text()).catch((err) => ({ ok: false, error: err.message }));
+        results.push({ name: file.name, kind, ...r });
+        revealCalibration();
+      } else {
+        if (kind === 'geotiff' && !railState.isOpen('data')) railState.toggle('data');
+        results.push({ name: file.name, kind, ok: false });
       }
-      const r = await importer.importFile(file);
-      if (r.ok) { clearImportBtn.hidden = false; byType = r.byType; }
     }
     if (byType) offerImportPromotion(byType);
     refreshWorkflowUi(); // imported data retires the empty state
+    const summary = describeImports(results);
+    if (summary) showToast(summary, { durationMs: 6000 });
   }
 
-  importInput.addEventListener('change', async () => {
-    const files = [...importInput.files];
-    importInput.value = ''; // allow re-importing the same file
-    await handleIncomingFiles(files);
-  });
+  /** Calibration results live in an Advanced-mode panel: show it. */
+  function revealCalibration() {
+    if (!advancedMode) applyMode(true);
+    const panelEl = $('#calibrationPanel');
+    if (panelEl) panelEl.open = true;
+    jumpToAnchor('coverageTitle');
+    setTimeout(() => panelEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 260); // after the section reveal
+  }
 
-  // Drag-drop anywhere on the app (M21 §A): same router as the picker.
-  const appDropEl = $('#app');
-  appDropEl.addEventListener('dragover', (e) => {
-    if ([...(e.dataTransfer?.types ?? [])].includes('Files')) {
-      e.preventDefault();
-      appDropEl.classList.add('is-dropping');
-    }
-  });
-  appDropEl.addEventListener('dragleave', (e) => {
-    if (!e.relatedTarget || !appDropEl.contains(e.relatedTarget)) appDropEl.classList.remove('is-dropping');
-  });
-  appDropEl.addEventListener('drop', (e) => {
-    e.preventDefault();
-    appDropEl.classList.remove('is-dropping');
-    const files = [...(e.dataTransfer?.files ?? [])];
-    if (files.length) handleIncomingFiles(files);
-  });
+  routeIncomingFiles = handleIncomingFiles;
+  // Files that arrived while the map loaded: once the rest of this setup has run.
+  setTimeout(() => { if (earlyFiles.length) handleIncomingFiles(earlyFiles.splice(0)); }, 0);
   clearImportBtn.addEventListener('click', () => {
     importer.clear();
     clearImportBtn.hidden = true;
@@ -1954,7 +2098,7 @@ whenStyleReady(() => {
       jumpToAnchor('missionTitle');
       armMissionMode('sites');
     },
-    onOpenMission: () => $('#importBtn')?.click(),
+    onOpenMission: () => openFilePicker(),
     onRetire: revealBetaNotice,
   });
 
@@ -2004,6 +2148,8 @@ const antennaGain = $('#antennaGain');
 const antennaBeam = $('#antennaBeam');
 const antennaFb = $('#antennaFb');
 const rxGainInput = $('#rxGain');
+const txLossInput = $('#txLoss');
+const eirpReadout = $('#eirpReadout');
 const opacityInput = $('#opacityInput');
 const opacityRow = $('#opacityRow');
 const showNoneRow = $('#showNoneRow');
@@ -2036,11 +2182,43 @@ function writeAntenna(a) {
     antennaAzimuth.disabled = isOmni(n);
   }
 }
-/** Peak transmit antenna gain (dBi) — the EIRP term. */
-const txGainDbi = () => readAntenna().gainDbi;
+/** Cable, connector and duplexer loss between transmitter and antenna (dB). */
+const txLossDb = () => clampNum(txLossInput?.value, 0, 30, 0);
+/** EIRP (dBm): conducted power + peak antenna gain − feeder loss. */
+function txEirpDbm(powerW, antenna = readAntenna()) {
+  return wattsToDbm(powerW) + antenna.gainDbi - txLossDb();
+}
+function refreshEirpReadout() {
+  if (!eirpReadout) return;
+  const dbm = txEirpDbm(clampNum(powerInput.value, 0.01, 100, 5));
+  eirpReadout.textContent = `${dbm.toFixed(1)} dBm (${(10 ** ((dbm - 30) / 10)).toFixed(dbm < 30 ? 2 : 1)} W)`;
+}
+for (const el of [powerInput, txLossInput, antennaGain, antennaPreset]) {
+  el?.addEventListener('input', refreshEirpReadout);
+  el?.addEventListener('change', refreshEirpReadout);
+}
 /** M49: beam wedges for directional antennas, one per fixed site. */
 function refreshBeams() {
   if (mission) updateAntennaBeams(map, mission.getSites(), readAntenna());
+  refreshMasts3d();
+}
+
+// The mast colours come from the theme tokens: redraw after a theme switch.
+$('#themeToggle')?.addEventListener('click', () => setTimeout(refreshMasts3d, 0));
+
+/** M51: masts and the drone as extrusions, shown while 3D terrain is on. */
+function refreshMasts3d() {
+  if (!mission || !map) return;
+  const d = registry?.get?.('drone-relay');
+  const drone = d && lastDroneState?.hasDrone
+    ? { lng: d.lngLat[0], lat: d.lngLat[1], altM: lastDroneState.altM ?? 100 }
+    : null;
+  updateMasts3d(
+    map,
+    mission.getSites(),
+    { panelHeightM: clampNum(txHeightInput.value, 1, 300, 10), antenna: readAntenna(), drone },
+    { visible: Boolean(mapApi?.isTerrainOn?.()) },
+  );
 }
 antennaPreset?.addEventListener('change', () => {
   const p = ANTENNA_PRESETS[antennaPreset.value];
@@ -2055,6 +2233,90 @@ for (const el of [antennaGain, antennaBeam, antennaFb]) {
   });
 }
 antennaAzimuth?.addEventListener('input', refreshBeams);
+
+/**
+ * The active radio set's antenna gain and feeder loss. An omni antenna takes
+ * the radio's gain (dipole 2.15, collinear 6, …); a directional antenna the
+ * planner chose keeps its own gain — the radio's figure is for its stock
+ * antenna.
+ */
+function applyRadioRf() {
+  const vals = pendingRadioRf;
+  pendingRadioRf = null;
+  if (!vals) return;
+  if (isOmni(readAntenna())) writeAntenna(withGain(readAntenna(), vals.txGainDbi));
+  if (txLossInput) txLossInput.value = String(vals.txLossDb ?? 0);
+  refreshEirpReadout();
+  refreshBeams();
+}
+/**
+ * Radio set → coverage controls. Power, antenna gain and feeder loss always
+ * come from the radio; frequency, heights and thresholds only where the
+ * planner has not set them (a kept frequency must lie in the tx radio's range).
+ * `force` takes every value from the radio.
+ */
+function applyRadioVals(vals, { txRange = null, force = false } = {}) {
+  if (force) plannerSet.clear();
+  const kept = [];
+  const freqNow = Number(freqInput.value);
+  const freqFits = !txRange || (freqNow >= txRange[0] && freqNow <= txRange[1]);
+  if (plannerSet.has('freq') && freqFits) kept.push('frequency');
+  else { freqInput.value = String(Math.round(vals.freqMHz)); plannerSet.delete('freq'); }
+  powerInput.value = String(vals.powerW);
+  if (plannerSet.has('txHeight')) kept.push('mast height');
+  else txHeightInput.value = String(vals.txHeightM);
+  if (plannerSet.has('rxHeight')) kept.push('rx height');
+  else rxHeightInput.value = String(vals.rxHeightM);
+  if (plannerSet.has('thresholds')) kept.push('thresholds');
+  else {
+    thExcellent.value = String(vals.thresholds.excellent);
+    thGood.value = String(vals.thresholds.good);
+    thMarginal.value = String(vals.thresholds.marginal);
+    thNone.value = String(vals.thresholds.none);
+  }
+  pendingRadioRf = vals;
+  if (antennaUiReady) applyRadioRf();
+  updateSignalLegend();
+  refreshLinks();
+  if (!vals.rasterMeaningful) {
+    coverageHelp.textContent =
+      `Active tx is ${vals.txRole.toUpperCase()} — a PACE asset, not a terrestrial line-of-sight band. ` +
+      `The FSPL raster won't represent ${vals.txRole === 'hf' ? 'HF (NVIS/ALE — a separate module)' : 'satcom'}; ` +
+      `use the radio mix for the PACE plan. Controls are set for VHF/UHF comparison only.`;
+    return;
+  }
+  coverageHelp.textContent = kept.length
+    ? `Power, antenna and loss set from the radio set; kept your ${listWords(kept)}. Compute to plot. `
+    : `Coverage controls set from the active radio set — talk-in at ${rxHeightInput.value} m, ` +
+      `thresholds from ${Math.round(vals.rxSensDbm)} dBm sensitivity. Compute to plot.`;
+  if (kept.length) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn--ghost btn--sm';
+    btn.textContent = 'Use radio values';
+    btn.addEventListener('click', () => applyRadioVals(vals, { txRange, force: true }));
+    coverageHelp.append(btn);
+  }
+}
+const listWords = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+
+// A planner's own edit marks the field as theirs (see plannerSet).
+freqInput.addEventListener('input', () => plannerSet.add('freq'));
+txHeightInput.addEventListener('input', () => plannerSet.add('txHeight'));
+txHeightInput.addEventListener('change', () => refreshMasts3d()); // M51: panel height feeds the masts
+rxHeightInput.addEventListener('input', () => plannerSet.add('rxHeight'));
+for (const el of [thExcellent, thGood, thMarginal, thNone]) el?.addEventListener('input', () => plannerSet.add('thresholds'));
+
+// A link check is valid only for the inputs it ran with (linkKey): redraw the
+// list and lines when any of them changes, so an old margin shows as unchecked.
+for (const el of [freqInput, powerInput, txHeightInput, antennaPreset, antennaGain, txLossInput, thNone]) {
+  el?.addEventListener('input', () => refreshLinks());
+  el?.addEventListener('change', () => refreshLinks());
+}
+
+antennaUiReady = true;
+applyRadioRf();
+refreshEirpReadout();
 
 // Manual threshold edits should move the Signal legend too (B8).
 for (const el of [thExcellent, thGood, thMarginal, thNone]) {
@@ -2184,7 +2446,10 @@ function onMissionChange(s) {
   showRow('sites', s.sites);
   showRow('route', s.route);
   showRow('points', s.points);
+  showRow('links', s.links);
+  refreshOpsRail(); // M52 rail tiles + drawer rows
   missionElements.hidden = s.sites < 1 && s.route < 1 && s.points < 1;
+  refreshLinks();
   missionSitesCount.textContent = String(s.sites);
   missionRouteCount.textContent = String(s.route);
   missionPointsCount.textContent = String(s.points);
@@ -2454,6 +2719,8 @@ function gatherPaceContext() {
   return {
     mix,
     structures: radios?.getStructures?.() ?? [],
+    arsenal: radios?.getArsenal?.() ?? [],
+    links: mission.getLinks?.().length ?? 0,
     ewThreat: $('#ewThreat')?.value ?? 'medium',
     cellForPace: $('#cellForPace')?.value ?? 'none',
     sites: {
@@ -2493,11 +2760,17 @@ function renderPace(plan) {
   pacePlan.innerHTML = plan.legs
     .map((l) => {
       const bearer = l.status === 'gap' ? '— not filled —' : htmlEsc(l.band || l.asset || '');
-      const tag = l.status === 'separate' ? ' · separate module' : l.status === 'asset' ? ' · asset' : '';
+      const tag = l.status === 'separate' ? ' · separate module'
+        : l.status === 'asset' ? ' · asset'
+          : l.status === 'recommend' ? ' · not carried' : '';
+      const kit = l.radios?.length && l.status !== 'recommend'
+        ? `<span class="pace-kit" title="${htmlEsc(l.radios.join('\n'))}">${htmlEsc(l.radios.slice(0, 2).join(' · '))}` +
+          `${l.radios.length > 2 ? ` · +${l.radios.length - 2} more` : ''}</span>` : '';
+      const off = l.status === 'gap' || l.status === 'recommend';
       return (
-        `<div class="pace-row${l.status === 'gap' ? ' pace-row--gap' : ''}">` +
+        `<div class="pace-row${off ? ' pace-row--gap' : ''}">` +
         `<span class="pace-tier badge ${PACE_BADGE[l.tier] || 'badge--ref'}">${htmlEsc(l.tier)}</span>` +
-        `<span class="pace-bearer">${bearer}<span class="pace-tag">${htmlEsc(tag)}</span></span>` +
+        `<span class="pace-bearer">${bearer}<span class="pace-tag">${htmlEsc(tag)}</span>${kit}</span>` +
         `<span class="pace-why">${htmlEsc(l.role)} — ${htmlEsc(l.why)}</span>` +
         `</div>`
       );
@@ -2625,7 +2898,7 @@ function buildPowerPlan() {
   const consumed = atakConsumedMah(atakMa, missionHours);
   const rec = powerbankRecommendation(consumed, atakMah);
   powerAtak.innerHTML =
-    `<b>ATAK EUD</b> — ${atakMa} mA over ${missionHours} h draws <b>${Math.round(consumed)} mAh</b> ` +
+    `<b>ATAK device</b> — ${atakMa} mA over ${missionHours} h draws <b>${Math.round(consumed)} mAh</b> ` +
     `(device ${atakMah} mAh). Carry <b>${rec.fullOffBankSizeMah} mAh × ${rec.fullOffBankCount}</b> ` +
     `powerbank${rec.fullOffBankCount === 1 ? '' : 's'} (65% usable). ${htmlEsc(rec.note)}`;
 
@@ -2863,7 +3136,7 @@ function calParamsForRadio(radioId) {
     : null;
   if (radio) {
     if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
-    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + params.antenna.gainDbi;
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = txEirpDbm(Number(radio.powerW), params.antenna);
   }
   return params;
 }
@@ -2931,12 +3204,15 @@ const fmtSignedDb = (v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`;
 
 const escapeHtml = htmlEsc; // alias — use htmlEsc (from util/esc.js) everywhere
 
-/** Import + predict + fit from CSV text (exposed on __gl for tests). */
+/**
+ * Import + predict + fit from CSV text (exposed on __gl for tests).
+ * Resolves { ok, count } or { ok: false, error } for the shared file router.
+ */
 async function importCalText(text) {
   const calReadout = $('#calReadout');
   const { parseRssiCsv, predictDbm, fitCalibration, deviationBucket } = await calMod();
   const { points, skipped, error } = parseRssiCsv(text);
-  if (error) { calReadout.textContent = error; return; }
+  if (error) { calReadout.textContent = error; return { ok: false, error }; }
 
   const sites = mission.getSites();
   const area = aoi?.getAoi?.();
@@ -2945,8 +3221,9 @@ async function importCalText(text) {
   if (sites.length) txs = sites.map((s) => siteTx(s, txHeightM, coverageParams().antenna));
   else if (area) txs = [{ lat: area.center.lat, lng: area.center.lng, txHeightM }];
   else {
-    calReadout.textContent = 'Set up the mission first — prediction needs your transmitter (fixed site or AOI centre).';
-    return;
+    const msg = 'Set up the mission first — prediction needs your transmitter (fixed site or AOI centre).';
+    calReadout.textContent = msg;
+    return { ok: false, error: msg };
   }
 
   calReadout.textContent = `Predicting at ${points.length} point${points.length === 1 ? '' : 's'}…`;
@@ -2977,6 +3254,7 @@ async function importCalText(text) {
   renderCalUi({ skipped, terrain: !!dem });
   updateCalLayer(samples);
   runFieldValidation(points, txs, dem);
+  return { ok: true, count: samples.length };
 }
 
 /**
@@ -3096,8 +3374,8 @@ function initCalibrationControls() {
     fileInput.value = '';
     if (!file) return;
     try {
-      await importCalText(await file.text());
-      statusMode.textContent = 'Calibration points imported';
+      const r = await importCalText(await file.text());
+      if (r?.ok) statusMode.textContent = 'Calibration points imported';
     } catch (err) {
       $('#calReadout').textContent = `Import failed: ${err.message}`;
     }
@@ -3111,7 +3389,7 @@ function initCalibrationControls() {
     calState.formRadioId = select.value || null;
     calState.applied = Object.keys(calState.offsets).length > 0;
     saveCalStore();
-    stalePill.arm('Calibration applied');
+    armStale('Calibration applied');
     const parts = Object.entries(calState.offsets).map(([id, o]) => `${id} ${fmtSignedDb(o)}`);
     statusMode.textContent = `Calibration applied — ${parts.join(' · ')}`;
     $('#calReadout').textContent =
@@ -3396,10 +3674,13 @@ function omniParams(params) {
 /**
  * One fixed site as a coverage transmitter. A site aimed on its own (M49)
  * carries the panel's antenna with its own pointing; others use the panel's.
+ * A site with its own mast height or power (M50) overrides the panel's;
+ * `eirpAdjDb` is the run's calibration offset, kept on top of a site's power.
  */
-function siteTx(s, txHeightM, antenna) {
-  const tx = { lat: s.lat, lng: s.lng, txHeightM };
+function siteTx(s, txHeightM, antenna, eirpAdjDb = 0) {
+  const tx = { lat: s.lat, lng: s.lng, txHeightM: s.txHeightM ?? txHeightM };
   if (s.azimuthDeg != null && antenna && !isOmni(antenna)) tx.antenna = { ...antenna, azimuthDeg: s.azimuthDeg };
+  if (s.powerW != null) tx.eirpDbm = txEirpDbm(s.powerW, antenna ?? readAntenna()) + eirpAdjDb;
   return tx;
 }
 
@@ -3410,7 +3691,8 @@ function coverageParams() {
   const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
   const antenna = readAntenna();
   return {
-    eirpDbm: wattsToDbm(powerW) + antenna.gainDbi,
+    eirpDbm: txEirpDbm(powerW, antenna),
+    txLossDb: txLossDb(),
     freqMHz,
     rxGainDbi: clampNum(rxGainInput?.value, -10, 20, 0),
     antenna, // horizontal pattern, applied per cell by the coverage worker
@@ -3452,10 +3734,12 @@ const WINDOW_CAP_MULT = 3;
 // window large enough to show the signal, not a sliver around the bbox.
 const MIN_HALF_DEG = 0.05; // ≈ 5.5 km
 
-function coverageBoundsFor(bbox, center, params) {
+function coverageBoundsFor(bbox, center, params, txs = null) {
   const halfLat = Math.max((bbox.north - bbox.south) / 2, MIN_HALF_DEG);
   const halfLng = Math.max((bbox.east - bbox.west) / 2, MIN_HALF_DEG);
-  const rangeM = maxRangeM(params);
+  // The strongest site sets the reach (a site may carry its own power, M50).
+  const eirpDbm = Math.max(params.eirpDbm, ...(txs ?? []).map((t) => t.eirpDbm ?? -Infinity));
+  const rangeM = maxRangeM({ ...params, eirpDbm });
   const dLat = Math.min(rangeM / 111320, WINDOW_CAP_MULT * halfLat);
   const dLng = Math.min(
     rangeM / (111320 * Math.cos((center.lat * Math.PI) / 180)),
@@ -3504,7 +3788,7 @@ function runCoverage() {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna, calOff));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3514,7 +3798,7 @@ function runCoverage() {
     return;
   }
 
-  const compBounds = coverageBoundsFor(bbox, center, params);
+  const compBounds = coverageBoundsFor(bbox, center, params, txs);
   const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
 
   const runBuiltin = () => {
@@ -3572,6 +3856,7 @@ function finishRunAll() {
   if (!buildPaceBtn.disabled) {
     lastPlan = buildPace(gatherPaceContext());
     renderPace(lastPlan);
+    refreshOpsRail(); // M52 PACE + readiness tiles
     refreshWorkflowUi();
   }
   const stats = coverage?.getStats?.();
@@ -3592,6 +3877,7 @@ async function runCloudRF(compBounds, center, params, fallback) {
     rxHeightM: params.rxHeightM,
     rxSensDbm: params.thresholds.marginal,
     txGainDbi: params.antenna.gainDbi,
+    txLossDb: params.txLossDb,
     antenna: params.antenna,
     rxGainDbi: params.rxGainDbi,
   };
@@ -3683,7 +3969,7 @@ async function runTeamCoverage(team) {
   const radio = team.radioId ? radios?.getArsenal?.().find((r) => r.id === team.radioId) : null;
   if (radio) {
     if (Number.isFinite(Number(radio.defaultFreqMHz))) params.freqMHz = Number(radio.defaultFreqMHz);
-    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = wattsToDbm(Number(radio.powerW)) + params.antenna.gainDbi;
+    if (Number.isFinite(Number(radio.powerW))) params.eirpDbm = txEirpDbm(Number(radio.powerW), params.antenna);
   }
   // M27: per-radio field-calibration offset (mean measured − predicted).
   params.eirpDbm += calOffsetDb(team.radioId);
@@ -3698,7 +3984,7 @@ async function runTeamCoverage(team) {
   let txs = null;
   let center;
   if (sites.length) {
-    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna));
+    txs = sites.map((s) => siteTx(s, params.txHeightM, params.antenna, calOffsetDb(team.radioId)));
     center = { lat: sites[0].lat, lng: sites[0].lng };
   } else if (area) {
     center = area.center;
@@ -3710,7 +3996,7 @@ async function runTeamCoverage(team) {
   const aoiMask = area ? { type: area.type, center: area.center, radiusM: area.radiusM, ring: area.ring } : null;
   statusMode.textContent = `Coverage for ${team.name}…`;
   coverageEngine.textContent = engineLabel(params.engine);
-  const stats = await coverage.computeAsync(coverageBoundsFor(bbox, center, params), center, params, {
+  const stats = await coverage.computeAsync(coverageBoundsFor(bbox, center, params, txs), center, params, {
     aoi: aoiMask,
     txs,
     txNames: txs ? sites.map((s, i) => s.name || `Site ${i + 1}`) : null, // M24 legend
@@ -3737,7 +4023,19 @@ function gatherMissionState() {
         ? { type: 'radius', center: area.center, radiusM: area.radiusM }
         : { type: 'polygon', ring: area.ring }
       : null,
-    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name, azimuthDeg }) => ({ lat, lng, name, ...(azimuthDeg != null ? { azimuthDeg } : {}) })),
+    sites: (mission?.getSites?.() ?? []).map(({ lat, lng, name, azimuthDeg, txHeightM, powerW }) => ({
+      lat, lng, name,
+      ...(azimuthDeg != null ? { azimuthDeg } : {}),
+      ...(txHeightM != null ? { txHeightM } : {}),
+      ...(powerW != null ? { powerW } : {}),
+    })),
+    // M50: radio links refer to sites by their index in the list above.
+    links: (() => {
+      const idx = new Map((mission?.getSites?.() ?? []).map((s, i) => [s.id, i]));
+      return (mission?.getLinks?.() ?? []).map(({ a, b, label, freqMHz }) => ({
+        a: idx.get(a), b: idx.get(b), label, ...(freqMHz != null ? { freqMHz } : {}),
+      }));
+    })(),
     points: (mission?.getPoints?.() ?? []).map(({ lat, lng, name }) => ({ lat, lng, name })),
     route: mission?.getRoute?.() ?? [],
     waypoints: (waypoints?.getAll?.() ?? []).map(({ lat, lng, name, icon }) => ({ lat, lng, name, icon })),
@@ -3753,6 +4051,7 @@ function gatherMissionState() {
       useClutter: useClutterInput.checked,
       antenna: readAntenna(),
       rxGainDbi: clampNum(rxGainInput?.value, -10, 20, 0),
+      txLossDb: txLossDb(),
       thresholds: coverageParams().thresholds,
       digitalMode: getDigitalMode(),
     },
@@ -3784,6 +4083,8 @@ function applyMissionState(m) {
     coverage?.clear?.();
     clearCloudRFResult();
     clearCliffLayer(map);
+    profilePanel.hide(); // the old mission's path profile
+    linkChecks.clear();
     opacityRow.hidden = true;
     if (showNoneRow) showNoneRow.hidden = true;
     for (const wp of waypoints?.getAll?.() ?? []) waypoints.remove(wp.id);
@@ -3800,9 +4101,15 @@ function applyMissionState(m) {
     if (m.aoi?.type === 'radius') aoi.setRadius([m.aoi.center.lng, m.aoi.center.lat], m.aoi.radiusM);
     else if (m.aoi?.type === 'polygon') aoi.setPolygon(m.aoi.ring);
 
-    for (const s of m.sites) {
+    const siteIds = m.sites.map((s) => {
       const added = mission.addSite(s.lat, s.lng, s.name);
-      if (added && s.azimuthDeg != null) mission.setSiteAzimuth(added.id, s.azimuthDeg);
+      if (!added) return null;
+      if (s.azimuthDeg != null) mission.setSiteAzimuth(added.id, s.azimuthDeg);
+      if (s.txHeightM != null || s.powerW != null) mission.setSiteRf(added.id, { txHeightM: s.txHeightM ?? null, powerW: s.powerW ?? null });
+      return added.id;
+    });
+    for (const l of m.links ?? []) {
+      if (siteIds[l.a] && siteIds[l.b]) mission.addLink(siteIds[l.a], siteIds[l.b], { label: l.label, freqMHz: l.freqMHz });
     }
     for (const p of m.points) mission.addPoint(p.lat, p.lng, p.name);
     if (m.route.length) mission.setRoute(m.route);
@@ -3823,7 +4130,12 @@ function applyMissionState(m) {
     }
 
     const c = m.coverage;
+    plannerSet.clear();
     if (c) {
+      if (c.freqMHz != null) plannerSet.add('freq');
+      if (c.txHeightM != null) plannerSet.add('txHeight');
+      if (c.rxHeightM != null) plannerSet.add('rxHeight');
+      if (c.thresholds) plannerSet.add('thresholds');
       if (c.freqMHz != null) freqInput.value = String(c.freqMHz);
       if (c.powerW != null) powerInput.value = String(c.powerW);
       if (c.txHeightM != null) txHeightInput.value = String(c.txHeightM);
@@ -3832,6 +4144,8 @@ function applyMissionState(m) {
       useClutterInput.checked = Boolean(c.useClutter);
       writeAntenna(c.antenna ?? {}); // older files: dipole, as before
       if (rxGainInput) rxGainInput.value = String(c.rxGainDbi ?? 0);
+      if (txLossInput) txLossInput.value = String(c.txLossDb ?? 0);
+      refreshEirpReadout();
       const t = c.thresholds ?? {};
       if (t.excellent != null) thExcellent.value = String(t.excellent);
       if (t.good != null) thGood.value = String(t.good);
@@ -3887,16 +4201,23 @@ function applyMissionState(m) {
   setDirty(false);
 }
 
-/** Parse + confirm + apply mission-file text. Returns true when loaded. */
-function loadMissionFromText(text, name) {
+/**
+ * Parse + confirm + apply mission-file text. Resolves { ok, warnings } or
+ * { ok: false, error }; the file router turns that into the import toast.
+ */
+async function loadMissionFromText(text, name) {
   const r = parseMission(text);
   if (!r.ok) {
     statusMode.textContent = r.error;
-    return false;
+    return { ok: false, error: r.error };
   }
-  if (missionDirty && !window.confirm('Replace the current mission? Unsaved changes will be lost.')) {
+  if (missionDirty && !(await confirmDialog({
+    title: 'Replace the current mission?',
+    message: `Opening ${name} replaces what is on the map. Unsaved changes are lost — save first if you need them.`,
+    confirmLabel: 'Replace mission',
+  }))) {
     statusMode.textContent = 'Mission load cancelled';
-    return false;
+    return { ok: false, error: 'load cancelled.' };
   }
   try {
     applyMissionState(r.mission);
@@ -3904,15 +4225,15 @@ function loadMissionFromText(text, name) {
     // The file is sanitised before it gets here, so this is a last resort: say
     // what happened instead of leaving a half-applied mission with no message.
     statusMode.textContent = `Mission file could not be fully applied: ${err?.message ?? err}`;
-    showToast('Mission file could not be fully applied. Check what is on the map.');
-    return false;
+    return { ok: false, error: 'it could not be fully applied. Check what is on the map.' };
   }
   const warnings = r.warnings ?? [];
   statusMode.textContent = warnings.length
     ? `Mission loaded from ${name} with skipped items: ${warnings.join(' ')}`
     : `Mission loaded from ${name}`;
-  if (warnings.length) showToast(`Mission loaded, but some items were skipped. ${warnings[0]}`);
-  return true;
+  opsRail?.event(`Mission loaded from ${name}${warnings.length ? ` (${warnings.length} skipped)` : ''}`);
+  opsShell?.setMissionName(name);
+  return { ok: true, warnings };
 }
 
 /** Serialize and download the mission file (after the dialog confirms). */
@@ -3970,9 +4291,9 @@ document.addEventListener(
 
 // Output-group buttons (Data export section).
 $('#saveMissionBtn')?.addEventListener('click', openSaveDialog);
-$('#openMissionBtn')?.addEventListener('click', () => $('#importBtn')?.click());
+$('#openMissionBtn')?.addEventListener('click', () => openFilePicker());
 
-// ---- Global shortcuts: ⌘S save · ⌘Z / ⇧⌘Z undo / redo (M21 §A + §D) -------
+// ---- Global shortcuts: ⌘S save · ⌘O open / import · ⌘Z / ⇧⌘Z undo / redo (M21 §A + §D)
 document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (!mod || e.altKey) return;
@@ -3980,6 +4301,11 @@ document.addEventListener('keydown', (e) => {
   if (key === 's' && !e.shiftKey) {
     e.preventDefault(); // the browser's "save page" is never what we want here
     openSaveDialog();
+    return;
+  }
+  if (key === 'o' && !e.shiftKey) {
+    e.preventDefault(); // the browser's "open file" would leave the app
+    openFilePicker();
     return;
   }
   if (key !== 'z') return;
@@ -4096,6 +4422,7 @@ for (const key of ['objects', 'aoi', 'radios', 'coverage']) {
 /** Expand the panel + the owning group, open a section's tab, scroll to it. */
 function jumpToAnchor(anchorId) {
   if (focusCtl?.isActive()) focusCtl.exit(); // edit-jumps land in the panel, not the surface
+  if (opsShell?.openAnchor(anchorId)) return; // M52: the section lives in a flyout
   lpanelCtl.setCollapsed(false, { persist: false });
   if (mq.matches) openPanel();
   const moduleKey = MODULE_KEY_BY_ANCHOR[anchorId];
@@ -4129,8 +4456,259 @@ const ctxMenu = createContextMenu({
     else if (action === 'optimise') mastWizard.openFor(entry.id); // M35
     else if (action === 'aim') startAim(entry); // M49
     else if (action === 'aimReset') setSiteAim(entry.id, null);
+    else if (action === 'siteRf') openSiteRf(entry); // M50
+    else if (action === 'link') startLinkPick(entry); // M50
   },
 });
+
+// ---- M50: one site's own mast height and power ----------------------------
+function setSiteRf(id, v) {
+  const e = registry.get(id);
+  if (!e) return;
+  const from = { txHeightM: e.settings?.txHeightM ?? null, powerW: e.settings?.powerW ?? null };
+  const apply = (x) => registry.update(id, { settings: x });
+  apply(v);
+  undoStack.push({ label: `${e.name} height/power`, undo: () => apply(from), redo: () => apply(v) });
+  const parts = [v.txHeightM != null ? `${v.txHeightM} m` : null, v.powerW != null ? `${v.powerW} W` : null].filter(Boolean);
+  statusMode.textContent = parts.length
+    ? `${e.name}: ${parts.join(', ')} — other values from the Coverage panel`
+    : `${e.name} follows the Coverage panel again`;
+}
+
+function openSiteRf(entry) {
+  openSiteRfPopup(map, {
+    lngLat: entry.lngLat,
+    name: entry.name,
+    current: { txHeightM: entry.settings?.txHeightM ?? null, powerW: entry.settings?.powerW ?? null },
+    panel: { txHeightM: clampNum(txHeightInput.value, 1, 300, 10), powerW: clampNum(powerInput.value, 0.01, 100, 5) },
+    onSave: (v) => setSiteRf(entry.id, v),
+  });
+}
+
+// ---- M50: radio links between sites ---------------------------------------
+// A truncated status message keeps its full text in the tooltip.
+new MutationObserver(() => { statusMode.title = statusMode.textContent; })
+  .observe(statusMode, { childList: true, characterData: true, subtree: true });
+
+const linksPanel = $('#linksPanel');
+const linksList = $('#linksList');
+const missionLinksCount = $('#missionLinksCount');
+
+/** Panel values a link falls back to when a site has none of its own. */
+function linkInputs(l, a, b) {
+  const panelH = clampNum(txHeightInput.value, 1, 300, 10);
+  const panelW = clampNum(powerInput.value, 0.01, 100, 5);
+  return {
+    freqMHz: l.freqMHz ?? clampNum(freqInput.value, 30, 6000, 150),
+    txHeightM: a.txHeightM ?? panelH,
+    rxHeightM: b.txHeightM ?? panelH, // the far end is a mast too
+    eirpDbm: txEirpDbm(a.powerW ?? panelW),
+    // The far end's antenna, less its feeder (the same antenna type).
+    rxGainDbi: readAntenna().gainDbi - txLossDb(),
+    sensDbm: clampNum(thNone.value, -200, 0, -110),
+  };
+}
+const linkKey = (l, a, b) => JSON.stringify([a.lat, a.lng, b.lat, b.lng, linkInputs(l, a, b)]);
+
+/** The current check of a link, or null when never run or out of date. */
+function currentCheck(l, sitesById) {
+  const c = linkChecks.get(l.id);
+  const a = sitesById.get(l.a);
+  const b = sitesById.get(l.b);
+  return c && a && b && c.key === linkKey(l, a, b) ? c.data : null;
+}
+
+function refreshLinks() {
+  if (!mission) return;
+  const sites = mission.getSites();
+  const links = mission.getLinks();
+  const byId = new Map(sites.map((s) => [s.id, s]));
+  for (const id of linkChecks.keys()) if (!links.some((l) => l.id === id)) linkChecks.delete(id);
+  const checks = new Map(links.map((l) => [l.id, currentCheck(l, byId)]));
+  const fc = linkFeatures(sites, links, checks);
+  updateRadioLinks(map, fc);
+  if (missionLinksCount) missionLinksCount.textContent = String(links.length);
+  if (!linksPanel || !linksList) return;
+  linksPanel.hidden = links.length < 1;
+  linksList.innerHTML = '';
+  for (const f of fc.features) {
+    const { id, label, km, status } = f.properties;
+    const data = checks.get(id);
+    const li = document.createElement('li');
+    li.className = 'link-row';
+    const v = linkVerdict(data);
+    const badge = status === 'unknown'
+      ? '<span class="badge">not checked</span>'
+      : `<span class="badge badge--${status}" data-numeric title="Margin over the receiver sensitivity: ${htmlEsc(v.text)}">` +
+        `${data.budget.marginDb >= 0 ? '+' : ''}${data.budget.marginDb.toFixed(0)} dB${v.short ? ` · ${v.short}` : ''}</span>`;
+    li.innerHTML =
+      `<span class="link-row__name"></span>` +
+      `<span class="link-row__meta"><span class="link-row__km" data-numeric>${km} km</span>${badge}</span>` +
+      `<span class="link-row__acts"><button class="btn btn--sm" type="button" data-act="check">Profile</button>` +
+      `<button class="link-row__del" type="button" data-act="del" aria-label="Remove link">×</button></span>`;
+    li.querySelector('.link-row__name').textContent = label;
+    li.title = label;
+    li.querySelector('[data-act="check"]').addEventListener('click', () => checkLink(id));
+    li.querySelector('[data-act="del"]').addEventListener('click', () => removeLinkUndoable(id));
+    linksList.appendChild(li);
+  }
+}
+
+/** Path profile + link budget for one link; colours the line. */
+async function checkLink(id, { show = true } = {}) {
+  const l = mission.getLinks().find((x) => x.id === id);
+  if (!l) return null;
+  const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+  const a = byId.get(l.a);
+  const b = byId.get(l.b);
+  if (!a || !b) return null;
+  const v = linkInputs(l, a, b);
+  const key = linkKey(l, a, b);
+  const data = await profileTool.showBetween(
+    { lat: a.lat, lng: a.lng },
+    { lat: b.lat, lng: b.lng },
+    {
+      getFreqMHz: () => v.freqMHz,
+      getTxHeight: () => v.txHeightM,
+      getRxHeight: () => v.rxHeightM,
+      getEirp: () => v.eirpDbm,
+      getRxGain: () => v.rxGainDbi,
+      getThreshold: () => v.sensDbm,
+      ...(show ? {} : { onProfile: null }),
+    },
+  );
+  if (!data) return null;
+  linkChecks.set(id, { key, data });
+  refreshLinks();
+  const verdict = linkVerdict(data);
+  const name = l.label || `${a.name || 'Site'} – ${b.name || 'Site'}`;
+  const margin = `${data.budget.marginDb >= 0 ? '+' : ''}${data.budget.marginDb.toFixed(0)} dB`;
+  statusMode.textContent = verdict.status === 'ok'
+    ? `${name}: link closes with ${margin} margin`
+    : `${name}: ${margin}, ${verdict.text}`;
+  opsRail?.event(`Link ${name}: ${margin}${verdict.status === 'ok' ? '' : `, ${verdict.text}`}`);
+  refreshOpsRail();
+  return data;
+}
+
+$('#checkLinksBtn')?.addEventListener('click', async () => {
+  const links = mission.getLinks();
+  let n = 0;
+  for (const l of links) {
+    statusMode.textContent = `Checking link ${++n} of ${links.length}…`;
+    await checkLink(l.id, { show: n === links.length });
+  }
+  const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+  const bad = links.filter((l) => linkStatus(currentCheck(l, byId)) === 'bad').length;
+  const warn = links.filter((l) => linkStatus(currentCheck(l, byId)) === 'warn').length;
+  statusMode.textContent = `${links.length} link${links.length === 1 ? '' : 's'} checked — ${bad} do not close, ${warn} to watch (margin under ${LINK_FADE_MARGIN_DB} dB or Fresnel zone partly blocked)`;
+});
+
+function addLinkUndoable(a, b) {
+  const l = mission.addLink(a, b);
+  if (!l) return null;
+  let cur = l;
+  undoStack.push({
+    label: 'Radio link added',
+    undo: () => mission.removeLink(cur.id),
+    redo: () => { cur = mission.addLink(a, b, { label: l.label, freqMHz: l.freqMHz }) ?? cur; },
+  });
+  return l;
+}
+
+function removeLinkUndoable(id) {
+  const l = mission.getLinks().find((x) => x.id === id);
+  if (!l) return;
+  let cur = l;
+  mission.removeLink(id);
+  undoStack.push({
+    label: 'Radio link removed',
+    undo: () => { cur = mission.addLink(l.a, l.b, { label: l.label, freqMHz: l.freqMHz }) ?? cur; },
+    redo: () => mission.removeLink(cur.id),
+  });
+  statusMode.textContent = 'Radio link removed';
+}
+
+/** Right-click a site → Add radio link: the next site clicked is the far end. */
+function startLinkPick(entry) {
+  const container = map.getContainer();
+  const canvas = map.getCanvas();
+  const finish = () => {
+    canvas.style.cursor = '';
+    container.removeEventListener('click', onClick, true);
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    finish();
+    statusMode.textContent = 'Linking cancelled';
+  };
+  // Capture phase: site markers are DOM elements that stop their own clicks.
+  // A click on the map itself takes the nearest site within 30 px.
+  const onClick = (ev) => {
+    let target = registry.byElement(ev.target);
+    if (!target) {
+      const r = container.getBoundingClientRect();
+      const p = { x: ev.clientX - r.left, y: ev.clientY - r.top };
+      let best = null;
+      for (const s of mission.getSites()) {
+        const q = map.project([s.lng, s.lat]);
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (d <= 30 && (!best || d < best.d)) best = { d, id: s.id };
+      }
+      target = best ? registry.get(best.id) : null;
+    }
+    ev.stopPropagation();
+    ev.preventDefault();
+    finish();
+    if (!target || target.kind !== 'mast' || target.owner !== 'mission' || target.id === entry.id) {
+      statusMode.textContent = 'No other site there — linking cancelled';
+      return;
+    }
+    const l = addLinkUndoable(entry.id, target.id);
+    statusMode.textContent = l
+      ? `Radio link ${entry.name} – ${target.name} added. Profile it from the Mission panel or the line.`
+      : `${entry.name} and ${target.name} are already linked`;
+  };
+  canvas.style.cursor = 'crosshair';
+  container.addEventListener('click', onClick, true);
+  document.addEventListener('keydown', onKey, true);
+  statusMode.textContent = `Click the site to link ${entry.name} with — Esc cancels`;
+}
+
+// Click a link line: name (editable), length, margin, profile, remove.
+let linkPopup = null;
+for (const layer of RADIO_LINK_LAYERS) {
+  map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+  map.on('click', layer, (e) => {
+    const f = e.features?.[0];
+    if (!f) return;
+    const { id, label, km, status } = f.properties;
+    const l = mission.getLinks().find((x) => x.id === id);
+    if (!l) return;
+    const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+    const data = currentCheck(l, byId);
+    const wrap = document.createElement('div');
+    wrap.className = 'link-popup';
+    wrap.innerHTML =
+      '<input type="text" class="mission-popup__edit" aria-label="Link name" />' +
+      `<span class="link-popup__meta" data-numeric>${km} km · ${status === 'unknown' ? 'not checked' : `margin ${data.budget.marginDb.toFixed(0)} dB`}</span>` +
+      '<div class="link-popup__actions"><button class="btn btn--sm" type="button" data-act="del">Remove</button>' +
+      '<button class="btn btn--sm btn--primary" type="button" data-act="check">Path profile</button></div>';
+    const input = wrap.querySelector('input');
+    input.value = l.label || '';
+    input.placeholder = label;
+    input.addEventListener('change', () => mission.renameLink(id, input.value));
+    wrap.querySelector('[data-act="check"]').addEventListener('click', () => { linkPopup?.remove(); checkLink(id); });
+    wrap.querySelector('[data-act="del"]').addEventListener('click', () => { linkPopup?.remove(); removeLinkUndoable(id); });
+    wrap.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') linkPopup?.remove(); });
+    linkPopup?.remove();
+    // No auto-focus: a focused name field would swallow Esc and ⌘Z.
+    linkPopup = new maplibregl.Popup({ closeButton: true, offset: 8, focusAfterOpen: false })
+      .setLngLat(e.lngLat).setDOMContent(wrap).addTo(map);
+  });
+}
 
 // ---- M49: aim one site's antenna by clicking where it should point ---------
 function setSiteAim(id, deg) {
@@ -4190,6 +4768,11 @@ function applyMastHeight(entry, heightM) {
     statusMode.textContent = `${entry.name}: altitude ${heightM} m AGL applied`;
     return; // setAltitude → registry.sync → objects:changed arms the recompute
   }
+  // A fixed site takes the height as its own (M50); other masts set the panel.
+  if (entry.kind === 'mast' && entry.owner === 'mission') {
+    setSiteRf(entry.id, { txHeightM: heightM, powerW: entry.settings?.powerW ?? null });
+    return;
+  }
   const from = clampNum(txHeightInput.value, 1, 300, 10);
   const setH = (v) => { txHeightInput.value = String(v); };
   setH(heightM);
@@ -4208,7 +4791,7 @@ const mastWizard = createMastWizard(document.querySelector('.map-wrap'), {
   getPoints: () => mission?.getPoints?.() ?? [],
   getFreqMHz: () => clampNum(freqInput.value, 30, 6000, 150),
   getRxHeightM: () => clampNum(rxHeightInput.value, 0.5, 50, 1.5),
-  getEirpDbm: () => wattsToDbm(clampNum(powerInput.value, 0.01, 100, 5)) + txGainDbi(),
+  getEirpDbm: (e) => txEirpDbm(e?.settings?.powerW ?? clampNum(powerInput.value, 0.01, 100, 5)),
   getThresholdDbm: () => clampNum(thMarginal.value, -200, 0, -103),
   getMaxM: (e) => (e.kind === 'drone' ? 120 : 30),
   // E1 seam: the wizard sees the same data the coverage run would — local
@@ -4349,6 +4932,7 @@ function updateOpsDash() {
     erlang: null, // wired once erlang module exposes a .summary()
     // readiness is injected separately via updateReadinessBadge() → updateOpsDashReadiness()
   });
+  refreshOpsRail(); // M52: cellular / drone / teams / power changes reach the rail here
 }
 
 // ---- M24: best-server / interference view ----------------------------------
@@ -4457,11 +5041,17 @@ function refreshMapKey() {
   }
   const view = coverage.getView?.() ?? 'quality';
   const pct = (f) => `${Math.round(f * 100)}%`;
+  // Defaults in use: say so on the map itself, where the colours are read
+  // (product review F2 — "100 % covered" with no radio chosen looked real).
+  const assump = currentAssumptions();
+  const warn = assump.source === 'defaults'
+    ? { text: `Default radio: ${DEFAULT_FREQ_MHZ} MHz · ${DEFAULT_POWER_W} W`, action: 'Pick a radio', title: assump.warnings[0], onAction: () => jumpToAnchor('radioTitle') }
+    : null;
   if (view === 'server') {
     const info = coverage.getServerInfo();
     const rows = info ? info.legend.map((r) => ({ color: info.colors[r.index % info.colors.length], label: r.name, value: pct(r.frac) })) : [];
     if (info?.interference) rows.push({ color: 'var(--srv-contest)', label: `Overlap < ${info.thresholdDb} dB`, value: pct(info.contestedFrac) });
-    mapKey.show({ title: 'Best server', rows, note: 'Where the signal is usable' });
+    mapKey.show({ title: 'Best server', rows, note: 'Where the signal is usable', warn });
     paintSiteZones(info);
     return;
   }
@@ -4475,6 +5065,7 @@ function refreshMapKey() {
       title: 'Interference (C/I)',
       rows: labels.map((label, i) => ({ color: ci.colors[i], label, value: pct(ci.fracs[i]) })),
       note: 'All sites on one channel',
+      warn,
     });
     return;
   }
@@ -4487,7 +5078,7 @@ function refreshMapKey() {
     { color: 'var(--s4)', label: 'Poor', value: `≥ ${t(thNone, -110)}` },
   ];
   if (showNone) rows.push({ color: 'var(--s5)', label: 'None', value: `< ${t(thNone, -110)}` });
-  mapKey.show({ title: 'Signal (dBm)', rows, note: showNone ? '' : 'No signal: not painted' });
+  mapKey.show({ title: 'Signal (dBm)', rows, note: showNone ? '' : 'No signal: not painted', warn });
 }
 
 viewQualityBtn?.addEventListener('click', () => {
@@ -4614,11 +5205,14 @@ function showResultCard() {
   }
   const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
   const percentileLabel = modelKey === 'p1812' ? `${pct.p}% time` : null;
-  resultCard.show(
-    summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds }),
-    { modelKey, percentileLabel },
-    currentAssumptions(),
-  );
+  const summary = summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds });
+  lastModelLabel = modelLabelText(modelKey, percentileLabel); // M52 rail
+  // M52 phase 3: in the Ops workspace the drawer strip carries the figures
+  // and assumptions; the floating result card is retired there.
+  if (opsDrawer) opsDrawer.setSummary(summary, lastModelLabel, currentAssumptions());
+  else resultCard.show(summary, { modelKey, percentileLabel }, currentAssumptions());
+  opsRail?.event(`Coverage ready — ${Math.round(summary.coveredPct)} % covered, ${summary.deadZones.length} dead zone${summary.deadZones.length === 1 ? '' : 's'}`);
+  refreshOpsRail();
 }
 
 // Grid detail (coverage/grid.js): remembered per browser, standard by default.
@@ -4653,6 +5247,7 @@ function currentAssumptions() {
     detail: coverageDetailValue(),
     antenna: antennaText(p.antenna),
     rxGainDbi: p.rxGainDbi,
+    txLossDb: p.txLossDb,
   });
 }
 
@@ -4689,6 +5284,65 @@ toolbarCtl = createToolbar(
 );
 // Mirror the restored open/closed state onto the toolbar icons.
 for (const m of TOOLBAR_MODULES) toolbarCtl.setPressed(m.anchor, sectionTabs.isOpen(m.anchor));
+
+// M52 phase 1: mount the Ops shell last, so every element it relocates
+// (brand, intel chip, Open / Run / Brief, the toolbar's right group) has
+// already been wired by the code above.
+if (OPS_WS) {
+  opsShell = createOpsShell({
+    app: $('#app'),
+    mapWrap: $('.map-wrap'),
+    modules: TOOLBAR_MODULES,
+    sectionTabs,
+    nodes: {
+      brand: $('#toolbar .brand'),
+      intel: $('#toolbarIntel'),
+      open: $('#openFileBtn'),
+      run: $('#runAllBtn'),
+      brief: $('#briefBtn'),
+      right: $('#toolbarRight'),
+    },
+    onOpenFlyout() { if (focusCtl?.isActive()) focusCtl.exit(); },
+    // Phone sheets (phase 5): the Data sheet needs the drawer body open.
+    onSheet(key) { if (key === 'data') opsDrawer?.open(); },
+    onMore() { palette?.open(); },
+  });
+  // Phase 3: the data drawer. Rows click through to the map; the strip
+  // carries what the result card used to show.
+  opsDrawer = createOpsDrawer(opsShell.drawer, {
+    app: $('#app'),
+    onSite(id) {
+      objList.select(id);
+      const e = registry.get(id);
+      if (e) map.flyTo({ center: e.lngLat, zoom: Math.max(map.getZoom(), 13), duration: 600 });
+    },
+    onLink(id) {
+      const l = mission.getLinks().find((x) => x.id === id);
+      const byId = new Map(mission.getSites().map((s) => [s.id, s]));
+      const a = l && byId.get(l.a);
+      const b = l && byId.get(l.b);
+      if (!a || !b) return;
+      map.fitBounds(
+        [[Math.min(a.lng, b.lng), Math.min(a.lat, b.lat)], [Math.max(a.lng, b.lng), Math.max(a.lat, b.lat)]],
+        { padding: 90, maxZoom: 14, duration: 600 },
+      );
+    },
+    onProfile(id) { checkLink(id, { show: true }); },
+    onGap(row) {
+      if (row?.centroid) map.flyTo({ center: [row.centroid.lng, row.centroid.lat], zoom: Math.max(map.getZoom(), 12), duration: 800 });
+    },
+    onRadio() { jumpToAnchor('radioTitle'); },
+    actions: {
+      relay() { jumpToAnchor('siteTitle'); if (!recommendBtn.disabled) recommendBtn.click(); },
+      gaps() { openCoverageGapReport(); },
+      brief() { openMissionBrief(); },
+    },
+  });
+  // Phase 2: the status rail. A tile opens the section that feeds it.
+  const TILE_ANCHOR = { coverage: 'coverageTitle', readiness: 'paceTitle', link: 'missionTitle', gaps: 'coverageTitle', pace: 'paceTitle' };
+  opsRail = createOpsRail(opsShell.rail, { onTile: (key) => jumpToAnchor(TILE_ANCHOR[key] ?? 'coverageTitle') });
+  refreshOpsRail();
+}
 
 // ---- Focus mode (M21 §B) — any section fullscreen over the map ------------
 // Expand button on every section header; the portalled form gets a wide grid;
@@ -4755,9 +5409,10 @@ document.addEventListener('objects:changed', (ev) => {
   if (e.kind !== 'drone' && recommender?.hasSites?.()) return; // recommend owns the raster
   planStale = true;
   resultCard.hide(); // the figures no longer describe the map
+  opsDrawer?.clearSummary();
   refreshWorkflowUi();
   pendingRecompute = e.kind === 'drone' ? () => drone?.computeRelay() : () => runCoverage();
-  stalePill.arm(`${e.name} ${type === 'move' ? 'moved' : 'updated'}`);
+  armStale(`${e.name} ${type === 'move' ? 'moved' : 'updated'}`);
   updateIntelChip('stale'); // Maven intel chip
 });
 

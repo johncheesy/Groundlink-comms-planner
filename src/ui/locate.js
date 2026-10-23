@@ -9,7 +9,7 @@
  * Privacy: the fix drives the map fly-to and the marker only — it is never
  * stored, logged or sent anywhere (OPSEC constraint).
  */
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 
 export function createLocateControl(map, { button, onError, onStatus } = {}) {
   let marker = null;

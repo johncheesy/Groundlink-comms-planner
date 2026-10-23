@@ -23,12 +23,16 @@ function esc(s) {
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
-function placemark(name, lng, lat, { description, alt } = {}) {
+function placemark(name, lng, lat, { description, alt, extrude = false } = {}) {
   const desc = description ? `\n      <description>${esc(description)}</description>` : '';
-  const z = alt != null && Number.isFinite(alt) ? `,${num(alt)}` : '';
+  const hasAlt = alt != null && Number.isFinite(alt);
+  const z = hasAlt ? `,${num(alt)}` : '';
+  // M51: a mast is a point `alt` metres above the ground with a line down to
+  // it — Google Earth and ATAK draw the height without any model file.
+  const mode = hasAlt && extrude ? '<altitudeMode>relativeToGround</altitudeMode><extrude>1</extrude>' : '';
   return `    <Placemark>
       <name>${esc(name)}</name>${desc}
-      <Point><coordinates>${num(lng)},${num(lat)}${z}</coordinates></Point>
+      <Point>${mode}<coordinates>${num(lng)},${num(lat)}${z}</coordinates></Point>
     </Placemark>`;
 }
 
@@ -58,13 +62,14 @@ function closedRing(ring) {
  *   bounds:    { west, south, east, north }  → drawn as the coverage extent
  * @returns {string} KML text
  */
-export function buildKml({ sites = [], waypoints = [], points = [], route = [], aoi = null, bounds = null, missionName = 'GroundLink mission' } = {}) {
+export function buildKml({ sites = [], waypoints = [], points = [], route = [], aoi = null, bounds = null, missionName = 'GroundLink mission', mastHeightM = null } = {}) {
   const parts = [];
 
   for (const s of sites) {
     const label = s.label || s.name || 'Site';
-    const elev = s.elevM != null ? `Elevation ${Math.round(s.elevM)} m` : 'Comms site';
-    parts.push(placemark(label, s.lng, s.lat, { description: elev }));
+    const h = s.txHeightM ?? mastHeightM;
+    const elev = (s.elevM != null ? `Elevation ${Math.round(s.elevM)} m` : 'Comms site') + (h != null ? ` · mast ${Math.round(h)} m` : '');
+    parts.push(placemark(label, s.lng, s.lat, { description: elev, alt: h ?? undefined, extrude: h != null }));
   }
   for (const w of waypoints) {
     parts.push(placemark(w.name || 'Waypoint', w.lng, w.lat, { alt: w.altM, description: 'Waypoint' }));
@@ -143,7 +148,7 @@ export function buildGroundOverlayKml(href, bounds, name = 'RF Coverage') {
  */
 export async function buildKmz(data) {
   const { overlayPng, bounds, sites, waypoints, points, route, aoi, missionName } = data;
-  const docKml = data.kml || buildKml({ sites, waypoints, points, route, aoi, bounds, missionName });
+  const docKml = data.kml || buildKml({ sites, waypoints, points, route, aoi, bounds, missionName, mastHeightM: data.mastHeightM ?? null });
 
   const entries = [{ name: 'doc.kml', data: docKml }];
   if (overlayPng && bounds) {

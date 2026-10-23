@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 
 /**
  * M3 + M4 — Site-recommendation controller (main thread).

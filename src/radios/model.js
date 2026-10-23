@@ -9,6 +9,7 @@
  *     powerW,                       // max conducted output
  *     rxSensDbm,                    // receiver sensitivity (12 dB SINAD / spec)
  *     antennaGainDbi,
+ *     feederLossDb,                 // cable + connectors + duplexer, dB (0 = none)
  *     defaultHeightM,               // 1.5 handheld, 2 mobile, 10+ base/repeater
  *     source,                       // 'library' | 'fcc' | 'manual'
  *     notes, indicative,
@@ -55,6 +56,7 @@ export function normalizeRadio(partial = {}) {
     powerW: num(partial.powerW, 5),
     rxSensDbm: num(partial.rxSensDbm, d.rxSensDbm),
     antennaGainDbi: num(partial.antennaGainDbi, d.antennaGainDbi),
+    feederLossDb: Math.min(30, Math.max(0, num(partial.feederLossDb, 0))),
     defaultHeightM: num(partial.defaultHeightM, d.defaultHeightM),
     source: partial.source || 'manual',
     notes: partial.notes || '',
@@ -107,6 +109,7 @@ export function activeSetToCoverage(infra, field) {
     powerW: tx.powerW,
     txHeightM: tx.defaultHeightM,
     txGainDbi: tx.antennaGainDbi,
+    txLossDb: tx.feederLossDb ?? 0,
     rxHeightM: rx.defaultHeightM,
     rxSensDbm: rx.rxSensDbm,
     thresholds: thresholdsFromSens(rx.rxSensDbm),

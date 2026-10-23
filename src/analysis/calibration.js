@@ -90,7 +90,7 @@ export function parseRssiCsv(text) {
  * FSPL+Deygout cell math for a list of transmitters, strongest wins.
  *
  * @param {{lat:number, lon:number}} pt
- * @param {Array<{lat:number, lng:number, txHeightM:number}>} txs
+ * @param {Array<{lat:number, lng:number, txHeightM:number, eirpDbm?:number}>} txs
  * @param {{eirpDbm, freqMHz, rxGainDbi?, clutterDb?, rxHeightM?}} params
  * @param {{sample:(lng,lat)=>number}|null} dem  null → flat FSPL
  */
@@ -107,7 +107,8 @@ export function predictDbm(pt, txs, params, dem) {
         txElev, rxElev, params.freqMHz, dist,
       );
     }
-    const dbm = receivedDbm(params, dist, diffraction, params.clutterDb || 0);
+    let dbm = receivedDbm(params, dist, diffraction, params.clutterDb || 0);
+    if (t.eirpDbm != null) dbm += t.eirpDbm - params.eirpDbm; // site's own power (M50), as on the map
     if (dbm > best) best = dbm;
   }
   return best;
