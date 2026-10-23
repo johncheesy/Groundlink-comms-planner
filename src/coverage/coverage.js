@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { gridDims, ringBounds } from './grid.js';
 import { aoiAlpha, applyAlpha } from './aoi-fade.js';
 import { COVERAGE_CLASS } from './model.js';

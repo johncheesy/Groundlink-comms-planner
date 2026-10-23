@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { LIMITS } from '../geo/validate.js';
 import { copyText } from '../util/clipboard.js';
 

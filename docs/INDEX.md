@@ -39,6 +39,10 @@ Mapping of every milestone → spec file → dispatch → primary source files �
 | E3b | Model accuracy badge | — | — | `src/ui/badges.js` | ✅ built |
 | E4 | ITU-R P.618-14 rain-fade engine | `E4-rain-fade.md` | — | `src/analysis/rain-fade.js` | ✅ built |
 | M48 | Live LEO/MEO pass window (SGP4 on CelesTrak) | `M48-leo-passes.md` | — | `src/connectivity/leo-pass.js`, `src/connectivity/leo-tle.js`, `src/ui/satcom-panel.js` | ✅ built |
+| M49 | Antenna model: gain, beamwidth, pointing, per-site aiming, beam wedges | `M49-antenna-model.md` | — | `src/coverage/antenna.js`, `src/map/antenna-beams.js` | ✅ built |
+| M50 | Feeder loss, per-site height and power, radio links | `M50-site-rf-links.md` | — | `src/mission/mission.js`, `src/map/radio-links.js` | ✅ built |
+| M51 | 3D masts on the map (fill-extrusion prisms; glTF models as phase 2) | `M51-3d-masts.md` | — | `src/map/masts-3d.js` | ✅ phase 1 built |
+| M52 | Ops workspace: tool strip + flyouts, status rail, data drawer, phone tab bar (default since 0.10.0-beta; `?ws=classic`) | `M52-ops-workspace.md` | — | `src/ui/ops-shell.js`, `src/ui/ops-rail.js`, `src/ui/ops-drawer.js` | ✅ built |
 | M27 | Field calibration (RSSI CSV, bias offsets) | `M27-field-calibration.md` | — | `src/analysis/calibration.js` | ✅ built |
 | M35 | Mast-height wizard | `M35-mast-height-wizard.md` | `dispatch-M35.md` | `src/analysis/mast-height.js`, `src/ui/mast-wizard.js` | ✅ built |
 | M36 | Mission ops dashboard | `M36-ops-dashboard.md` | — | `src/ui/dash-ops.js` | ✅ built |

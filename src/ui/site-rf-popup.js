@@ -4,7 +4,7 @@
  * the panel's values show as placeholders so the default is never hidden.
  */
 
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import { SITE_RF_LIMITS } from '../mission/mission.js';
 
 /**

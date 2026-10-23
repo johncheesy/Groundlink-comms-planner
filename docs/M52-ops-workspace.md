@@ -1,8 +1,19 @@
 # M52 — Ops workspace
 
-**Status:** spec, 23 Oct 2026 · not started · decision: Option C "Ops" from
-the 23 Oct GUI options review, polished against an external reference
-dashboard (see §2) · follows the 22 Oct readability pass
+**Status:** built 23 Oct 2026 (phases 1–6, 0.10.0-beta) · decision: Option
+C "Ops" from the 23 Oct GUI options review, polished against an external
+reference dashboard (see §2) · follows the 22 Oct readability pass
+
+**Implementation notes.** `src/ui/ops-shell.js` (shell, flyouts, phone tab
+bar and sheets), `src/ui/ops-rail.js` (tiles + events, pure `tileModel()`),
+`src/ui/ops-drawer.js` (tabs, pure row builders). The Ops workspace is the
+default; `?ws=classic` brings the M19/M20 toolbar-and-panel layout back for
+one beta. The classic markup is *not* deleted: the sections still live in
+the panel DOM and the flyouts move them in and out, which is what keeps
+every handler working without a rewrite. Deleting it means re-homing the
+sections (v1.0). Not built from the spec: the spectrum channel strip on
+tile 9 (count and tone only) and the rain-fade note on tile 10 (the satcom
+panel has it). Events are per session, as specced.
 
 ## 1. Problem
 

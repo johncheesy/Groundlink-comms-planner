@@ -16,13 +16,18 @@ import { MODULE_ICONS } from './icons.js';
 
 export const OPS_WS_PARAM = 'ws';
 export const OPS_WS_VALUE = 'ops';
+export const CLASSIC_WS_VALUE = 'classic';
 
-/** True when the URL asks for the Ops workspace (`?ws=ops`). Pure. */
+/**
+ * The Ops workspace is the default since 0.10.0-beta (M52 phase 6);
+ * `?ws=classic` brings back the toolbar-and-panel layout for one beta.
+ * Pure.
+ */
 export function isOpsWorkspace(search) {
   try {
-    return new URLSearchParams(search).get(OPS_WS_PARAM) === OPS_WS_VALUE;
+    return new URLSearchParams(search).get(OPS_WS_PARAM) !== CLASSIC_WS_VALUE;
   } catch {
-    return false;
+    return true;
   }
 }
 

@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { isOpsWorkspace, drawerTabs, moduleForAnchor } from './ops-shell.js';
 
 describe('isOpsWorkspace', () => {
-  it('is on only for ?ws=ops', () => {
+  it('is the default; only ?ws=classic turns it off', () => {
     expect(isOpsWorkspace('?ws=ops')).toBe(true);
     expect(isOpsWorkspace('?a=1&ws=ops')).toBe(true);
+    expect(isOpsWorkspace('')).toBe(true);
+    expect(isOpsWorkspace(undefined)).toBe(true);
     expect(isOpsWorkspace('?ws=classic')).toBe(false);
-    expect(isOpsWorkspace('')).toBe(false);
-    expect(isOpsWorkspace(undefined)).toBe(false);
+    expect(isOpsWorkspace('?x=1&ws=classic')).toBe(false);
   });
 });
 

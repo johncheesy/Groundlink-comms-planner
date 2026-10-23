@@ -1,5 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import '../styles/index.css';
 import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
 import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2

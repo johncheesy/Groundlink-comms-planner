@@ -32,7 +32,8 @@ Terrain-aware communications coverage and planning, in the browser. Define where
 | **Smart suggestions** | Radio-to-node heuristic scoring; top-3 accordion with Apply (M46) |
 | **Export** | GeoTIFF, KMZ, GeoJSON, CivTAK; coverage gap report with relay recommendations (M16, M43) |
 | **Offline PWA** | Service worker with build-stamped caches; OPFS AOI packages (M17, M23) |
-| **Workspace UX** | Icon toolbar, left-menu tabs, per-object context menu, drag-to-move, ⌘K palette, undo ⌘Z (M19–M21) |
+| **Ops workspace** | Tool strip with section flyouts, always-on status rail (coverage, readiness, weakest link, dead zones, PACE, drone, endurance, cellular, spectrum, satcom, teams) with an events list, tabbed data drawer (Sites, Links, Gaps, Radios), phone tab bar and sheets (M52); `?ws=classic` for the M19–M21 toolbar-and-panel layout |
+| **Workspace UX** | Per-object context menu, drag-to-move, ⌘K palette, undo ⌘Z, focus mode (M19–M21) |
 
 ---
 

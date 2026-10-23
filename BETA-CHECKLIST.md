@@ -28,7 +28,7 @@ Legend: ✅ done · 🔄 in progress · ⏸ deferred · ❌ blocked
 | 1.4 | Remove maps.mail.ru from Overpass endpoints | ✅ | Down from 3 → 2 endpoints; test updated |
 | 1.5 | Unified escape helper `src/util/esc.js` | ✅ | 15 local variants replaced in 7 files |
 | 1.6 | Self-host Sora + Hanken Grotesk fonts | ⏸ | Removes Google Fonts IP leak; planned for v1.0 |
-| 1.7 | `npm audit --audit-level=high` in CI | ⏸ | Add to `deploy.yml`; planned for v1.0 |
+| 1.7 | `npm audit --audit-level=high` in CI | ✅ | In `deploy.yml` since 0.10.0-beta; MapLibre 6.15 + `npm audit fix` cleared the tree (23 Oct 2026) |
 | 1.8 | Domain-neutral UI jargon sweep | ⏸ | Remove EW/jamming/SITREP/ATAK EUD from visible strings; v1.0 |
 
 ---
@@ -63,7 +63,7 @@ Legend: ✅ done · 🔄 in progress · ⏸ deferred · ❌ blocked
 | 4.1 | Aria-label on icon-only buttons | ✅ | structure-item__remove (radios.js) fixed; toolbar/panel already labelled |
 | 4.2 | Focus trap in palette (⌘K) | ✅ | Scrim click closes; Esc returns focus to map canvas |
 | 4.3 | ⌘K empty state | ✅ | Shows top 6 items from each section by default; "Type to search" fallback |
-| 4.4 | Keyboard round-trip test | 🔄 | Manual verification needed before tag |
+| 4.4 | Keyboard round-trip test | ✅ | Ops workspace, 23 Oct 2026: Tab runs tool strip → rail tiles → drawer tabs/actions → map canvas → map rail; Esc closes a flyout or sheet; ⌘K, ⌘Z, ⌘S work |
 
 ---
 
