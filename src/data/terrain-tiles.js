@@ -39,6 +39,7 @@ export function terrainCredit(id) {
   if (!id) return null;
   const parts = String(id).split('+');
   const names = parts.map((p) => (p === 'mapterhorn' ? TERRAIN_PRIMARY.credit
+    : p === 'lidar' ? 'bare-earth LiDAR via Mapterhorn'
     : p === 'terrarium' ? TERRAIN_FALLBACK.credit
       : p === 'offline' ? 'offline package'
         : p === 'cog' ? 'your elevation file' : p));

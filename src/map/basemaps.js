@@ -187,7 +187,7 @@ const BUILDING_COLOR = '#3b4250'; // muted neutral surface on the dark map (not 
 export function buildStyle(
   activeCategory = DEFAULT_BASEMAP,
   activeVariantIds = {},
-  { hires = true } = {},
+  { hires = false } = {},
 ) {
   const sources = {};
   const layers = [{ id: 'bg', type: 'background', paint: { 'background-color': MAP_BG } }];

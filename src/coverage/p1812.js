@@ -17,6 +17,17 @@
  *         (knife-edge J(ν) height-gain form).
  *   §4.8  Location variability by pL (log-normal, σL default 5.5 dB).
  *
+ * Path geometry follows P.1812-8 (22 Oct 2026): horizon angles, angular
+ * distance, LoS multipath distances and the smooth-earth obstruction
+ * correction use the bare terrain; clutter heights enter only the Bullington
+ * profile. Validated against the ITU-R WP 3M validation set: every stage
+ * (Lbfs, Lb0p, Ld50, Ldp, Lbs) within 0.01 dB in all 63 cases — see
+ * docs/validation-p1812.md and scripts/validate-p1812.mjs.
+ *
+ * Still P.1812-6 on purpose: the §4.7 terminal clutter loss (dropped in -7),
+ * because our profiles are sampled ~1 km apart and would otherwise miss the
+ * clutter right around a handheld receiver.
+ *
  * Deliberately omitted in v1 (documented in docs/E2-p1812-engine.md):
  *   §4.4  Ducting / layer reflection (Lba). The duct term mainly lifts small-p
  *         predictions on long over-water paths; without it this port predicts
@@ -70,13 +81,14 @@ export function invCumNorm(x) {
 
 /**
  * Time percentage β0 (%) below which anomalous refractivity gradients are
- * exceeded (§3.6), with the µ1/µ4 path-geometry factors evaluated for a path
- * whose land portion is dlm = (1 − ω)·d (no coastal-zone data in v1).
+ * exceeded (§3.6). dtm / dlm are the longest continuous land (inland +
+ * coastal) and inland sections (km); without radio-climatic zone data they
+ * default to the land portion (1 − ω)·d.
  */
-export function beta0Percent(latDeg, dKm, omega = 0) {
+export function beta0Percent(latDeg, dKm, omega = 0, { dtmKm, dlmKm } = {}) {
   const phi = Math.abs(latDeg);
-  const dtm = (1 - omega) * dKm; // longest continuous land section ≈ land part
-  const dlm = dtm; // longest continuous inland section (no coastal zones)
+  const dtm = dtmKm ?? (1 - omega) * dKm; // longest continuous land section
+  const dlm = dlmKm ?? dtm; // longest continuous inland section
   const tau = 1 - Math.exp(-0.000412 * dlm ** 2.41);
   const mu1 = Math.min(
     (10 ** (-dtm / (16 - 6.6 * tau)) + 10 ** (-5 * (0.496 + 0.354 * tau))) ** 0.2,
@@ -96,7 +108,7 @@ export function beta0Percent(latDeg, dKm, omega = 0) {
  * (Attachment 1 to Annex 1). h = bare terrain (m amsl), g = terrain + clutter.
  * Returns { hst, hsr, hstd, hsrd } (m amsl).
  */
-function smoothEarthHeights(d, h, g, hts, hrs) {
+function smoothEarthHeights(d, h, hts, hrs) {
   const n = d.length;
   const dtot = d[n - 1];
   let v1 = 0;
@@ -111,11 +123,12 @@ function smoothEarthHeights(d, h, g, hts, hrs) {
 
   // Obstruction correction: shift the smooth surface down so it never cuts
   // through the dominant obstruction, apportioned by the horizon slopes.
+  // Bare terrain h, as in P.1812-8 eq. (89d) — clutter enters only Bullington.
   let hobs = -Infinity;
   let aobt = -Infinity;
   let aobr = -Infinity;
   for (let i = 1; i < n - 1; i++) {
-    const HH = g[i] - (hts * (dtot - d[i]) + hrs * d[i]) / dtot;
+    const HH = h[i] - (hts * (dtot - d[i]) + hrs * d[i]) / dtot;
     if (HH > hobs) hobs = HH;
     const at = HH / d[i];
     const ar = HH / (dtot - d[i]);
@@ -290,6 +303,8 @@ export function terminalClutterDb(fGHz, R, hg) {
  * @param {number} [args.N0]          sea-level refractivity (defaults by lat)
  * @param {number} [args.deltaN]      refractivity gradient (defaults by lat)
  * @param {number} [args.seaFrac=0]   fraction of the path over water (ω)
+ * @param {number} [args.dtmKm]       longest continuous land section (β0; default (1 − ω)·d)
+ * @param {number} [args.dlmKm]       longest continuous inland section (β0; default dtmKm)
  * @param {number} [args.sigmaL=5.5]  location-variability std-dev (dB)
  * @returns {{ lossDb:number, fieldStrengthDbuV:number, components:object }}
  */
@@ -305,6 +320,8 @@ export function p1812Loss({
   N0,
   deltaN,
   seaFrac = 0,
+  dtmKm,
+  dlmKm,
   sigmaL = 5.5,
 } = {}) {
   if (!(freqMHz >= 30 && freqMHz <= 6000)) {
@@ -340,29 +357,42 @@ export function p1812Loss({
   const hrs = h[n - 1] + rxHeightM;
   const ae = medianEffectiveEarthKm(dN);
   const ab = 6371 * 3; // kβ = 3 effective radius for the β0 tail
-  const beta0 = beta0Percent(latDeg, dtot, omega);
+  const beta0 = beta0Percent(latDeg, dtot, omega, { dtmKm, dlmKm });
 
   // §4.1 — free-space loss over the 3-D slant distance + multipath/focusing.
   const dfs = Math.sqrt(dtot ** 2 + ((hts - hrs) / 1000) ** 2);
   const Lbfs = 92.4 + 20 * log10(fGHz) + 20 * log10(dfs);
 
-  // Horizon geometry (for Esp's dlt+dlr and troposcatter's angular distance).
+  // Horizon geometry (Esp's dlt+dlr, troposcatter's angular distance) over
+  // the bare terrain h, as in P.1812-8 eqs. (76)–(84). Ties: first tx-side
+  // horizon point, last rx-side point, like the ITU reference code.
   let thetaTmax = -Infinity;
   let thetaRmax = -Infinity;
   let dlt = dtot / 2;
   let dlr = dtot / 2;
   for (let i = 1; i < n - 1; i++) {
-    const tT = 1000 * Math.atan((g[i] - hts) / (1000 * d[i]) - d[i] / (2 * ae));
+    const tT = 1000 * Math.atan((h[i] - hts) / (1000 * d[i]) - d[i] / (2 * ae));
     if (tT > thetaTmax) { thetaTmax = tT; dlt = d[i]; }
-    const tR = 1000 * Math.atan((g[i] - hrs) / (1000 * (dtot - d[i])) - (dtot - d[i]) / (2 * ae));
-    if (tR > thetaRmax) { thetaRmax = tR; dlr = dtot - d[i]; }
+    const tR = 1000 * Math.atan((h[i] - hrs) / (1000 * (dtot - d[i])) - (dtot - d[i]) / (2 * ae));
+    if (tR >= thetaRmax) { thetaRmax = tR; dlr = dtot - d[i]; }
   }
   const thetaTd = 1000 * Math.atan((hrs - hts) / (1000 * dtot) - dtot / (2 * ae));
   const thetaRd = 1000 * Math.atan((hts - hrs) / (1000 * dtot) - dtot / (2 * ae));
-  const losPath = thetaTmax < thetaTd;
+  const losPath = !(thetaTmax > thetaTd);
   const thetaT = losPath ? thetaTd : thetaTmax;
-  const thetaR = n > 2 && thetaRmax >= thetaRd ? thetaRmax : thetaRd;
-  if (losPath) { dlt = dtot / 2; dlr = dtot / 2; }
+  const thetaR = losPath ? thetaRd : thetaRmax;
+  if (losPath) {
+    // LoS: dlt/dlr meet at the point with the largest diffraction parameter ν.
+    const lambda = 0.2998 / fGHz;
+    let numax = -Infinity;
+    for (let i = 1; i < n - 1; i++) {
+      const nu = (h[i] + (500 * d[i] * (dtot - d[i])) / ae - (hts * (dtot - d[i]) + hrs * d[i]) / dtot) *
+        Math.sqrt((0.002 * dtot) / (lambda * d[i] * (dtot - d[i])));
+      if (nu >= numax) { numax = nu; dlt = d[i]; }
+    }
+    if (n <= 2) dlt = dtot / 2;
+    dlr = dtot - dlt;
+  }
   const theta = (1000 * dtot) / ae + thetaT + thetaR; // mrad
 
   const Efac = 2.6 * (1 - Math.exp(-0.1 * (dlt + dlr)));
@@ -372,7 +402,7 @@ export function p1812Loss({
   const Lb0b = Lbfs + Esb;
 
   // §4.2 — Delta-Bullington at the median and β0 effective radii.
-  const { hstd, hsrd } = smoothEarthHeights(d, h, g, hts, hrs);
+  const { hstd, hsrd } = smoothEarthHeights(d, h, hts, hrs);
   const Ld50 = deltaBullington(d, g, zeros, hts, hrs, hstd, hsrd, ae, fGHz, omega, pol);
   let Fi = 0;
   let Ldp = Ld50;

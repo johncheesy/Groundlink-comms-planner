@@ -32,8 +32,10 @@
  */
 import { receivedDbm, classifyDbm, haversineM, deygoutLossDb } from '../coverage/model.js';
 import { receivedDbmP1812 } from '../coverage/p1812.js';
-import { NO_SERVER, MARGIN_SINGLE, quantizeMarginDb } from '../coverage/bestserver.js';
+import { NO_SERVER, MARGIN_SINGLE, CI_NONE, quantizeMarginDb, quantizeCiDb } from '../coverage/bestserver.js';
+import { patternLossDb, bearingDeg, isOmni } from '../coverage/antenna.js';
 import { buildElevationSampler, buildClutterSampler } from '../data/sources.js';
+import { buildLidarDem } from './dem.js';
 import { buildProfile, buildProfileP1812 } from './profile.js';
 import { createYielder } from './yield.js';
 
@@ -62,19 +64,36 @@ self.onmessage = async (e) => {
   // COGs (File objects clone cleanly into the worker; nothing is uploaded).
   let dem = null;
   let clutter = null;
+  let clutterError = null; // LandcoverError.reason — why clutter is missing
   if (params.useTerrain || params.useClutter) {
     self.postMessage({ type: 'progress', id, done: 0, total: rows, phase: 'data' });
+    // Small areas may swap the GLO-30 surface model for bare-earth LiDAR
+    // (fetched alongside, used below only if clutter loads too).
+    const wantLidar = params.useTerrain && params.useClutter && params.engine === 'p1812' && !msg.files?.elevationCog;
+    const lidarP = wantLidar ? buildLidarDem(bounds).catch(() => null) : null;
     const [d, lc] = await Promise.all([
       params.useTerrain
         ? buildElevationSampler({ bounds, cog: msg.files?.elevationCog ?? null }).catch(() => null)
         : Promise.resolve(null),
       params.useClutter
-        ? buildClutterSampler({ bounds, cog: msg.files?.clutterCog ?? null }).catch(() => null)
+        ? buildClutterSampler({ bounds, cog: msg.files?.clutterCog ?? null }).catch((e) => {
+            clutterError = e?.reason ?? 'unknown';
+            return null;
+          })
         : Promise.resolve(null),
     ]);
     dem = d;
     clutter = lc;
     if (aborted()) return; // superseded/cancelled while fetching tiles
+    // Bare-earth LiDAR where every tile has it — P.1812 only, and only with
+    // clutter heights loaded, because bare earth without them would drop trees
+    // and buildings from the path (ADR 0007). A local elevation COG or an
+    // offline package keeps priority.
+    if (lidarP && dem && clutter && dem.id !== 'offline') {
+      const lidar = await lidarP;
+      if (aborted()) return;
+      if (lidar) dem = lidar;
+    }
   }
 
   const classes = new Uint8Array(cols * rows);
@@ -84,6 +103,9 @@ self.onmessage = async (e) => {
   const collectServer = !!params.collectServer && (msg.txs?.length ?? 0) >= 2;
   const servers = collectServer ? new Uint8Array(cols * rows) : null;
   const marginQ = collectServer ? new Uint8Array(cols * rows) : null;
+  // Interference view: C/I with all sites on one channel — best signal over
+  // the summed power of every other site that reaches above the floor.
+  const ciQ = collectServer ? new Uint8Array(cols * rows) : null;
   const lngSpan = east - west;
   const latSpan = north - south;
   const reportEvery = Math.max(1, Math.floor(rows / 40));
@@ -107,6 +129,12 @@ self.onmessage = async (e) => {
     ? msg.txs
     : [{ lat: tx.lat, lng: tx.lng, txHeightM: params.txHeightM ?? 10 }];
   const txElevs = txList.map((t) => (dem ? dem.sample(t.lng, t.lat) : 0) + (t.txHeightM ?? 10));
+  // Directional tx antennas: per-site override, else the run's antenna.
+  // eirpDbm already carries the peak gain; the pattern takes off the rest.
+  const txAntennas = txList.map((t) => {
+    const a = t.antenna ?? params.antenna;
+    return a && !isOmni(a) ? a : null;
+  });
 
   let inAoiCount = 0;
   let coveredInAoiCount = 0;
@@ -130,6 +158,7 @@ self.onmessage = async (e) => {
       let maxDbm = -Infinity;
       let secondDbm = -Infinity;
       let bestIdx = -1;
+      let sumMw = 0; // linear power of every site above the floor
       for (let ti = 0; ti < txList.length; ti++) {
         const t = txList[ti];
         const dist = haversineM(t.lat, t.lng, lat, lng);
@@ -152,6 +181,8 @@ self.onmessage = async (e) => {
           }
           dbm = receivedDbm(params, dist, diffraction, useP1812 ? 0 : clutterDb);
         }
+        if (txAntennas[ti]) dbm -= patternLossDb(txAntennas[ti], bearingDeg(t.lat, t.lng, lat, lng));
+        if (collectServer && dbm >= floorDbm) sumMw += 10 ** (dbm / 10);
         if (dbm > maxDbm) {
           secondDbm = maxDbm;
           maxDbm = dbm;
@@ -170,6 +201,9 @@ self.onmessage = async (e) => {
           servers[off] = bestIdx;
           // Second site below the floor → effectively a single server here.
           marginQ[off] = secondDbm < floorDbm ? MARGIN_SINGLE : quantizeMarginDb(maxDbm - secondDbm);
+          const bestMw = 10 ** (maxDbm / 10);
+          const interMw = sumMw - bestMw;
+          ciQ[off] = secondDbm < floorDbm || interMw <= 0 ? CI_NONE : quantizeCiDb(10 * Math.log10(bestMw / interMw));
         }
       }
       if (aoi && inAoi(aoi, lng, lat)) {
@@ -189,16 +223,16 @@ self.onmessage = async (e) => {
   self.postMessage(
     {
       type: 'done', id, cols, rows, classes,
-      servers, marginQ, // M24 best-server data (null unless collected)
+      servers, marginQ, ciQ, // M24 best-server + interference data (null unless collected)
       terrain: !!dem, clutter: !!clutter,
       engine: useP1812 ? 'p1812' : 'fallback',
-      elevSource: dem?.id ?? null, clutterSource: clutter?.id ?? null,
+      elevSource: dem?.id ?? null, clutterSource: clutter?.id ?? null, clutterError,
       totalCells: cols * rows,
       inAoi: aoi ? inAoiCount : null,
       coveredInAoi: aoi ? coveredInAoiCount : null,
       coveredFracAoi: aoi && inAoiCount ? coveredInAoiCount / inAoiCount : null,
     },
-    [classes.buffer, ...(servers ? [servers.buffer, marginQ.buffer] : [])],
+    [classes.buffer, ...(servers ? [servers.buffer, marginQ.buffer, ciQ.buffer] : [])],
   );
 };
 

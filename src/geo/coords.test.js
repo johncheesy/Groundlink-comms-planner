@@ -157,3 +157,58 @@ describe('parse → format round-trips', () => {
     });
   }
 });
+
+describe('parseCoordinate — pasted forms (review F11)', () => {
+  const near = (r, lat, lng) => {
+    expect(r).not.toBeNull();
+    expect(r.lat).toBeCloseTo(lat, 4);
+    expect(r.lng).toBeCloseTo(lng, 4);
+  };
+
+  it('reads a decimal comma with space, semicolon or ", " between', () => {
+    near(parseCoordinate('52,3676 4,9041'), 52.3676, 4.9041);
+    near(parseCoordinate('52,3676; 4,9041'), 52.3676, 4.9041);
+    near(parseCoordinate('52,3676, 4,9041'), 52.3676, 4.9041);
+    near(parseCoordinate('-1,2921 36,8219'), -1.2921, 36.8219);
+  });
+
+  it('keeps "52,5" as a lat,lng pair', () => {
+    near(parseCoordinate('52,5'), 52, 5);
+    near(parseCoordinate('52.1,4.3'), 52.1, 4.3);
+  });
+
+  it('reads hemisphere prefixes', () => {
+    near(parseCoordinate('N52.5 E4.5'), 52.5, 4.5);
+    near(parseCoordinate('S 1.3, E 36.8'), -1.3, 36.8);
+    near(parseCoordinate('N 40.7, W 74.0'), 40.7, -74);
+  });
+
+  it('strips brackets, leading plus, semicolons and unicode minus', () => {
+    near(parseCoordinate('(52.37, 4.90)'), 52.37, 4.9);
+    near(parseCoordinate('[−1.29, 36.82]'), -1.29, 36.82);
+    near(parseCoordinate('+52.37 +4.90'), 52.37, 4.9);
+    near(parseCoordinate('52.37;4.90'), 52.37, 4.9);
+    near(parseCoordinate('−33.86 151.21'), -33.86, 151.21);
+  });
+
+  it('reads geo: URIs', () => {
+    near(parseCoordinate('geo:52.37,4.90'), 52.37, 4.9);
+    near(parseCoordinate('geo:-1.29,36.82,1700;u=35'), -1.29, 36.82);
+  });
+
+  it('reads map links', () => {
+    near(parseCoordinate('https://www.google.com/maps/@52.3676,4.9041,14z'), 52.3676, 4.9041);
+    near(parseCoordinate('https://www.google.com/maps/place/Dam/@52.37,4.89,17z/data=!3m1!4b1!4m6!3m5!3d52.3731!4d4.8926'), 52.3731, 4.8926);
+    near(parseCoordinate('https://maps.google.com/?q=-1.2921,36.8219'), -1.2921, 36.8219);
+    near(parseCoordinate('https://www.openstreetmap.org/#map=15/52.3700/4.8900'), 52.37, 4.89);
+    near(parseCoordinate('https://www.openstreetmap.org/?mlat=52.37&mlon=4.89#map=15/52.37/4.89'), 52.37, 4.89);
+    near(parseCoordinate('https://maps.apple.com/?ll=52.37,4.89&q=Pin'), 52.37, 4.89);
+  });
+
+  it('still rejects junk and out-of-range values', () => {
+    expect(parseCoordinate('https://example.com/nothing')).toBeNull();
+    expect(parseCoordinate('https://www.google.com/maps/@52.3,4.9,14z Mast')).toBeNull(); // bulk add splits the name off
+    expect(parseCoordinate('52,5,4,5')).toBeNull();
+    expect(parseCoordinate('N95 E4')).toBeNull();
+  });
+});

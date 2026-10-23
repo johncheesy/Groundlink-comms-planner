@@ -224,6 +224,49 @@ function tryUtm(text) {
   return { lat, lng, fmt: 'utm' };
 }
 
+const NUM = String.raw`[-+]?\d{1,3}(?:\.\d+)?`;
+// Map links that carry a point: Google (`@lat,lng`, `!3dLAT!4dLNG`, `q=`/`ll=`/
+// `query=`/`destination=`), OSM (`#map=z/lat/lng`, `mlat=…&mlon=…`), Apple (`ll=`/`q=`).
+const LINK_PATTERNS = [
+  new RegExp(String.raw`!3d(${NUM})!4d(${NUM})`),
+  new RegExp(String.raw`[?&](?:q|ll|query|destination|center|daddr)=(${NUM})(?:,|%2C)\s*(${NUM})`, 'i'),
+  new RegExp(String.raw`@(${NUM}),(${NUM})`),
+  new RegExp(String.raw`#map=\d+(?:\.\d+)?/(${NUM})/(${NUM})`),
+  new RegExp(String.raw`[?&]mlat=(${NUM})&mlon=(${NUM})`, 'i'),
+];
+
+/**
+ * Rewrite the many ways people paste a position into the plain forms the
+ * parsers below understand: map links and `geo:` URIs → "lat, lng"; unicode
+ * minus/dashes → "-"; surrounding brackets, leading "+" and ";" separators
+ * dropped; hemisphere prefixes ("N52.5 E4.5") moved behind the number; a
+ * decimal comma ("52,3676 4,9041", "52,3676; 4,9041") becomes a point. A bare
+ * "52,5" stays a lat,lng pair. Exported for tests.
+ */
+export function normalizeCoordText(text) {
+  let t = String(text).trim();
+  if (/^(?:https?:\/\/|www\.)\S+$/i.test(t)) { // a link has no spaces: "link name" is not a link
+    for (const re of LINK_PATTERNS) {
+      const m = re.exec(t);
+      if (m) return `${m[1]}, ${m[2]}`;
+    }
+    return t;
+  }
+  const geo = /^geo:\s*([^;?]+)/i.exec(t);
+  if (geo) t = geo[1].split(',').slice(0, 2).join(','); // drop altitude / params
+  t = t.replace(/[\u2212\u2012\u2013\u2014\uFE63\uFF0D]/g, '-');
+  t = t.replace(/^[([{]\s*(.*?)\s*[)\]}]$/, '$1');
+  t = t.replace(/(^|[\s,;])\+(?=\d)/g, '$1');
+  // Decimal comma: two comma-decimals separated by ";", whitespace, or ", ".
+  const dc = /^(-?\d{1,3},\d+)\s*(?:;|,\s+|\s+)\s*(-?\d{1,3},\d+)$/.exec(t);
+  if (dc) return `${dc[1].replace(',', '.')} ${dc[2].replace(',', '.')}`;
+  t = t.replace(/\s*;\s*/g, ', ');
+  // Hemisphere prefix → suffix: "N52.5 E4.5", "S 1.3, E 36.8".
+  const pre = /^([NSns])\s*(\d{1,2}(?:\.\d+)?)\s*°?\s*[,\s]\s*([EWew])\s*(\d{1,3}(?:\.\d+)?)\s*°?$/.exec(t);
+  if (pre) return `${pre[2]}${pre[1]} ${pre[4]}${pre[3]}`;
+  return t;
+}
+
 /**
  * Parse a single coordinate string in any supported format.
  * Detection order is most-specific first (MGRS, UTM, DMS) then decimal, so the
@@ -231,7 +274,8 @@ function tryUtm(text) {
  */
 export function parseCoordinate(text) {
   if (typeof text !== 'string' || !text.trim()) return null;
-  return tryMgrs(text) || tryUtm(text) || tryDms(text) || tryDecimal(text) || null;
+  const t = normalizeCoordText(text);
+  return tryMgrs(t) || tryUtm(t) || tryDms(t) || tryDecimal(t) || null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

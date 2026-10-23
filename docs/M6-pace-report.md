@@ -62,8 +62,8 @@ One report, three export routes the user ticks (checkboxes, any combination):
 - **PDF** — open a print-optimised report in a new tab and trigger the browser
   print dialog → *Save as PDF*. Highest fidelity, no dependency. Pop-up blocked →
   fall back to a downloadable standalone `.html`.
-- **Word** — an `application/msword` `.doc` Blob (HTML that Word opens + edits).
-- **Excel** — an `application/vnd.ms-excel` `.xls` Blob of the plan tables.
+- **Word** — a real `.docx` (OOXML via `src/export/ooxml.js`, no dependency; since 22 Oct 2026, was an HTML `.doc`).
+- **Excel** — a real `.xlsx`, one sheet per table (Summary, PACE, Sites, Radio mix, Parameters, Power BOM), numbers as numbers, frozen header rows (was an HTML `.xls`).
 
 Rationale and the later true-OOXML option: `docs/decisions/0003-report-export.md`.
 
@@ -100,7 +100,7 @@ colours (Primary = ok, Alternate = ref, Contingency = warn, Emergency = bad).
    Contingency reported as gaps with guidance.
 3. Place a drone relay, then build → Alternate becomes the airborne relay (with
    its altitude).
-4. Tick PDF → a print view opens; tick Word and Excel → `.doc` and `.xls`
+4. Tick PDF → a print view opens; tick Word and Excel → `.docx` and `.xlsx`
    download; tick all three → all happen. Untick all → a "tick at least one" hint.
 5. Report header shows the build stamp; footer states it was generated locally and
    not uploaded.

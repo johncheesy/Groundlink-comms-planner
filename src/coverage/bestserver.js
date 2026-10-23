@@ -103,3 +103,67 @@ export function serverLegend(counts, covered, names = []) {
   rows.sort((a, b) => b.cells - a.cells);
   return rows;
 }
+
+// ── Interference (C/I) view ────────────────────────────────────────────────
+// With every site on one channel (simulcast / single-frequency network — the
+// worst case), each cell's carrier-to-interference ratio is the best signal
+// over the summed power of all the others. The worker stores it per cell as
+// `ciQ`: quarter-dB offset by CI_OFFSET_DB (0–254), CI_NONE when no other site
+// reaches the cell above the floor (no interference).
+
+/** ciQ value meaning "no interferer above the floor". */
+export const CI_NONE = 255;
+const CI_OFFSET_DB = 10; // C/I ≥ −10 dB fits; below that clamps (already unusable)
+
+/** C/I dB → byte (0–254). */
+export const quantizeCiDb = (db) => Math.max(0, Math.min(254, Math.round((db + CI_OFFSET_DB) * 4)));
+/** byte → C/I dB (Infinity for CI_NONE). */
+export const dequantizeCi = (q) => (q === CI_NONE ? Infinity : q / 4 - CI_OFFSET_DB);
+
+/**
+ * C/I band edges (dB), best first: ≥20 clean, 12–20 fine for most digital and
+ * FM voice, 6–12 degraded, 0–6 poor, <0 the interferer wins.
+ */
+export const CI_BANDS = [20, 12, 6, 0];
+/** C/I below this (dB) counts as "at risk" in the summary. */
+export const CI_RISK_DB = 12;
+
+/** Band index 0–4 for a C/I in dB (0 = clean). Pure. */
+export function ciBand(db) {
+  for (let i = 0; i < CI_BANDS.length; i++) if (db >= CI_BANDS[i]) return i;
+  return CI_BANDS.length;
+}
+
+/**
+ * RGBA image + stats for the interference view. Only cells with usable signal
+ * (class ≤ 2: excellent/good/marginal) are painted — interference elsewhere
+ * is moot.
+ *
+ * @param {Uint8Array} classes  coverage classes per cell
+ * @param {Uint8Array} ciQ      quantised C/I per cell (CI_NONE = no interferer)
+ * @param {object} o
+ * @param {Array<[number,number,number]>} o.palette  five colours, clean → bad
+ * @returns {{ data: Uint8ClampedArray, byBand: number[], covered: number, atRisk: number }}
+ */
+export function buildInterferenceImage(classes, ciQ, { palette }) {
+  const n = classes.length;
+  const data = new Uint8ClampedArray(n * 4);
+  const byBand = [0, 0, 0, 0, 0];
+  let covered = 0;
+  let atRisk = 0;
+  for (let i = 0; i < n; i++) {
+    if (classes[i] > 2) continue; // poor / none / transparent
+    covered += 1;
+    const db = dequantizeCi(ciQ[i]);
+    const band = ciBand(db);
+    byBand[band] += 1;
+    if (db < CI_RISK_DB) atRisk += 1;
+    const [r, g, b] = palette[band];
+    const o = i * 4;
+    data[o] = r;
+    data[o + 1] = g;
+    data[o + 2] = b;
+    data[o + 3] = 255;
+  }
+  return { data, byBand, covered, atRisk };
+}

@@ -11,8 +11,9 @@
  *   elevation: local COG file (composed over the network terrain where the file
  *              has no data) → OPFS offline package → network terrain
  *              (Mapterhorn / Copernicus GLO-30, AWS Terrarium fallback per tile).
- *   clutter:   local COG file (canopy/DSM heights) → ESA WorldCover WMS
- *              (Africa) → none.
+ *   clutter:   local COG file (canopy/DSM heights) → ESA WorldCover (global,
+ *              Planetary Computer; DEA WMS fallback in Africa) refined by
+ *              Meta canopy height (CHM v2, source.coop) → none.
  *
  * The local-COG path is the OPSEC-clean runtime entry for the no-CORS public
  * datasets (Copernicus GLO-30, WorldCover COG, Meta canopy — CORS table in
@@ -22,6 +23,7 @@
 
 import { buildDem, pickZoom } from '../workers/dem.js';
 import { buildLandcover, clutterDbForClass, clutterHeightForClass } from '../workers/worldcover.js';
+import { buildCanopy } from './canopy.js';
 import { offlineTileGetter } from './offline.js';
 
 // cog.js is only needed when the user provides a local COG file; importing it
@@ -83,9 +85,32 @@ export async function buildElevationSampler({ bounds, cog = null }) {
   return base ? { id: baseId, sample: base.sample } : null;
 }
 
+// WorldCover classes where measured canopy height is the better clutter
+// height. Built-up keeps its table value (canopy maps miss buildings); bare,
+// snow and water stay clear.
+const CANOPY_CLASSES = new Set([10, 20, 30, 40, 90, 95, 100]);
+const FOREST_CLASSES = new Set([10, 95]); // tree cover, mangrove
+
 /**
- * Clutter sampler for bounds. Priority: local COG (heights) → WorldCover WMS
- * (classes → heights + dB). Returns null when neither is available.
+ * Clutter height (m) and loss (dB) for one point from its WorldCover class
+ * (0 = unknown) and measured canopy height (0 = none / no data). Forest takes
+ * the measured height (a young or sparse stand is lower than the 20 m table
+ * value); other vegetation takes the taller of table and canopy, so hedges
+ * and tree lines in farmland count. Pure.
+ */
+export function blendClutter(cls, canopyM) {
+  if (!(canopyM > 0) || (cls && !CANOPY_CLASSES.has(cls))) {
+    return { h: clutterHeightForClass(cls), db: clutterDbForClass(cls) };
+  }
+  const h = !cls || FOREST_CLASSES.has(cls) ? canopyM : Math.max(clutterHeightForClass(cls), canopyM);
+  return { h, db: clutterDbForHeight(h) };
+}
+
+/**
+ * Clutter sampler for bounds. Priority: local COG (heights) → ESA WorldCover
+ * classes refined by Meta canopy height; either alone when the other fails.
+ * Throws the LandcoverError (with `.reason`) when neither loads, so callers
+ * can say why clutter is missing.
  */
 export async function buildClutterSampler({ bounds, cog = null }) {
   if (cog) {
@@ -101,11 +126,21 @@ export async function buildClutterSampler({ bounds, cog = null }) {
       };
     }
   }
-  const lc = await buildLandcover(bounds).catch(() => null);
-  if (!lc) return null;
+  const [lcRes, chmRes] = await Promise.allSettled([buildLandcover(bounds), buildCanopy(bounds)]);
+  const lc = lcRes.status === 'fulfilled' ? lcRes.value : null;
+  const chm = chmRes.status === 'fulfilled' ? chmRes.value : null;
+  if (!lc && !chm) throw lcRes.reason;
+  if (!chm) {
+    return {
+      id: lc.id,
+      heightM: (lng, lat) => clutterHeightForClass(lc.sample(lng, lat)),
+      dbAt: (lng, lat) => clutterDbForClass(lc.sample(lng, lat)),
+    };
+  }
+  const at = (lng, lat) => blendClutter(lc ? lc.sample(lng, lat) : 0, chm.heightM(lng, lat));
   return {
-    id: 'worldcover',
-    heightM: (lng, lat) => clutterHeightForClass(lc.sample(lng, lat)),
-    dbAt: (lng, lat) => clutterDbForClass(lc.sample(lng, lat)),
+    id: lc ? `${lc.id}+${chm.id}` : chm.id,
+    heightM: (lng, lat) => at(lng, lat).h,
+    dbAt: (lng, lat) => at(lng, lat).db,
   };
 }

@@ -14,6 +14,7 @@ Terrain-aware communications coverage and planning, in the browser. Define where
 |---|---|
 | **Coverage modelling** | FSPL + Deygout (M2), ITU-R P.1812 Delta-Bullington in-browser (E2), optional CloudRF ITM backend (M18) |
 | **Propagation models** | Auto / P.1812 / FSPL+Deygout / CloudRF — user-selectable; model accuracy badge with ±dB margin |
+| **Validation** | P.1812 engine checked step by step against the ITU-R WP 3M validation set — published at `/validation/` ([docs](docs/validation-p1812.md)) |
 | **Mission inputs** | Area (circle/polygon), fixed sites, route, points — lat/long, MGRS, or UTM (M4) |
 | **Site recommendation** | Greedy set-cover over demand points with scored relay positions (M3) |
 | **Drone relay** | Altitude optimiser — samples 6 AGL heights, bar chart UI, auto-applies best (M2.1, M42) |
@@ -66,7 +67,8 @@ For development guidance, open the folder in Claude Code and read `CLAUDE.md` fi
 - Basemaps: Esri (Esri World Imagery, under Esri's terms and never stored offline), national aerial imagery (see `docs/DATA-SOURCES.md`), EOX (Sentinel-2, CC BY-NC-SA), OpenTopoMap (CC-BY-SA), OpenStreetMap contributors (ODbL), CARTO, OpenFreeMap. Intended for research and other non-commercial use.
 - Buildings: Overture Maps Foundation (© OpenStreetMap contributors)
 - Cellular towers: OpenCelliD / Unwired Labs (CC BY 4.0) via Overpass API
-- Land cover: ESA WorldCover (CC BY 4.0), Digital Earth Africa WMS
+- Land cover: ESA WorldCover (CC BY 4.0), via Microsoft Planetary Computer (worldwide; Digital Earth Africa WMS as fallback)
+- Tree heights: Meta/WRI Canopy Height Map v2 (CC BY 4.0), via source.coop
 - Radio specs: FCC OET equipment authorisation database; ETSI
 
 ---

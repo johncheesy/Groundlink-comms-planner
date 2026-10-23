@@ -16,7 +16,7 @@
  */
 
 import {
-  fetchTerrainTile, decodeTerrarium, createMosaicSampler, sourceSummary, lon2tileX, lat2tileY,
+  TERRAIN_PRIMARY, fetchTerrainTile, decodeTerrarium, createMosaicSampler, sourceSummary, lon2tileX, lat2tileY,
 } from '../data/terrain-tiles.js';
 
 /** Choose a tile zoom that spans ~2–3 tiles across the bbox (cap fetch count). */
@@ -79,5 +79,32 @@ export async function buildDem(bounds, z = pickZoom(bounds), getTile = networkTi
   if (!tiles.size) return null;
 
   const sampler = createMosaicSampler({ z, tiles, range });
-  return { id: sourceSummary(sources), z, sample: sampler.sample };
+  return { id: sourceSummary(sources), z, complete: tiles.size === cols * rows, sample: sampler.sample };
+}
+
+/**
+ * LiDAR zoom for a bbox: pickZoom without the zoom-12 cap (max 14), or null
+ * when the area is too big to gain from more than GLO-30's 30 m.
+ */
+export function pickLidarZoom(bounds) {
+  const ewDeg = Math.max(Math.abs(bounds.east - bounds.west), 1e-4);
+  const z = Math.round(Math.log2(720 / ewDeg));
+  return z > 12 ? Math.min(14, z) : null;
+}
+
+/**
+ * Bare-earth LiDAR terrain from Mapterhorn zoom 13–14, which exists only in
+ * the ~35 countries with open LiDAR. All or nothing: returns null unless every
+ * tile of the bbox has LiDAR, so a run never mixes bare earth with the GLO-30
+ * surface model. Bare earth is only correct together with explicit clutter
+ * heights (ADR 0005/0007) — the caller checks that.
+ */
+export async function buildLidarDem(bounds) {
+  const z = pickLidarZoom(bounds);
+  if (!z) return null;
+  const dem = await buildDem(bounds, z, async (zz, x, y) => {
+    const r = await fetch(TERRAIN_PRIMARY.url(zz, x, y)).catch(() => null);
+    return r?.ok ? { blob: await r.blob(), source: 'lidar' } : null;
+  });
+  return dem?.complete ? dem : null;
 }

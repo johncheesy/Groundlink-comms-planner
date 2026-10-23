@@ -34,6 +34,8 @@ export function cellSizeM(bounds, cols) {
  * @param {boolean} p.radioApplied     a radio from the arsenal is active
  * @param {string|null} [p.terrainSource] credit for the elevation data used
  * @param {'standard'|'high'} [p.detail] grid detail used
+ * @param {string} [p.antenna]   tx antenna summary (antennaText)
+ * @param {number} [p.rxGainDbi] rx antenna gain
  * @returns {{ summary:string, source:'radio'|'defaults'|'manual', warnings:string[] }}
  */
 export function describeAssumptions(p) {
@@ -44,6 +46,8 @@ export function describeAssumptions(p) {
     `tx ${fmt(p.txHeightM)} m`,
     `rx ${fmt(p.rxHeightM)} m`,
   ];
+  if (p.antenna) parts.push(p.antenna);
+  if (p.rxGainDbi) parts.push(`rx ${p.rxGainDbi > 0 ? '+' : ''}${fmt(p.rxGainDbi)} dBi`);
   if (p.cellM != null) parts.push(`cell ≈ ${p.cellM >= 1000 ? `${(p.cellM / 1000).toFixed(1)} km` : `${Math.round(p.cellM)} m`}`);
   if (p.terrainSource) parts.push(`terrain: ${p.terrainSource}`);
 

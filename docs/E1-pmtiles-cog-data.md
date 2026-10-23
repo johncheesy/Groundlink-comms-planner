@@ -154,6 +154,7 @@ still renders terrain + coverage for that AOI.
 | **source.coop** Overture buildings PMTiles | ✓ | ✓ `*` | **runtime** — the E1 reference PMTiles layer |
 | Copernicus GLO-30 COG (AWS) | ✓ | ✗ | local-file / staging only |
 | ESA WorldCover COG (AWS) | ✓ | ✗ | local-file / staging only |
+| ESA WorldCover via Planetary Computer data API (`item/bbox/…png`) — probed 22 Oct 2026 | n/a | ✓ `*` | **runtime** — global clutter since 22 Oct 2026 |
 | Meta/WRI canopy CHM COG (AWS) | ✓ | ✗ | local-file / staging only |
 | ETH canopy 10 m (share.phys.ethz.ch) | — | — | URL dead (301 → DOI); staging via new host only |
 

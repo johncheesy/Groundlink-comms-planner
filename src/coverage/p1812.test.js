@@ -244,3 +244,34 @@ describe('buildProfileP1812 (worker profile contract)', () => {
     expect(prof.every((pt) => pt.clutterM === 0)).toBe(true);
   });
 });
+
+describe('P.1812-8 geometry alignment (validated against the ITU set, docs/validation-p1812.md)', () => {
+  it('horizon angles and troposcatter use bare terrain: clutter along the path leaves θ and Lbs alone', () => {
+    const bare = ridgeProfile(60, 120, 30);
+    const cluttered = bare.map((q, i) => ({ ...q, clutterM: i > 0 && i < bare.length - 1 ? 25 : 0 }));
+    const a = p1812Loss({ freqMHz: 450, profile: bare, txHeightM: 20, rxHeightM: 2, sigmaL: 0 });
+    const b = p1812Loss({ freqMHz: 450, profile: cluttered, txHeightM: 20, rxHeightM: 2, sigmaL: 0 });
+    expect(b.components.thetaMrad).toBeCloseTo(a.components.thetaMrad, 9);
+    expect(b.components.troposcatterDb).toBeCloseTo(a.components.troposcatterDb, 9);
+    // …while clutter still adds diffraction loss through the Bullington profile.
+    expect(b.components.diffraction50Db).toBeGreaterThan(a.components.diffraction50Db);
+  });
+
+  it('on a LoS path the multipath distances meet at the largest-ν point, not mid-path', () => {
+    // A bump near the tx end on an otherwise clear path: dlt+dlr is still the
+    // path length, so Esp is unchanged — but θ comes from the direct ray.
+    const prof = flatProfile(20, 20, 0, 0);
+    prof[3].terrainM = 5;
+    const r = p1812Loss({ freqMHz: 150, p: 10, profile: prof, txHeightM: 60, rxHeightM: 60, sigmaL: 0 });
+    const ae = medianEffectiveEarthKm(45);
+    const thetaD = 1000 * Math.atan(-20 / (2 * ae));
+    expect(r.components.thetaMrad).toBeCloseTo((1000 * 20) / ae + 2 * thetaD, 9);
+  });
+
+  it('β0 takes the longest land / inland stretches when given', () => {
+    const def = beta0Percent(53, 235, 0.9);
+    const zoned = beta0Percent(53, 235, 0.9, { dtmKm: 17.5, dlmKm: 12.5 });
+    expect(zoned).not.toBeCloseTo(def, 3);
+    expect(beta0Percent(53, 235, 0, { dtmKm: 235 })).toBeCloseTo(beta0Percent(53, 235, 0), 12);
+  });
+});

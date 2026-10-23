@@ -10,6 +10,7 @@
  * the save dialog says so.
  */
 
+import { normalizeAntenna } from '../coverage/antenna.js';
 import { LIMITS, strictNum, isLatLng, clipName } from '../geo/validate.js';
 
 export const MISSION_FORMAT = 'groundlink-mission';
@@ -98,6 +99,9 @@ function cleanCoverage(c) {
     rxHeightM: num(c.rxHeightM),
     useTerrain: bool(c.useTerrain),
     useClutter: bool(c.useClutter),
+    // Antenna fields arrived after v1 files existed; absent → dipole, 0 dBi.
+    ...(c.antenna && typeof c.antenna === 'object' ? { antenna: normalizeAntenna(c.antenna) } : {}),
+    ...(num(c.rxGainDbi) != null ? { rxGainDbi: num(c.rxGainDbi) } : {}),
     thresholds: {
       excellent: num(t.excellent),
       good: num(t.good),

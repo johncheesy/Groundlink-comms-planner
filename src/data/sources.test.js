@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { writeArrayBuffer } from 'geotiff';
-import { clutterDbForHeight, buildElevationSampler, buildClutterSampler } from './sources.js';
+import { clutterDbForHeight, blendClutter, buildElevationSampler, buildClutterSampler } from './sources.js';
 
 /** Synthetic canopy-height GeoTIFF over a 0–4° square (no real coordinates). */
 async function canopyBlob(values) {
@@ -51,8 +51,13 @@ describe('buildClutterSampler', () => {
     expect(sampler.dbAt(2, 2)).toBe(0);
   });
 
-  it('degrades to null when no source is reachable (node has no WMS)', async () => {
-    expect(await buildClutterSampler({ bounds: BOUNDS })).toBeNull();
+  it('rejects with the reason when the land-cover service is unreachable', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
+    try {
+      await expect(buildClutterSampler({ bounds: BOUNDS })).rejects.toMatchObject({ reason: 'network' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
@@ -69,5 +74,28 @@ describe('buildElevationSampler', () => {
 
   it('degrades to null with no COG and no reachable tiles (flat-earth fallback)', async () => {
     expect(await buildElevationSampler({ bounds: BOUNDS })).toBeNull();
+  });
+});
+
+describe('blendClutter', () => {
+  it('forest takes the measured canopy height', () => {
+    expect(blendClutter(10, 6).h).toBe(6);
+    expect(blendClutter(10, 6).db).toBeCloseTo(clutterDbForHeight(6), 9);
+  });
+
+  it('other vegetation takes the taller of table and canopy', () => {
+    expect(blendClutter(40, 12).h).toBe(12); // tree line in cropland
+    expect(blendClutter(20, 1).h).toBe(4); // shrubland table beats 1 m
+  });
+
+  it('keeps the class table without canopy data or for built-up, bare and water', () => {
+    expect(blendClutter(10, 0)).toEqual({ h: 20, db: 12 });
+    expect(blendClutter(50, 15)).toEqual({ h: 8, db: 10 });
+    expect(blendClutter(80, 9)).toEqual({ h: 0, db: 0 });
+  });
+
+  it('uses canopy alone when the land-cover class is unknown', () => {
+    expect(blendClutter(0, 18).h).toBe(18);
+    expect(blendClutter(0, 0)).toEqual({ h: 0, db: 0 });
   });
 });

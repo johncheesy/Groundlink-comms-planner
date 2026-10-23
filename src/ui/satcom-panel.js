@@ -252,7 +252,7 @@ export function createSatcomPanel(host, { onCentroidNeeded } = {}) {
     host.innerHTML = '';
     const ph = e('div', 'satcom-placeholder');
     ph.innerHTML =
-      `<p class="satcom-placeholder__text">Define a mission area to see satellite look angles.</p>`;
+      `<p class="satcom-placeholder__text">Draw an area, or place sites, a route or points, to see satellite look angles.</p>`;
     if (onCentroidNeeded) {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -371,7 +371,7 @@ export function createSatcomPanel(host, { onCentroidNeeded } = {}) {
 
     // ── Footer note ──────────────────────────────────────────────────────
     const footer = e('p', 'satcom-footer',
-      `Look angles from ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E. ` +
+      `Look angles from ${Math.abs(lat).toFixed(4)}° ${lat < 0 ? 'S' : 'N'}, ${Math.abs(lng).toFixed(4)}° ${lng < 0 ? 'W' : 'E'}. ` +
       `Terrain masking not included — confirm with path profile (M14).`);
     host.append(footer);
 

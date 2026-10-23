@@ -313,9 +313,12 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   };
 }
 
-const HIRES_PREF_KEY = 'gl.hires.v1';
+// v2: national hi-res imagery is opt-in. It can hide what Esri shows (water,
+// newer features) where the national photo is older or differently processed,
+// so Esri alone is the default; v1's stored "on" is deliberately ignored.
+const HIRES_PREF_KEY = 'gl.hires.v2';
 function readHiresPref() {
-  try { return localStorage.getItem(HIRES_PREF_KEY) !== '0'; } catch (_) { return true; } // default on
+  try { return localStorage.getItem(HIRES_PREF_KEY) === '1'; } catch (_) { return false; } // default off
 }
 function writeHiresPref(on) {
   try { localStorage.setItem(HIRES_PREF_KEY, on ? '1' : '0'); } catch (_) { /* private mode */ }
