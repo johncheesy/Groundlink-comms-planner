@@ -71,7 +71,9 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
   const spacer = el('span', 'ops-top__spacer');
   top.appendChild(spacer);
   const actions = el('div', 'ops-top__actions');
-  for (const n of [nodes.open, nodes.run, nodes.brief]) if (n) actions.appendChild(n);
+  // The User/Advanced switch sits next to Run: in the classic layout it lived
+  // in the panel header, which this workspace does not show.
+  for (const n of [nodes.mode, nodes.open, nodes.run, nodes.brief]) if (n) actions.appendChild(n);
   top.appendChild(actions);
   if (nodes.right) top.appendChild(nodes.right);
 

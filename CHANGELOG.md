@@ -10,6 +10,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.10.3-beta] — 2026-10-23
+
+### Fixed
+- **Advanced mode was unreachable in the Ops workspace.** The User/Advanced switch lived in the classic panel header, which the Ops workspace hides, so mast height, clutter, antenna heights and thresholds could not be set. The switch now sits in the top bar next to Run, and ⌘K has *Advanced mode (ADV) on / off*. Found in the live Upemba walkthrough.
+
 ## [0.10.2-beta] — 2026-10-23
 
 ### Fixed
