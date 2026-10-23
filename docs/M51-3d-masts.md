@@ -1,7 +1,17 @@
 # M51 — 3D masts on the map
 
-**Status:** spec, 23 Oct 2026 · not started · follows M50 (per-site height)
-and M49 (antenna pointing)
+**Status:** phase 1 built 23 Oct 2026 (0.10.0-beta) · follows M50
+(per-site height) and M49 (antenna pointing)
+
+**Implementation notes (phase 1).** `src/map/masts-3d.js` (pure
+`mastFeatures()`, `discRing()`, `panelRing()`; 5 tests). Sizes ended up a
+little wider than the table below so a mast still reads at zoom 15–16:
+plinth 4 m, mast 1.1 m, head 2.2 m radius, panel 2.4 × 0.5 m. The mast body
+is the dark map colour (`--mapbg`) rather than teal, because a teal pole on
+the teal raster disappeared; head and plinth are teal, panel and drone
+azure. Refreshed with the beams (sites, antenna), on the drone's state, on
+the panel height and on a theme switch; hidden when 3D is off. KML: site
+placemarks carry `relativeToGround` + `extrude` at the mast height.
 
 ## Problem
 

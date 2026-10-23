@@ -5,6 +5,7 @@ import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
 import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2
 import { createOpsDrawer, linkRows, siteRows, gapRows, radioRows } from './ui/ops-drawer.js'; // M52 phase 3–4
 import { relayRecommendation } from './export/gap-report.js';
+import { updateMasts3d, setMasts3dVisible } from './map/masts-3d.js'; // M51
 import { modelLabelText } from './ui/badges.js';
 
 // M52 phase 1: the Ops workspace is opt-in (?ws=ops). The grid switches
@@ -351,6 +352,7 @@ toggle3dBtn?.addEventListener('click', () => {
   toggle3dBtn.setAttribute('aria-pressed', String(on));
   viewSliders.hidden = !on;
   statusMode.textContent = on ? '3D terrain on' : '3D terrain off';
+  if (on) refreshMasts3d(); else setMasts3dVisible(map, false); // M51
 });
 
 // ---- Buildings toggle (independent of terrain 3D) -----------------------
@@ -1288,6 +1290,7 @@ whenStyleReady(() => {
         route: mission?.getRoute?.() ?? [],
         aoi: aoi?.getAoi?.() ?? null,
         missionName: 'GroundLink mission',
+        mastHeightM: clampNum(txHeightInput.value, 1, 300, 10), // M51: KML extrudes sites to their mast height
       };
     },
     onStatus: (msg) => { statusMode.textContent = msg; },
@@ -1458,6 +1461,7 @@ whenStyleReady(() => {
     onState(st) {
       lastDroneState = st; // M52 drone tile
       refreshOpsRail();
+      refreshMasts3d(); // M51 hovering body follows the drone
       if ('hasDrone' in st) {
         dronePanel.hidden = !st.hasDrone;
         const pace = st.pace;
@@ -2196,6 +2200,25 @@ for (const el of [powerInput, txLossInput, antennaGain, antennaPreset]) {
 /** M49: beam wedges for directional antennas, one per fixed site. */
 function refreshBeams() {
   if (mission) updateAntennaBeams(map, mission.getSites(), readAntenna());
+  refreshMasts3d();
+}
+
+// The mast colours come from the theme tokens: redraw after a theme switch.
+$('#themeToggle')?.addEventListener('click', () => setTimeout(refreshMasts3d, 0));
+
+/** M51: masts and the drone as extrusions, shown while 3D terrain is on. */
+function refreshMasts3d() {
+  if (!mission || !map) return;
+  const d = registry?.get?.('drone-relay');
+  const drone = d && lastDroneState?.hasDrone
+    ? { lng: d.lngLat[0], lat: d.lngLat[1], altM: lastDroneState.altM ?? 100 }
+    : null;
+  updateMasts3d(
+    map,
+    mission.getSites(),
+    { panelHeightM: clampNum(txHeightInput.value, 1, 300, 10), antenna: readAntenna(), drone },
+    { visible: Boolean(mapApi?.isTerrainOn?.()) },
+  );
 }
 antennaPreset?.addEventListener('change', () => {
   const p = ANTENNA_PRESETS[antennaPreset.value];
@@ -2280,6 +2303,7 @@ const listWords = (a) => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', 
 // A planner's own edit marks the field as theirs (see plannerSet).
 freqInput.addEventListener('input', () => plannerSet.add('freq'));
 txHeightInput.addEventListener('input', () => plannerSet.add('txHeight'));
+txHeightInput.addEventListener('change', () => refreshMasts3d()); // M51: panel height feeds the masts
 rxHeightInput.addEventListener('input', () => plannerSet.add('rxHeight'));
 for (const el of [thExcellent, thGood, thMarginal, thNone]) el?.addEventListener('input', () => plannerSet.add('thresholds'));
 
