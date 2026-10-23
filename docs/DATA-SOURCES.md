@@ -76,6 +76,7 @@ Only the providers whose imagery is actually in view are credited (rebuilt as th
 | ESA WorldCover 2021 via Microsoft Planetary Computer data API | Clutter (worldwide) | CC BY 4.0 |
 | ESA WorldCover via Digital Earth Africa WMS | Clutter fallback (Africa only) | CC BY 4.0 |
 | Meta/WRI Canopy Height Map v2 via source.coop (Taylor Geospatial mirror) | Tree heights in clutter | CC BY 4.0 |
+| GHSL GHS-BUILT-H R2023A (ANBH, 2018), European Commission JRC, AWS bucket `jrc-ghsl` | Building heights in clutter | CC BY 4.0 |
 | Bare-earth LiDAR via Mapterhorn (zoom 13–14, ~35 countries) | Terrain for small P.1812 runs with clutter | per source, see mapterhorn.com/attribution |
 | Overture Maps buildings | 3D buildings (optional) | ODbL / CDLA, see overturemaps.org |
 | FCC equipment database | Radio specifications | US public records |

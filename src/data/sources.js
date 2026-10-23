@@ -13,7 +13,8 @@
  *              (Mapterhorn / Copernicus GLO-30, AWS Terrarium fallback per tile).
  *   clutter:   local COG file (canopy/DSM heights) → ESA WorldCover (global,
  *              Planetary Computer; DEA WMS fallback in Africa) refined by
- *              Meta canopy height (CHM v2, source.coop) → none.
+ *              Meta canopy height (CHM v2, source.coop) and GHSL building
+ *              height (jrc-ghsl on AWS) → none.
  *
  * The local-COG path is the OPSEC-clean runtime entry for the no-CORS public
  * datasets (Copernicus GLO-30, WorldCover COG, Meta canopy — CORS table in
@@ -24,6 +25,7 @@
 import { buildDem, pickZoom } from '../workers/dem.js';
 import { buildLandcover, clutterDbForClass, clutterHeightForClass } from '../workers/worldcover.js';
 import { buildCanopy } from './canopy.js';
+import { buildBuildingHeights } from './buildings.js';
 import { offlineTileGetter } from './offline.js';
 
 // cog.js is only needed when the user provides a local COG file; importing it
@@ -90,15 +92,22 @@ export async function buildElevationSampler({ bounds, cog = null }) {
 // snow and water stay clear.
 const CANOPY_CLASSES = new Set([10, 20, 30, 40, 90, 95, 100]);
 const FOREST_CLASSES = new Set([10, 95]); // tree cover, mangrove
+const BUILT_UP = 50;
 
 /**
  * Clutter height (m) and loss (dB) for one point from its WorldCover class
- * (0 = unknown) and measured canopy height (0 = none / no data). Forest takes
- * the measured height (a young or sparse stand is lower than the 20 m table
- * value); other vegetation takes the taller of table and canopy, so hedges
- * and tree lines in farmland count. Pure.
+ * (0 = unknown), measured canopy height and average building height (0 = none
+ * / no data). Built-up takes the measured building height (a village of 5 m
+ * houses is lower than a 25 m city centre; the 8 m table value only without
+ * data). Forest takes the measured canopy (a young or sparse stand is lower
+ * than the 20 m table value); other vegetation takes the taller of table and
+ * canopy, so hedges and tree lines in farmland count. Pure.
  */
-export function blendClutter(cls, canopyM) {
+export function blendClutter(cls, canopyM, buildingM = 0) {
+  if (buildingM > 0 && (cls === BUILT_UP || !cls)) {
+    const h = cls ? buildingM : Math.max(buildingM, canopyM || 0);
+    return { h, db: clutterDbForHeight(h) };
+  }
   if (!(canopyM > 0) || (cls && !CANOPY_CLASSES.has(cls))) {
     return { h: clutterHeightForClass(cls), db: clutterDbForClass(cls) };
   }
@@ -108,9 +117,9 @@ export function blendClutter(cls, canopyM) {
 
 /**
  * Clutter sampler for bounds. Priority: local COG (heights) → ESA WorldCover
- * classes refined by Meta canopy height; either alone when the other fails.
- * Throws the LandcoverError (with `.reason`) when neither loads, so callers
- * can say why clutter is missing.
+ * classes refined by Meta canopy height and GHSL building height; any subset
+ * when the others fail. Throws the LandcoverError (with `.reason`) when none
+ * loads, so callers can say why clutter is missing.
  */
 export async function buildClutterSampler({ bounds, cog = null }) {
   if (cog) {
@@ -126,20 +135,28 @@ export async function buildClutterSampler({ bounds, cog = null }) {
       };
     }
   }
-  const [lcRes, chmRes] = await Promise.allSettled([buildLandcover(bounds), buildCanopy(bounds)]);
-  const lc = lcRes.status === 'fulfilled' ? lcRes.value : null;
-  const chm = chmRes.status === 'fulfilled' ? chmRes.value : null;
-  if (!lc && !chm) throw lcRes.reason;
-  if (!chm) {
+  const [lcRes, chmRes, bldRes] = await Promise.allSettled([
+    buildLandcover(bounds), buildCanopy(bounds), buildBuildingHeights(bounds),
+  ]);
+  const ok = (r) => (r.status === 'fulfilled' ? r.value : null);
+  const lc = ok(lcRes);
+  const chm = ok(chmRes);
+  const bld = ok(bldRes);
+  if (!lc && !chm && !bld) throw lcRes.reason;
+  if (!chm && !bld) {
     return {
       id: lc.id,
       heightM: (lng, lat) => clutterHeightForClass(lc.sample(lng, lat)),
       dbAt: (lng, lat) => clutterDbForClass(lc.sample(lng, lat)),
     };
   }
-  const at = (lng, lat) => blendClutter(lc ? lc.sample(lng, lat) : 0, chm.heightM(lng, lat));
+  const at = (lng, lat) => blendClutter(
+    lc ? lc.sample(lng, lat) : 0,
+    chm ? chm.heightM(lng, lat) : 0,
+    bld ? bld.heightM(lng, lat) : 0,
+  );
   return {
-    id: lc ? `${lc.id}+${chm.id}` : chm.id,
+    id: [lc, chm, bld].filter(Boolean).map((s) => s.id).join('+'),
     heightM: (lng, lat) => at(lng, lat).h,
     dbAt: (lng, lat) => at(lng, lat).db,
   };

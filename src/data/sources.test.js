@@ -99,3 +99,25 @@ describe('blendClutter', () => {
     expect(blendClutter(0, 0)).toEqual({ h: 0, db: 0 });
   });
 });
+
+describe('blendClutter — building heights', () => {
+  it('built-up takes the measured block height instead of the 8 m table', () => {
+    expect(blendClutter(50, 0, 22).h).toBe(22);
+    expect(blendClutter(50, 0, 22).db).toBeCloseTo(clutterDbForHeight(22), 9);
+    expect(blendClutter(50, 0, 4).h).toBe(4); // low village
+  });
+
+  it('keeps the table for built-up without building data', () => {
+    expect(blendClutter(50, 0, 0)).toEqual({ h: 8, db: 10 });
+  });
+
+  it('leaves vegetation and open classes to the canopy rules', () => {
+    expect(blendClutter(10, 12, 9).h).toBe(12); // forest pixel with a few houses
+    expect(blendClutter(30, 0, 6)).toEqual({ h: 1, db: 2 }); // grassland
+  });
+
+  it('without land cover takes the taller of buildings and canopy', () => {
+    expect(blendClutter(0, 5, 14).h).toBe(14);
+    expect(blendClutter(0, 18, 14).h).toBe(18);
+  });
+});

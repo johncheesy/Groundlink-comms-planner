@@ -69,6 +69,7 @@ For development guidance, open the folder in Claude Code and read `CLAUDE.md` fi
 - Cellular towers: OpenCelliD / Unwired Labs (CC BY 4.0) via Overpass API
 - Land cover: ESA WorldCover (CC BY 4.0), via Microsoft Planetary Computer (worldwide; Digital Earth Africa WMS as fallback)
 - Tree heights: Meta/WRI Canopy Height Map v2 (CC BY 4.0), via source.coop
+- Building heights: GHSL GHS-BUILT-H R2023A, European Commission JRC (CC BY 4.0)
 - Radio specs: FCC OET equipment authorisation database; ETSI
 
 ---
