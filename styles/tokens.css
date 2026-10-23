@@ -17,14 +17,14 @@
   --hair2: #d6dce5;
   --ink: #0f141b;
   --dim: #586273;
-  --faint: #929cac;
-  --accent: #0a8475; /* deep teal: text, lines, primary action */
+  --faint: #636c7b; /* ≥ 4.5:1 on every light surface (UI test U5) */
+  --accent: #08776a; /* deep teal: text, lines, primary action — ≥ 4.5:1 on every light surface (UI retest) */
   --accent-bright: #19c4ad; /* vivid teal: fills / tints on light */
   --accent2: #2a7fe0; /* azure: assets / tracks */
   --accent-ink: #ffffff; /* text on accent button */
   --warn: #cf8a16;
   --bad: #dd4f68;
-  --ok: #0a8475;
+  --ok: #08776a;
 
   /* ---- map canvas + on-map feature colours (theme-independent) ---- */
   --mapbg: #0b1018;
@@ -93,7 +93,7 @@
   --hair2: rgba(255, 255, 255, 0.15);
   --ink: #eef0f5;
   --dim: #a6adbe;
-  --faint: #6c7490;
+  --faint: #8a91a8; /* ≥ 4.5:1 on every dark surface (UI test U5) */
   --accent: #34e6c2; /* bright teal reads on dark */
   --accent-bright: #34e6c2;
   --accent2: #46b6ff;

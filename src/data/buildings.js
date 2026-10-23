@@ -29,7 +29,7 @@ export async function buildBuildingHeights(bounds, { url = GHSL_ANBH_URL } = {})
   const { buildCogSampler } = await import('./cog.js');
   let timer;
   const sampler = await Promise.race([
-    buildCogSampler(url, bounds, { maxDim: 1024, neutral: 0, interpolate: false }),
+    buildCogSampler(url, bounds, { maxDim: 1024, neutral: 0, interpolate: false, rememberFailure: false }),
     new Promise((resolve) => { timer = setTimeout(() => resolve(null), TIMEOUT_MS); }),
   ]).finally(() => clearTimeout(timer));
   if (!sampler) return null;

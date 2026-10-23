@@ -70,35 +70,55 @@ function wedgeImage(bwDeg, color) {
   return ctx.getImageData(0, 0, px, px);
 }
 
+// Latest update that arrived before the style could take a source; replayed
+// on the next idle so a mission loaded during start-up still shows its beams.
+const pending = new WeakMap();
+
 /** Add/refresh the beam layer for `sites` with the current `antenna`. */
 export function updateAntennaBeams(map, sites, antenna) {
-  if (!map?.isStyleLoaded?.() && !map?.getSource?.(SRC)) {
-    map?.once?.('style.load', () => updateAntennaBeams(map, sites, antenna));
+  if (!map) return;
+  const data = beamFeatures(sites, antenna);
+  const src = map.getSource(SRC);
+  if (src) {
+    addImages(map, data);
+    src.setData(data);
     return;
   }
-  const data = beamFeatures(sites, antenna);
+  try {
+    addImages(map, data);
+    map.addSource(SRC, { type: 'geojson', data });
+    map.addLayer({
+      id: LAYER,
+      type: 'symbol',
+      source: SRC,
+      layout: {
+        'icon-image': ['concat', 'gl-beam-', ['to-string', ['get', 'bw']]],
+        'icon-rotate': ['get', 'az'],
+        'icon-rotation-alignment': 'map',
+        'icon-pitch-alignment': 'map',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    });
+  } catch {
+    // Style not ready yet (isStyleLoaded() is also false while tiles load,
+    // and 'style.load' only fires once): keep the newest call, retry on idle.
+    const queued = pending.has(map);
+    pending.set(map, [sites, antenna]);
+    if (!queued) {
+      map.once('idle', () => {
+        const args = pending.get(map);
+        pending.delete(map);
+        if (args) updateAntennaBeams(map, ...args);
+      });
+    }
+  }
+}
+
+function addImages(map, data) {
   const color = cssColor('--feat-site', '#34e6c2');
   for (const f of data.features) {
     const id = `gl-beam-${f.properties.bw}`;
     if (!map.hasImage(id)) map.addImage(id, wedgeImage(f.properties.bw, color), { pixelRatio: 2 });
   }
-  const src = map.getSource(SRC);
-  if (src) {
-    src.setData(data);
-    return;
-  }
-  map.addSource(SRC, { type: 'geojson', data });
-  map.addLayer({
-    id: LAYER,
-    type: 'symbol',
-    source: SRC,
-    layout: {
-      'icon-image': ['concat', 'gl-beam-', ['to-string', ['get', 'bw']]],
-      'icon-rotate': ['get', 'az'],
-      'icon-rotation-alignment': 'map',
-      'icon-pitch-alignment': 'map',
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
-    },
-  });
 }

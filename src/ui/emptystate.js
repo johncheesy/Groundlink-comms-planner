@@ -19,7 +19,7 @@ export function isEmptyMission({ aoiSet = false, objectCount = 0, importCount = 
  * update(state) shows/hides from the predicate; any non-empty state (or the
  * dismiss ×) retires the card for good.
  */
-export function createEmptyState(host, { onDrawAoi, onPlaceMast, onOpenMission } = {}) {
+export function createEmptyState(host, { onDrawAoi, onPlaceMast, onOpenMission, onRetire } = {}) {
   let dismissed = false;
 
   const card = document.createElement('div');
@@ -39,8 +39,10 @@ export function createEmptyState(host, { onDrawAoi, onPlaceMast, onOpenMission }
     `<p class="estate__hint">Everything stays in your browser — nothing is uploaded. <kbd>⌘K</kbd> opens the command palette.</p>`;
 
   const retire = () => {
+    if (dismissed) return;
     dismissed = true;
     card.hidden = true;
+    onRetire?.();
   };
 
   card.querySelector('.estate__close').addEventListener('click', retire);

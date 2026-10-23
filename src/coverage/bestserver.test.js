@@ -127,3 +127,31 @@ describe('interference (C/I) view', () => {
     expect([...res.data.slice(20, 24)]).toEqual([5, 0, 0, 255]); // interferer wins
   });
 });
+
+describe('best-server zones only where the signal is usable (UI test U8)', () => {
+  it('skips cells whose class is poor or none, and does not count them', () => {
+    const servers = new Uint8Array([0, 0, 1, 1]);
+    const marginQ = new Uint8Array([MARGIN_SINGLE, MARGIN_SINGLE, MARGIN_SINGLE, MARGIN_SINGLE]);
+    const classes = new Uint8Array([0, 3, 2, 4]);
+    const res = buildServerImage(servers, marginQ, { classes });
+    expect(res.covered).toBe(2);
+    expect(res.counts).toEqual([1, 1]);
+    expect(res.data[1 * 4 + 3]).toBe(0);
+    expect(res.data[3 * 4 + 3]).toBe(0);
+  });
+});
+
+describe('raster edge fade (UI test U12)', () => {
+  it('ramps alpha to the border and leaves the inside alone', async () => {
+    const { fadeEdges } = await import('./coverage.js');
+    const cols = 50, rows = 50;
+    const data = new Uint8ClampedArray(cols * rows * 4).fill(255);
+    fadeEdges(data, cols, rows, 0.1); // 5-cell band
+    const a = (r, c) => data[(r * cols + c) * 4 + 3];
+    expect(a(25, 25)).toBe(255);
+    expect(a(25, 0)).toBeLessThan(40);
+    expect(a(0, 0)).toBeLessThan(40);
+    expect(a(25, 2)).toBeGreaterThan(a(25, 0));
+    expect(a(25, 5)).toBe(255);
+  });
+});

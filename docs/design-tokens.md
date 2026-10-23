@@ -41,12 +41,12 @@ Codifies the look from `../../groundlink_moodboard_v6.html`. Drop the CSS block 
   --bg:#f4f6f9; --bg2:#edf0f4;
   --surface:#ffffff; --surface2:#fafbfd; --raise:#f0f3f7;
   --hair:#e5e8ef; --hair2:#d6dce5;
-  --ink:#0f141b; --dim:#586273; --faint:#929cac;
-  --accent:#0a8475;          /* deep teal: text, lines, primary action */
+  --ink:#0f141b; --dim:#586273; --faint:#636c7b;
+  --accent:#08776a;          /* deep teal: text, lines, primary action */
   --accent-bright:#19c4ad;   /* vivid teal: fills/tints on light */
   --accent2:#2a7fe0;         /* azure: assets / tracks */
   --accent-ink:#ffffff;      /* text on accent button */
-  --warn:#cf8a16; --bad:#dd4f68; --ok:#0a8475;
+  --warn:#cf8a16; --bad:#dd4f68; --ok:#08776a;
 
   /* map canvas + on-map feature colours (theme-independent) */
   --mapbg:#0b1018; --mapink:#cfe7e2;
@@ -66,7 +66,7 @@ Codifies the look from `../../groundlink_moodboard_v6.html`. Drop the CSS block 
   --bg:#0b0d12; --bg2:#0c0f15;
   --surface:#13161e; --surface2:#171b24; --raise:#1c212c;
   --hair:rgba(255,255,255,.08); --hair2:rgba(255,255,255,.15);
-  --ink:#eef0f5; --dim:#a6adbe; --faint:#6c7490;
+  --ink:#eef0f5; --dim:#a6adbe; --faint:#8a91a8;
   --accent:#34e6c2;          /* bright teal reads on dark */
   --accent-bright:#34e6c2;
   --accent2:#46b6ff;

@@ -8,6 +8,26 @@ import {
 } from './bestserver.js';
 
 /**
+ * Soften the raster's outer band (UI test U12): the compute window is a
+ * rectangle, and a hard edge at its border reads as a feature of the map.
+ * Alpha ramps from 0 at the border to full over `frac` of the grid. Pure,
+ * in place; exported for tests.
+ */
+export function fadeEdges(data, cols, rows, frac = 0.04) {
+  const bx = Math.max(1, Math.round(cols * frac));
+  const by = Math.max(1, Math.round(rows * frac));
+  for (let r = 0; r < rows; r++) {
+    const fy = Math.min(1, (Math.min(r, rows - 1 - r) + 0.5) / by);
+    for (let c = 0; c < cols; c++) {
+      const f = Math.min(fy, (Math.min(c, cols - 1 - c) + 0.5) / bx);
+      if (f >= 1) continue;
+      const o = (r * cols + c) * 4 + 3;
+      data[o] = Math.round(data[o] * f);
+    }
+  }
+}
+
+/**
  * Coverage controller (main thread) for MapLibre GL.
  *
  * Owns the compute Web Worker, turns its class grid into a coloured canvas
@@ -34,7 +54,7 @@ function hexToRgb(hex, fallback = [255, 255, 255]) {
 
 export function createCoverageController(
   map,
-  { onProgress, onStatus, onPaint, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.7, tint = null } = {},
+  { onProgress, onStatus, onPaint, src = SRC, layer = LAYER, before = BEFORE, opacity: initialOpacity = 0.55, tint = null, showNone: initialShowNone = false } = {},
 ) {
   // When `tint` is set (a hex colour), every covered cell paints that one colour
   // — used by the cellular layers (one flat colour per network type). Otherwise
@@ -56,6 +76,10 @@ export function createCoverageController(
   let worker = null;
   let jobId = 0;
   let opacity = initialOpacity;
+  // UI test U1: the "none" band (below the last threshold, above the floor)
+  // stays unpainted by default — painting it in the strongest colour hid the
+  // map under the area that has no signal. A toggle shows it.
+  let showNone = initialShowNone;
   let txMarker = null;
   let hasLayer = false;
   let currentBounds = null; // bbox of the in-flight / last job (worker omits it)
@@ -165,6 +189,7 @@ export function createCoverageController(
     let img;
     if (view === 'server' && servers) {
       const res = buildServerImage(servers, marginQ, {
+        classes, // zones only where the winning signal is usable (U8)
         palette: serverPalette,
         interference,
         thresholdDb: interferenceDb,
@@ -187,6 +212,7 @@ export function createCoverageController(
         const cls = classes[i];
         const o = i * 4;
         if (cls === COVERAGE_CLASS.TRANSPARENT || cls > 4) continue;
+        if (cls === COVERAGE_CLASS.NONE && !showNone) continue;
         const [r, g, b] = tintRgb || palette[cls];
         data[o] = r;
         data[o + 1] = g;
@@ -196,9 +222,16 @@ export function createCoverageController(
       img = new ImageData(data, cols, rows);
     }
     ctx.putImageData(img, 0, 0);
-    lastCanvas = canvas; // keep a reference for raster export (GeoTIFF/KMZ/TAK)
+    lastCanvas = canvas; // crisp raster for export (GeoTIFF/KMZ/TAK) — no edge fade
     lastPaintBounds = bounds;
-    const url = canvas.toDataURL('image/png');
+    // On screen only: soften the compute window's rectangular border.
+    const shown = document.createElement('canvas');
+    shown.width = cols;
+    shown.height = rows;
+    const faded = new ImageData(new Uint8ClampedArray(img.data), cols, rows);
+    fadeEdges(faded.data, cols, rows);
+    shown.getContext('2d').putImageData(faded, 0, 0);
+    const url = shown.toDataURL('image/png');
     // image-source coordinates: TL, TR, BR, BL
     const coordinates = [
       [bounds.west, bounds.north],
@@ -354,6 +387,12 @@ export function createCoverageController(
       if (lastRaw) renderRaster();
       return view;
     },
+    /** Show or hide the no-coverage band in the quality view (re-renders, no recompute). */
+    setShowNone(on) {
+      showNone = !!on;
+      if (lastRaw && view === 'quality') renderRaster();
+    },
+    getShowNone: () => showNone,
     /** Toggle the contested-overlap band (and optionally its dB threshold). */
     setInterference(on, thresholdDb) {
       interference = !!on;

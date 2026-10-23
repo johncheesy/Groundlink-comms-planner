@@ -168,8 +168,10 @@ const markFailed = (src) => (typeof src === 'string' ? failedUrls.add(src) : fai
 /**
  * Build a sync sampler over `bounds` from a COG (URL string or File/Blob).
  * Returns null on any failure (logged once); never throws to the caller.
+ * `rememberFailure: false` lets a network source be retried on the next call
+ * (a public dataset that hiccuped once should not stay off for the session).
  */
-export async function buildCogSampler(source, bounds, { maxDim = 512, neutral = 0, interpolate = true } = {}) {
+export async function buildCogSampler(source, bounds, { maxDim = 512, neutral = 0, interpolate = true, rememberFailure = true } = {}) {
   if (hasFailed(source)) return null;
   try {
     const tiff = await tiffFor(source);
@@ -210,7 +212,8 @@ export async function buildCogSampler(source, bounds, { maxDim = 512, neutral = 
     }
     return makeGridSampler(grid, { neutral, noData: grid.noData, interpolate });
   } catch (err) {
-    markFailed(source);
+    if (rememberFailure) markFailed(source);
+    else if (typeof source === 'string') urlTiffCache.delete(source); // reopen next time
     console.warn(`[groundlink] COG source unavailable (${sourceLabel(source)}):`, err?.message ?? err);
     return null;
   }

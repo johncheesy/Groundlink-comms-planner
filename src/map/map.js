@@ -7,6 +7,8 @@ import {
   TERRARIUM_DEM,
   BUILDINGS_LAYER,
   variantLayerId,
+  IMAGERY_LABELS,
+  LABELS_FALLBACK,
 } from './basemaps.js';
 import { registerHiresProtocol, HIRES_SOURCES, hiresLayerId } from './hires-imagery.js';
 import {
@@ -33,6 +35,7 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   // just replaces the handler.
   registerHiresProtocol(maplibregl, { onResult: onHiresResult });
   let hiresOn = readHiresPref();
+  let labelsOn = readLabelsPref();
 
   // Initial active state
   let activeCategory = DEFAULT_BASEMAP;
@@ -65,7 +68,7 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
 
   const map = new maplibregl.Map({
     container,
-    style: buildStyle(activeCategory, activeVariantIds, { hires: hiresOn }),
+    style: buildStyle(activeCategory, activeVariantIds, { hires: hiresOn, labels: labelsOn }),
     center: [4.9041, 52.3676], // [lng, lat] — Amsterdam (public default; OPSEC-safe)
     zoom: 10,
     pitch: 0,
@@ -173,7 +176,12 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
   }
 
   function applyBasemap(category, variantId) {
-    const newVariant = variantId ?? activeVariantIds[category];
+    // An unknown variant (e.g. a mission file naming a basemap that was later
+    // removed, like Carto Voyager) falls back to the category's first variant
+    // instead of hiding every layer and leaving a black map.
+    const known = (id) => BASEMAP_VARIANTS[category]?.some((v) => v.id === id);
+    const wanted = variantId ?? activeVariantIds[category];
+    const newVariant = known(wanted) ? wanted : BASEMAP_VARIANTS[category][0].id;
 
     // Hide every variant layer across all categories
     for (const cat of BASEMAPS) {
@@ -190,6 +198,7 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
     activeCategory = category;
     activeVariantIds[category] = newVariant;
     syncHires();
+    syncLabels();
     return { category: activeCategory, variantId: newVariant };
   }
 
@@ -208,6 +217,34 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
     writeHiresPref(hiresOn);
     syncHires();
     return hiresOn;
+  }
+
+  // ---- Place names and roads over the satellite map (UI test U3) ----------
+  function syncLabels() {
+    const show = labelsOn && activeCategory === 'imagery';
+    const blocked = (l) => sessionBlocked.has(providerOf(hostOf(l)));
+    for (const l of IMAGERY_LABELS) {
+      if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', show && !blocked(l) ? 'visible' : 'none');
+    }
+    // Esri unreachable → OpenFreeMap place names stand in.
+    const primary = IMAGERY_LABELS.find((l) => l.id === LABELS_FALLBACK.fallbackFor);
+    if (map.getLayer(LABELS_FALLBACK.id)) {
+      map.setLayoutProperty(LABELS_FALLBACK.id, 'visibility', show && blocked(primary) ? 'visible' : 'none');
+    }
+  }
+  // A provider already blocked at start-up. 'style.load', not 'load': 'load'
+  // waits for every first tile, which can take long when a provider is down.
+  map.once('style.load', syncLabels);
+  function setLabels(on) {
+    labelsOn = Boolean(on);
+    writeLabelsPref(labelsOn);
+    syncLabels();
+    return labelsOn;
+  }
+  /** Keep place names on top of rasters added later (coverage, cellular). */
+  function raiseLabels() {
+    for (const l of IMAGERY_LABELS) if (l.raise && map.getLayer(l.id)) map.moveLayer(l.id);
+    if (map.getLayer(LABELS_FALLBACK.id)) map.moveLayer(LABELS_FALLBACK.id);
   }
 
   // ---- 3D terrain + globe projection -------------------------------------
@@ -299,6 +336,9 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
     setHires,
     setHiresCredits,
     isHiresOn: () => hiresOn,
+    setLabels,
+    isLabelsOn: () => labelsOn,
+    raiseLabels,
     getBasemap: () => activeCategory,
     getVariant: (cat) => activeVariantIds[cat ?? activeCategory],
     setTerrain,
@@ -319,6 +359,13 @@ export function initMap(container, { onBasemapFailover, onHiresResult } = {}) {
 const HIRES_PREF_KEY = 'gl.hires.v2';
 function readHiresPref() {
   try { return localStorage.getItem(HIRES_PREF_KEY) === '1'; } catch (_) { return false; } // default off
+}
+const LABELS_PREF_KEY = 'gl.labels.v1';
+function readLabelsPref() {
+  try { return localStorage.getItem(LABELS_PREF_KEY) !== '0'; } catch (_) { return true; } // default on
+}
+function writeLabelsPref(on) {
+  try { localStorage.setItem(LABELS_PREF_KEY, on ? '1' : '0'); } catch (_) { /* private mode */ }
 }
 function writeHiresPref(on) {
   try { localStorage.setItem(HIRES_PREF_KEY, on ? '1' : '0'); } catch (_) { /* private mode */ }

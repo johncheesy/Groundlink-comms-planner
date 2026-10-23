@@ -105,6 +105,10 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
     const m = makeMarker('site', [site.lng, site.lat]);
     const el = m.getElement();
     el.title = site.name || 'Site';
+    const label = document.createElement('span');
+    label.className = 'mission-marker__label';
+    label.textContent = site.name || 'Site';
+    el.appendChild(label);
     // M19: drag is owned by the shared registry drag behaviour; without a
     // registry (tests / standalone) fall back to the original handler.
     if (!registry) {
@@ -126,6 +130,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
         onRename: (v) => {
           mission.renameSite(site.id, v);
           el.title = v || 'Site';
+          label.textContent = v || 'Site';
           registry?.sync(site.id, { name: v || 'Site' });
         },
       });
@@ -142,7 +147,7 @@ export function createMissionTools(map, mission, { onHint, onModeChange, onStatu
       apply: {
         settings: (s) => mission.setSiteAzimuth(site.id, s.azimuthDeg ?? null), // M49 per-site pointing
         move: ([lng, lat]) => { mission.moveSite(site.id, lat, lng); m.setLngLat([lng, lat]); },
-        rename: (v) => { mission.renameSite(site.id, v); el.title = v; },
+        rename: (v) => { mission.renameSite(site.id, v); el.title = v; label.textContent = v; },
         remove: () => { mission.removeSite(site.id); refresh(); },
       },
     });

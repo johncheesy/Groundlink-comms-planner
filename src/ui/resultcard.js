@@ -27,6 +27,10 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
   host.appendChild(el);
 
   let zones = [];
+  // UI test U11: the card docks to a corner and folds to its three figures;
+  // the choice holds for later runs in this session.
+  // Phones start folded: the full card would cover half the map.
+  let collapsed = typeof matchMedia === 'function' && matchMedia('(max-width: 540px)').matches;
 
   el.addEventListener('click', (e) => {
     const zoneBtn = e.target.closest('[data-zone]');
@@ -36,6 +40,10 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
       return;
     }
     if (e.target.closest('[data-act="close"]')) el.hidden = true;
+    else if (e.target.closest('[data-act="fold"]')) {
+      collapsed = !collapsed;
+      reflectFold();
+    }
     else if (e.target.closest('[data-act="relay"]')) onRelayAdvice?.();
     else if (e.target.closest('[data-act="report"]')) onReport?.();
     else if (e.target.closest('[data-act="brief"]')) onBrief?.();
@@ -48,6 +56,16 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
    * @param {object} [modelInfo] — E3b: { modelKey, percentileLabel }
    * @param {{summary:string, warnings:string[]}} [assumptions] — what the figures rest on
    */
+  function reflectFold() {
+    el.classList.toggle('is-collapsed', collapsed);
+    const btn = el.querySelector('[data-act="fold"]');
+    if (btn) {
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      btn.setAttribute('aria-label', collapsed ? 'Show details' : 'Hide details');
+      btn.textContent = collapsed ? '▴' : '▾';
+    }
+  }
+
   function show(summary, modelInfo, assumptions) {
     zones = summary.deadZones;
     const weakest = `${summary.weakestBelow ? '< ' : '≥ '}${Math.round(summary.weakestDbm)} dBm`;
@@ -62,12 +80,14 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
       ? modelBadge(modelInfo.modelKey, modelInfo.percentileLabel ?? null)
       : '';
     el.innerHTML =
+      `<button type="button" class="result-card__fold" data-act="fold"></button>` +
       `<button type="button" class="result-card__close" data-act="close" aria-label="Dismiss summary">×</button>` +
       `<div class="result-card__figures">` +
       `<div class="result-card__fig"><span class="result-card__num" data-numeric>${Math.round(summary.coveredPct)}%</span><span class="result-card__cap">covered</span></div>` +
       `<div class="result-card__fig"><span class="result-card__num" data-numeric>${zones.length}</span><span class="result-card__cap">dead zone${zones.length === 1 ? '' : 's'}</span></div>` +
       `<div class="result-card__fig"><span class="result-card__num" data-numeric>${weakest}</span><span class="result-card__cap">weakest link</span></div>` +
       `</div>` +
+      `<div class="result-card__body">` +
       (badgeHtml ? `<div class="result-card__model">${badgeHtml}</div>` : '') +
       (assumptions
         ? `<div class="result-card__assump"><span class="result-card__assump-line" data-numeric>${escHtml(assumptions.summary)}</span>` +
@@ -76,13 +96,16 @@ export function createResultCard(host, { onZoneClick, onRelayAdvice, onReport, o
             : '') +
           `</div>`
         : '') +
-      (zoneRows ? `<ol class="result-card__zones">${zoneRows}</ol>` : '') +
+      (zoneRows
+        ? `<details class="result-card__zones-wrap"><summary>Dead zones (${zones.length})</summary><ol class="result-card__zones">${zoneRows}</ol></details>`
+        : '') +
       `<div class="result-card__actions">` +
       `<button type="button" class="btn btn--sm" data-act="relay">Relay advice</button>` +
       `<button type="button" class="btn btn--sm" data-act="report">Report</button>` +
       `<button type="button" class="btn btn--sm" data-act="brief">Brief</button>` +
       (zones.length ? `<button type="button" class="btn btn--sm" data-act="gapreport" title="Export dead zone table as printable HTML">Gap report</button>` : '') +
-      `</div>`;
+      `</div></div>`;
+    reflectFold();
     el.hidden = false;
   }
 

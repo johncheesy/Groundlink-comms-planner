@@ -83,6 +83,7 @@ import { createMapNotice } from './ui/map-notice.js';
 import { describeAssumptions, cellSizeM } from './analysis/assumptions.js';
 import { ANTENNA_PRESETS, normalizeAntenna, isOmni, antennaText, bearingDeg } from './coverage/antenna.js';
 import { updateAntennaBeams } from './map/antenna-beams.js';
+import { createMapKey } from './ui/map-key.js';
 import { LIMITS, isLatLng, missionSpanProblem } from './geo/validate.js';
 import { terrainCredit } from './data/terrain-tiles.js';
 import { setOvertureBuildings } from './map/pmtiles.js';
@@ -109,15 +110,35 @@ $('#statusBuildItem').title = `${BUILD.channel.toUpperCase()} · ${buildLabel}`;
 (() => {
   const notice = $('#alphaNotice');
   if (!notice) return;
-  notice.hidden = false; // show on every page load; dismiss is session-only (in-memory)
-  $('#alphaNoticeClose').addEventListener('click', () => { notice.hidden = true; });
+  // Shown on every page load, dismiss is session-only (in-memory) — but only
+  // once the start card is gone, so two overlays never cover the map (U16).
+  $('#alphaNoticeClose').addEventListener('click', () => { notice.hidden = true; betaNoticeDone = true; });
 })();
+let betaNoticeDone = false;
+function revealBetaNotice() {
+  const notice = $('#alphaNotice');
+  if (!notice || betaNoticeDone) return;
+  betaNoticeDone = true;
+  notice.hidden = false;
+}
 
 // ---- Map ----------------------------------------------------------------
 
 const mapApi = initMap($('#map'), { onBasemapFailover: handleBasemapFailover, onHiresResult: handleHiresResult });
 const { map } = mapApi;
 const resize = keepMapSized(map);
+
+// U15: the map is black until the first imagery arrives — say so.
+(() => {
+  const hint = document.createElement('div');
+  hint.className = 'map-loading';
+  hint.setAttribute('role', 'status');
+  hint.textContent = 'Loading map imagery…';
+  document.querySelector('.map-wrap')?.appendChild(hint);
+  const done = () => hint.remove();
+  map.once('idle', done);
+  setTimeout(done, 20000); // never linger if the provider is slow or blocked
+})();
 
 // ---- Status bar ---------------------------------------------------------
 
@@ -519,6 +540,18 @@ function renderVariantMenu() {
     text.textContent = 'National aerial photos where available (off: Esri only)';
     row.append(box, text);
     variantMenu.appendChild(row);
+    // UI test U3: names and roads over the photo, on by default.
+    const lrow = document.createElement('label');
+    lrow.className = 'basemap-hires';
+    const lbox = document.createElement('input');
+    lbox.type = 'checkbox';
+    lbox.id = 'labelsToggle';
+    lbox.checked = mapApi.isLabelsOn();
+    lbox.addEventListener('change', () => mapApi.setLabels(lbox.checked));
+    const ltext = document.createElement('span');
+    ltext.textContent = 'Place names and roads';
+    lrow.append(lbox, ltext);
+    variantMenu.appendChild(lrow);
     const now = document.createElement('div');
     now.id = 'hiresNow';
     now.className = 'basemap-hires__now';
@@ -987,6 +1020,7 @@ whenStyleReady(() => {
       updateIntelChip('running'); // Maven intel chip
       if (frac >= 1) {
         opacityRow.hidden = false;
+        if (showNoneRow) showNoneRow.hidden = false;
         setTimeout(() => {
           progress.hidden = true;
           progressBar.style.width = '0%';
@@ -1016,6 +1050,7 @@ whenStyleReady(() => {
         updateIntelChip('ok'); // Maven intel chip
       }
       if (state === 'cleared' || state === 'done') refreshServerViewUi(); // M24
+      if (state === 'done') updateSignalLegend(); // 'none · not painted' follows the toggle (U1)
       if (state === 'cleared' || state === 'done') refreshWorkflowUi();
       if (state === 'error') {
         coverageHelp.textContent = 'Coverage worker failed — see console.';
@@ -1066,6 +1101,8 @@ whenStyleReady(() => {
     // modes. Analogue degrades gracefully → no cliff overlay.
     onPaint(classes, cols, rows, bounds) {
       lastPaint = { classes, cols, rows, bounds }; // feeds the M20 result card
+      mapApi.raiseLabels?.(); // names stay above the raster (U3)
+      setTimeout(refreshMapKey, 0); // after the controller has its stats
       const mode = digitalModeSelect?.value ?? 'Analogue';
       updateCliffLayer(map, classes, cols, rows, bounds, mode !== 'Analogue');
     },
@@ -1119,6 +1156,7 @@ whenStyleReady(() => {
       layer: `cellular-${type}-layer`,
       before: 'coverage-layer',
       opacity: 0.55,
+      showNone: true, // cellular layers keep their single-tint look
       onStatus(state, info) {
         if (state === 'error') {
           const why = info?.message ? ` (${info.message})` : '';
@@ -1254,6 +1292,7 @@ whenStyleReady(() => {
     clearCloudRFResult();
     clearCliffLayer(map);
     opacityRow.hidden = true;
+    if (showNoneRow) showNoneRow.hidden = true;
     progress.hidden = true;
     progressBar.style.width = '0%';
     coverageHelp.textContent = 'Draw an AOI, then compute. The transmitter defaults to the AOI centre. Terrain uses AWS elevation tiles — no token needed.';
@@ -1313,6 +1352,7 @@ whenStyleReady(() => {
     coverage.clear();
     clearCliffLayer(map);
     opacityRow.hidden = true;
+    if (showNoneRow) showNoneRow.hidden = true;
   });
 
   // Flight / link envelope (M2.1 B)
@@ -1357,6 +1397,7 @@ whenStyleReady(() => {
         siteList.innerHTML = '';
         // The combined raster was removed with the sites — drop its opacity row.
         opacityRow.hidden = true;
+        if (showNoneRow) showNoneRow.hidden = true;
         progress.hidden = true;
         progressBar.style.width = '0%';
         return;
@@ -1914,10 +1955,12 @@ whenStyleReady(() => {
       armMissionMode('sites');
     },
     onOpenMission: () => $('#importBtn')?.click(),
+    onRetire: revealBetaNotice,
   });
 
   // Initial state once the modules above exist (covers a restored arsenal).
   refreshWorkflowUi();
+  if (!emptyState.isVisible()) revealBetaNotice(); // no start card → the notice can show now
 
   function finishPromotion() {
     // Promoted data now lives in the mission (with its own markers); drop the
@@ -1963,6 +2006,8 @@ const antennaFb = $('#antennaFb');
 const rxGainInput = $('#rxGain');
 const opacityInput = $('#opacityInput');
 const opacityRow = $('#opacityRow');
+const showNoneRow = $('#showNoneRow');
+$('#showNoneChk')?.addEventListener('change', (e) => { coverage?.setShowNone(e.target.checked); updateSignalLegend(); refreshMapKey(); });
 const clearCoverageBtn = $('#clearCoverage');
 const progress = $('#coverageProgress');
 const progressBar = $('#coverageProgressBar');
@@ -2013,7 +2058,7 @@ antennaAzimuth?.addEventListener('input', refreshBeams);
 
 // Manual threshold edits should move the Signal legend too (B8).
 for (const el of [thExcellent, thGood, thMarginal, thNone]) {
-  el?.addEventListener('input', () => updateSignalLegend());
+  el?.addEventListener('input', () => { updateSignalLegend(); refreshMapKey(); });
 }
 
 // Drone (M2.1)
@@ -2128,6 +2173,7 @@ function onMissionChange(s) {
   markDirty(); // any mission edit is unsaved work (M21 §A)
   refreshExportPanel();
   refreshBeams();
+  setTimeout(refreshMapKey, 0); // re-created markers lose their zone colour
   refreshSatcom();
   hfPanel?.refresh();
   if (!missionElements) return;
@@ -3309,7 +3355,7 @@ function updateSignalLegend() {
   set('legendValExcellent', `≥ ${v(thExcellent, -85)} dBm`);
   set('legendValGood', `≥ ${v(thGood, -95)} dBm`);
   set('legendValMarginal', `≥ ${v(thMarginal, -103)} dBm`);
-  set('legendValNone', `< ${v(thNone, -110)} dBm`);
+  set('legendValNone', `< ${v(thNone, -110)} dBm${coverage?.getShowNone?.() ? '' : ' · not painted'}`);
 }
 
 /**
@@ -3739,6 +3785,7 @@ function applyMissionState(m) {
     clearCloudRFResult();
     clearCliffLayer(map);
     opacityRow.hidden = true;
+    if (showNoneRow) showNoneRow.hidden = true;
     for (const wp of waypoints?.getAll?.() ?? []) waypoints.remove(wp.id);
     mission?.clearAll?.();
     aoi?.clear?.();
@@ -4370,6 +4417,7 @@ function reflectServerView() {
   viewInterferenceBtn?.setAttribute('aria-pressed', String(v === 'interference'));
   if (overlapRow) overlapRow.hidden = v !== 'server'; // the overlap band belongs to the zone map
   renderServerLegend();
+  refreshMapKey();
   // The M15 cliff band describes quality classes — hide it in server view.
   if (lastPaint) {
     const mode = digitalModeSelect?.value ?? 'Analogue';
@@ -4382,11 +4430,70 @@ function refreshServerViewUi() {
   if (serverViewRow) serverViewRow.hidden = !has;
   if (has) reflectServerView();
   else renderServerLegend();
+  refreshMapKey();
+}
+
+// ---- Map colour key + zone-coloured sites (UI test U7, U9) -----------------
+const mapKey = createMapKey(document.querySelector('.map-wrap'));
+
+/** In best-server view each fixed site takes its zone colour; null clears. */
+function paintSiteZones(info) {
+  const sites = mission?.getSites?.() ?? [];
+  // Only when the zones really are these sites (not a recommendation or team run).
+  const match = info && info.legend.every((r) => (sites[r.index]?.name || `Site ${r.index + 1}`) === r.name);
+  sites.forEach((s, i) => {
+    const el = registry.get(s.id)?.marker?.getElement?.();
+    if (!el) return;
+    if (match) el.style.setProperty('--zone-color', info.colors[i % info.colors.length]);
+    else el.style.removeProperty('--zone-color');
+  });
+}
+
+function refreshMapKey() {
+  if (!coverage?.hasCoverage?.()) {
+    mapKey.hide();
+    paintSiteZones(null);
+    return;
+  }
+  const view = coverage.getView?.() ?? 'quality';
+  const pct = (f) => `${Math.round(f * 100)}%`;
+  if (view === 'server') {
+    const info = coverage.getServerInfo();
+    const rows = info ? info.legend.map((r) => ({ color: info.colors[r.index % info.colors.length], label: r.name, value: pct(r.frac) })) : [];
+    if (info?.interference) rows.push({ color: 'var(--srv-contest)', label: `Overlap < ${info.thresholdDb} dB`, value: pct(info.contestedFrac) });
+    mapKey.show({ title: 'Best server', rows, note: 'Where the signal is usable' });
+    paintSiteZones(info);
+    return;
+  }
+  paintSiteZones(null);
+  if (view === 'interference') {
+    const ci = coverage.getInterferenceInfo();
+    if (!ci) { mapKey.hide(); return; }
+    const [b0, b1, b2, b3] = ci.bands;
+    const labels = [`≥ ${b0} dB`, `${b1}–${b0} dB`, `${b2}–${b1} dB`, `${b3}–${b2} dB`, `< ${b3} dB`];
+    mapKey.show({
+      title: 'Interference (C/I)',
+      rows: labels.map((label, i) => ({ color: ci.colors[i], label, value: pct(ci.fracs[i]) })),
+      note: 'All sites on one channel',
+    });
+    return;
+  }
+  const t = (input, d) => clampNum(input?.value, -200, 0, d);
+  const showNone = coverage.getShowNone?.();
+  const rows = [
+    { color: 'var(--s1)', label: 'Excellent', value: `≥ ${t(thExcellent, -85)}` },
+    { color: 'var(--s2)', label: 'Good', value: `≥ ${t(thGood, -95)}` },
+    { color: 'var(--s3)', label: 'Marginal', value: `≥ ${t(thMarginal, -103)}` },
+    { color: 'var(--s4)', label: 'Poor', value: `≥ ${t(thNone, -110)}` },
+  ];
+  if (showNone) rows.push({ color: 'var(--s5)', label: 'None', value: `< ${t(thNone, -110)}` });
+  mapKey.show({ title: 'Signal (dBm)', rows, note: showNone ? '' : 'No signal: not painted' });
 }
 
 viewQualityBtn?.addEventListener('click', () => {
   coverage?.setView('quality');
   reflectServerView();
+  statusMode.textContent = 'Signal quality — strength per cell'; // U17: status follows the view
 });
 viewServerBtn?.addEventListener('click', () => {
   coverage?.setView('server');
@@ -4402,11 +4509,13 @@ const overlapMarginDb = () => clampNum(overlapDb?.value, 1, 20, 6);
 interferenceChk?.addEventListener('change', () => {
   coverage?.setInterference(interferenceChk.checked, overlapMarginDb());
   renderServerLegend();
+  refreshMapKey();
 });
 overlapDb?.addEventListener('change', () => {
   if (overlapDb) overlapDb.value = String(overlapMarginDb());
   coverage?.setInterference(interferenceChk?.checked ?? false, overlapMarginDb());
   renderServerLegend();
+  refreshMapKey();
 });
 
 // ---- M37: Mission Brief Export -------------------------------------------
