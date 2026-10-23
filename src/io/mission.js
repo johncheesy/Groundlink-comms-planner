@@ -99,8 +99,6 @@ function waypoint(p) {
   return base ? { ...base, icon: str(p.icon) || 'point' } : null;
 }
 
-const cleanList = (arr, fn) => (Array.isArray(arr) ? arr.map(fn).filter(Boolean) : []);
-
 /**
  * Clean a list, keep at most `max`, and record what was lost in `report`
  * (`dropped` = unusable entries, `truncated` = valid entries over the limit).

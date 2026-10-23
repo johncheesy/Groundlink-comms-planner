@@ -66,7 +66,6 @@ import { createOpsDashboard } from './ui/dash-ops.js'; // M36
 import { createSatcomPanel } from './ui/satcom-panel.js'; // M38
 import { satcomAssessment } from './connectivity/satcom.js'; // M47: best satcom status
 import { createDeconflictPanel } from './ui/deconflict-panel.js'; // M39
-import { generateFreqPlan, openFreqPlan } from './export/freq-plan.js'; // M40
 import { createTopologyPanel } from './ui/topology.js'; // M41
 import { optimizeDroneHeight, DEFAULT_ALTITUDES } from './analysis/drone-optimizer.js'; // M42
 import { generateGapReport, openGapReport } from './export/gap-report.js'; // M43
@@ -78,7 +77,7 @@ import {
 } from './analysis/readiness.js'; // M47
 import { createEmptyState } from './ui/emptystate.js';
 import { createUndoStack } from './ui/undo.js';
-import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, fsplDb, receivedDbm } from './coverage/model.js';
+import { wattsToDbm, maxRangeM, haversineM, MODE_THRESHOLDS, receivedDbm } from './coverage/model.js';
 import { BASEMAP_VARIANTS } from './map/basemaps.js';
 import { HIRES_SOURCES, createCoverageMemory } from './map/hires-imagery.js';
 import { createMapNotice } from './ui/map-notice.js';

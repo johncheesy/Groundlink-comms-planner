@@ -66,7 +66,7 @@ Fix in this order; each item cites the audit evidence.
 
 **1.2 CSP tightening** (`index.html:9`)
 - Replace wildcard `connect-src https:` and `img-src https:` with the explicit origin list the code actually contacts (~16 origins; the audit enumerated them: fonts.googleapis/gstatic, s3.amazonaws.com, ows.digitalearth.africa, data.source.coop, server.arcgisonline.com, service.pdok.nl, tiles.maps.eox.at, tile.opentopomap.org, tile.openstreetmap.org, basemaps.cartocdn.com, tiles.openfreemap.org, fonts.openmaptiles.org, api.cloudrf.com, overpass-api.de, overpass.kumi.systems, maps.mail.ru, photon.komoot.io). Add `font-src 'self'` alongside gstatic. Keep `script-src 'self'`, `object-src 'none'`, `base-uri 'self'`.
-- Add `<meta name="referrer" content="no-referrer">`; add a JS frame-buster (GH Pages cannot send `frame-ancestors`); document the meta-CSP limitations in `docs/decisions/`.
+- Add `<meta name="referrer" content="no-referrer">`; add a JS frame-buster (deny all framing — GH Pages cannot send `frame-ancestors` and `<meta>` ignores that directive, so clickjacking protection must be JS-side). The app is **linked, not embedded**, from `groundlink.org` (Keith's decision, 23 Jul 2026 — see Phase 5.5), so a blanket frame-buster is correct and desirable. Document the meta-CSP limitations in `docs/decisions/`.
 - Make the `maps.mail.ru` Overpass mirror **opt-in** (it currently receives AOI bboxes by default — `src/connectivity/cellular.js:262-286`).
 
 **1.3 Input & XSS hardening**
@@ -144,6 +144,13 @@ Baseline is strong (UX audit graded A−, no blockers). This phase closes the na
 **5.3 Release checklist** — `docs/BETA-CHECKLIST.md`: license file present, attribution complete, CSP verified in a deployed preview, PWA installable + offline-smoke passed, no console errors, Lighthouse ≥ target, 381+ tests green, OPSEC re-swept (no coordinates/secrets/names), all ⚠️ KEITH items resolved.
 
 **5.4 Handover** — the exact Keith-runs commands: branch merges in order, `npm run deploy`, git tag `v0.9.0-beta`, and (if G1/G2 chose history rewrite) the reviewed `filter-repo` + force-push runbook.
+
+**5.5 Custom domain — `app.groundlink.org`** (decision 23 Jul 2026: the planner is linked from the existing `groundlink.org` marketing site, hosted separately on GoDaddy Website Builder; apex stays there, the app gets a subdomain). `public/CNAME` (→ `app.groundlink.org`) is already in the repo. Ordered runbook for Keith — **DNS first to avoid downtime**:
+1. GoDaddy DNS for `groundlink.org`: add a **CNAME** record, host `app`, value `johncheesy.github.io`. (Apex `groundlink.org` untouched — stays on the Website Builder.)
+2. Once DNS resolves, commit + deploy `public/CNAME`, then in GitHub → repo Settings → Pages set Custom domain `app.groundlink.org` and tick **Enforce HTTPS** (wait for the cert to provision).
+3. Verify: `https://app.groundlink.org` serves the app over HTTPS; the old `johncheesy.github.io/...` URL redirects.
+4. On the GoDaddy site add a "Launch planner" button → `https://app.groundlink.org` (opens in a new tab, `rel="noopener"`).
+Note: `base: './'` (relative) in `vite.config.js` already works at a domain root, so no base change is needed. Prefer `planner.` over `app.`? One-line change in `public/CNAME` + the DNS host.
 
 **Gate G5:** every checklist box ticked or explicitly waived with a reason.
 
