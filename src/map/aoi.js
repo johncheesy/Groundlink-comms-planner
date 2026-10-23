@@ -217,6 +217,9 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     if (mode === 'polygon') map.doubleClickZoom.disable();
     else map.doubleClickZoom.enable();
     map.getCanvas().style.cursor = mode ? 'crosshair' : '';
+    // Overlays on the map (colour key, notices) let clicks through while
+    // drawing, so a corner placed under the key is not swallowed.
+    map.getContainer().closest('.map-wrap')?.classList.toggle('is-drawing', Boolean(mode));
     if (mode === 'radius') setHint('Click to set the centre, then click again to set the radius.');
     else if (mode === 'polygon') setHint('Click to add points · Backspace to undo · double-click or Enter to finish · Esc to cancel.');
     else setHint('');
@@ -231,7 +234,11 @@ export function createAoiController(map, { onChange, onHint } = {}) {
     emit();
   }
   function commitPolygon(points) {
-    committed = { type: 'polygon', ring: points.slice() };
+    // A double-click to finish also lands as a click: drop repeated vertices
+    // (same point twice in a row, or the last repeating the first).
+    const ring = points.filter((p, i, a) => i === 0 || p[0] !== a[i - 1][0] || p[1] !== a[i - 1][1]);
+    while (ring.length > 3 && ring[ring.length - 1][0] === ring[0][0] && ring[ring.length - 1][1] === ring[0][1]) ring.pop();
+    committed = { type: 'polygon', ring };
     setData(SRC_AOI, fc([poly(committed.ring)]));
     clearTransient();
     setMode(null);

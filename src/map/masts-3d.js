@@ -55,29 +55,55 @@ export function panelRing(lng, lat, azimuthDeg, lenM, widM) {
 
 const feat = (ring, props) => ({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: props });
 
+/** Ground metres per screen pixel at a zoom and latitude (512 px tiles). Pure. */
+export function metresPerPixel(zoom, lat) {
+  return (40075016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom);
+}
+
+/**
+ * How much to enlarge the masts so they stay visible. A 30 m mast is under a
+ * pixel tall at network zoom, so in 3D the masts are drawn at least
+ * `minTallPx` tall and `minWidePx` wide; heights scale together (a 30 m mast
+ * stays twice a 15 m one) and both factors fall back to 1 — true size — as
+ * you zoom in. Labels keep the real height. Pure.
+ * @returns {{ v:number, h:number }} vertical and horizontal factors (≥ 1)
+ */
+export function mastScale({ zoom, lat, tallestM }, { minTallPx = 60, minWidePx = 3, mastRadiusM = 1.1 } = {}) {
+  if (!Number.isFinite(zoom) || !Number.isFinite(lat)) return { v: 1, h: 1 };
+  const mpp = metresPerPixel(zoom, lat);
+  return {
+    v: Math.max(1, (minTallPx * mpp) / Math.max(1, tallestM || 1)),
+    h: Math.max(1, (minWidePx * mpp) / mastRadiusM),
+  };
+}
+
 /**
  * GeoJSON for the masts. Pure.
  * @param {Array<{id,lat,lng,name?,txHeightM?,azimuthDeg?}>} sites
- * @param {{ panelHeightM:number, antenna?:object|null, drone?:{lng,lat,altM}|null }} o
+ * @param {{ panelHeightM:number, antenna?:object|null, drone?:{lng,lat,altM}|null,
+ *   scale?:{v:number,h:number} }} o   scale from mastScale(); default true size
  */
-export function mastFeatures(sites, { panelHeightM = 10, antenna = null, drone = null } = {}) {
+export function mastFeatures(sites, { panelHeightM = 10, antenna = null, drone = null, scale = { v: 1, h: 1 } } = {}) {
   const features = [];
   const directional = antenna && !isOmni(antenna);
+  const v = scale?.v ?? 1;
+  const r = (m) => m * (scale?.h ?? 1);
   for (const s of sites) {
     const h = Math.max(1, Number(s.txHeightM ?? panelHeightM) || panelHeightM);
     const id = s.id ?? `${s.lat},${s.lng}`;
-    features.push(feat(discRing(s.lng, s.lat, 4), { id, part: 'plinth', base: 0, top: 1, site: s.name ?? '' }));
-    features.push(feat(discRing(s.lng, s.lat, 1.1), { id, part: 'mast', base: 0, top: h, site: s.name ?? '' }));
-    features.push(feat(discRing(s.lng, s.lat, 2.2), { id, part: 'head', base: Math.max(0, h - 1.5), top: h, site: s.name ?? '' }));
+    const hv = h * v;
+    features.push(feat(discRing(s.lng, s.lat, r(4)), { id, part: 'plinth', base: 0, top: Math.min(hv * 0.04, 1 * v), site: s.name ?? '', heightM: h }));
+    features.push(feat(discRing(s.lng, s.lat, r(1.1)), { id, part: 'mast', base: 0, top: hv, site: s.name ?? '', heightM: h }));
+    features.push(feat(discRing(s.lng, s.lat, r(2.2)), { id, part: 'head', base: Math.max(0, hv - 1.5 * v), top: hv, site: s.name ?? '', heightM: h }));
     if (directional) {
       const az = s.azimuthDeg ?? antenna.azimuthDeg ?? 0;
-      features.push(feat(panelRing(s.lng, s.lat, az, 2.4, 0.5), { id, part: 'panel', base: Math.max(0, h - 2), top: Math.max(0.5, h - 0.5), site: s.name ?? '' }));
+      features.push(feat(panelRing(s.lng, s.lat, az, r(2.4), r(0.5)), { id, part: 'panel', base: Math.max(0, hv - 2 * v), top: Math.max(0.5, hv - 0.5 * v), site: s.name ?? '', heightM: h }));
     }
   }
   if (drone && Number.isFinite(drone.lat) && Number.isFinite(drone.lng)) {
     const alt = Math.max(2, Number(drone.altM) || 100);
-    features.push(feat(discRing(drone.lng, drone.lat, 0.15), { id: 'drone', part: 'tether', base: 0, top: alt - 1 }));
-    features.push(feat(discRing(drone.lng, drone.lat, 1.5), { id: 'drone', part: 'drone', base: alt - 1, top: alt }));
+    features.push(feat(discRing(drone.lng, drone.lat, r(0.15)), { id: 'drone', part: 'tether', base: 0, top: (alt - 1) * v }));
+    features.push(feat(discRing(drone.lng, drone.lat, r(1.5)), { id: 'drone', part: 'drone', base: (alt - 1) * v, top: alt * v }));
   }
   return { type: 'FeatureCollection', features };
 }
@@ -117,7 +143,7 @@ export function updateMasts3d(map, sites, opts = {}, { visible = true } = {}) {
   }
   try {
     map.addSource(SRC, { type: 'geojson', data });
-    map.addLayer({ id: LAYER, type: 'fill-extrusion', source: SRC, minzoom: 11, layout: { visibility: visible ? 'visible' : 'none' }, paint });
+    map.addLayer({ id: LAYER, type: 'fill-extrusion', source: SRC, minzoom: 6, layout: { visibility: visible ? 'visible' : 'none' }, paint });
   } catch {
     // Style not ready yet: keep the newest call, replay on the next idle.
     const queued = pending.has(map);

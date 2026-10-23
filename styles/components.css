@@ -5879,3 +5879,14 @@ select.input--sm { text-align: left; padding-right: 6px; }
 @media (max-width: 760px) {
   .ops-top__actions .mode-toggle { display: inline-flex !important; }
 }
+
+/* Drawing an area: overlays let the click reach the map (src/map/aoi.js). */
+.map-wrap.is-drawing .map-key,
+.map-wrap.is-drawing .map-notice,
+.map-wrap.is-drawing .result-card { pointer-events: none; opacity: 0.55; }
+
+/* Tablet: the top bar has room for the brand name but not its subtitle. */
+@media (min-width: 761px) and (max-width: 1099px) {
+  .ops-top .brand__sub { display: none; }
+  .ops-top .brand__name { white-space: nowrap; }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mastFeatures, discRing, panelRing } from './masts-3d.js';
+import { mastFeatures, discRing, panelRing, mastScale, metresPerPixel } from './masts-3d.js';
 
 const parts = (fc, id) => fc.features.filter((f) => f.properties.id === id).map((f) => f.properties.part);
 const byPart = (fc, id, part) => fc.features.find((f) => f.properties.id === id && f.properties.part === part);
@@ -28,6 +28,27 @@ describe('mastFeatures', () => {
     expect(byPart(fc, 'drone', 'drone').properties).toMatchObject({ base: 99, top: 100 });
     expect(byPart(fc, 'drone', 'tether').properties).toMatchObject({ base: 0, top: 99 });
     expect(mastFeatures([], {}).features).toEqual([]);
+  });
+});
+
+describe('mastScale', () => {
+  it('enlarges masts at network zoom and is true size when zoomed in', () => {
+    const far = mastScale({ zoom: 9, lat: -9, tallestM: 30 });
+    expect(far.v).toBeGreaterThan(100); // ~300 m/px: 60 px ≈ 18 km for a 30 m mast
+    expect(far.h).toBeGreaterThan(100);
+    const near = mastScale({ zoom: 19, lat: -9, tallestM: 30 });
+    expect(near).toEqual({ v: 1, h: 1 });
+    expect(mastScale({ zoom: NaN, lat: 0, tallestM: 30 })).toEqual({ v: 1, h: 1 });
+  });
+  it('keeps relative heights when scaled', () => {
+    const scale = mastScale({ zoom: 10, lat: 52, tallestM: 30 });
+    const fc = mastFeatures([{ id: 'a', lat: 52, lng: 5, txHeightM: 30 }, { id: 'b', lat: 52, lng: 5.1, txHeightM: 15 }], { scale });
+    const top = (id) => fc.features.find((f) => f.properties.id === id && f.properties.part === 'mast').properties.top;
+    expect(top('a') / top('b')).toBeCloseTo(2, 5);
+    expect(fc.features.find((f) => f.properties.id === 'a').properties.heightM).toBe(30);
+  });
+  it('metresPerPixel halves per zoom level', () => {
+    expect(metresPerPixel(10, 0) / metresPerPixel(11, 0)).toBeCloseTo(2, 5);
   });
 });
 

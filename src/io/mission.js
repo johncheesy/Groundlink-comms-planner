@@ -163,6 +163,29 @@ function cleanCoverage(c) {
       none: num(t.none),
     },
     digitalMode: str(c.digitalMode) || 'Analogue',
+    // Propagation model (optional; files without it keep the planner's choice).
+    ...(ENGINES.includes(c.engine) ? { engine: c.engine } : {}),
+  };
+}
+
+const ENGINES = ['auto', 'p1812', 'builtin', 'cloudrf'];
+
+/**
+ * Saved camera (optional): where the map looks, its tilt and rotation, and
+ * whether 3D terrain is on — so a demo or briefing file opens on the view it
+ * was saved with. Out-of-range values are clamped; a bad centre drops it.
+ */
+function cleanView(v) {
+  if (!v || typeof v !== 'object' || !Array.isArray(v.center)) return null;
+  const [lng, lat] = v.center.map(Number);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat) || Math.abs(lat) > 85 || Math.abs(lng) > 180) return null;
+  const clamp = (x, lo, hi, d) => (Number.isFinite(Number(x)) ? Math.min(hi, Math.max(lo, Number(x))) : d);
+  return {
+    center: [lng, lat],
+    zoom: clamp(v.zoom, 0, 22, 10),
+    pitch: clamp(v.pitch, 0, 85, 0),
+    bearing: clamp(v.bearing, -360, 360, 0),
+    terrain3d: v.terrain3d === true,
   };
 }
 
@@ -215,6 +238,7 @@ function cleanMission(m, report) {
     teams: jsonClone(Array.isArray(src.teams) ? src.teams : []),
     basemap: cleanBasemap(src.basemap),
     opDatetime: str(src.opDatetime) || null,
+    view: cleanView(src.view),
   };
 }
 

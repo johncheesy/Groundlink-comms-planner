@@ -133,6 +133,14 @@ export function createBackendSettings(container, { onBackendChange } = {}) {
 
   return {
     getBackend: () => backend,
+    /** Select a model programmatically (a mission file names one). */
+    setBackend(value) {
+      if (!BACKENDS.includes(value)) return;
+      backend = value;
+      radios.forEach((r) => { r.checked = r.value === value; });
+      writeStore(BACKEND_KEY, backend);
+      syncPctVisibility();
+    },
     getApiKey: () => apiKey,
     getPercentiles: () => ({ p: clampPct(pInput, 1, 50, 50), pL: clampPct(pLInput, 1, 99, 50) }),
   };
