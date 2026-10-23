@@ -7,7 +7,7 @@
          connect-src is an explicit allowlist — no wildcard https:. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'sha256-W2WFH2+T7LHw/LY8j3NwAfximvYUToqraYOvJKGTymg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com https://fonts.openmaptiles.org; img-src https: data: blob:; connect-src 'self' https://overpass-api.de https://overpass.kumi.systems https://api.cloudrf.com https://planetarycomputer.microsoft.com https://ows.digitalearth.africa https://s3.amazonaws.com https://tiles.mapterhorn.com https://data.source.coop https://jrc-ghsl.s3.amazonaws.com https://apps.fcc.gov https://www.fcc.gov https://fccid.io https://photon.komoot.io https://celestrak.org https://server.arcgisonline.com https://service.pdok.nl https://data.geopf.fr https://www.ign.es https://wmts.geo.admin.ch https://mapsneu.wien.gv.at https://mapy.geoportal.gov.pl https://wmts3.geoportail.lu https://geo.api.vlaanderen.be https://www.wms.nrw.de https://geoservices.bayern.de https://basemap.nationalmap.gov https://cyberjapandata.gsi.go.jp https://wmts.nlsc.gov.tw https://maps.six.nsw.gov.au https://tiles.maaamet.ee https://ags.cuzk.cz https://geodienste.sachsen.de https://tiles.maps.eox.at https://a.tile.opentopomap.org https://b.tile.opentopomap.org https://c.tile.opentopomap.org https://tile.openstreetmap.org https://tiles.openfreemap.org https://fonts.openmaptiles.org data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
+      content="default-src 'self'; script-src 'self' 'sha256-W2WFH2+T7LHw/LY8j3NwAfximvYUToqraYOvJKGTymg='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src https: data: blob:; connect-src 'self' https://overpass-api.de https://overpass.kumi.systems https://api.cloudrf.com https://planetarycomputer.microsoft.com https://ows.digitalearth.africa https://s3.amazonaws.com https://tiles.mapterhorn.com https://data.source.coop https://jrc-ghsl.s3.amazonaws.com https://apps.fcc.gov https://www.fcc.gov https://fccid.io https://photon.komoot.io https://celestrak.org https://server.arcgisonline.com https://service.pdok.nl https://data.geopf.fr https://www.ign.es https://wmts.geo.admin.ch https://mapsneu.wien.gv.at https://mapy.geoportal.gov.pl https://wmts3.geoportail.lu https://geo.api.vlaanderen.be https://www.wms.nrw.de https://geoservices.bayern.de https://basemap.nationalmap.gov https://cyberjapandata.gsi.go.jp https://wmts.nlsc.gov.tw https://maps.six.nsw.gov.au https://tiles.maaamet.ee https://ags.cuzk.cz https://geodienste.sachsen.de https://tiles.maps.eox.at https://a.tile.opentopomap.org https://b.tile.opentopomap.org https://c.tile.opentopomap.org https://tile.openstreetmap.org https://tiles.openfreemap.org https://fonts.openmaptiles.org data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
     />
     <!-- No-referrer: suppress Referer header on cross-origin requests. -->
     <meta name="referrer" content="no-referrer" />
@@ -34,12 +34,6 @@
     />
 
     <!-- Sora (display) + Hanken Grotesk (body). No Inter/Roboto/Arial. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
   <body data-mode="user">
     <div class="app" id="app">
@@ -926,12 +920,12 @@
             </div>
             <div class="section__body">
               <div class="input-row adv-flex">
-                <label class="field-label" for="ewThreat" style="flex:0 0 auto">EW threat</label>
+                <label class="field-label" for="ewThreat" style="flex:0 0 auto">Interference threat</label>
                 <select class="input input--sm" id="ewThreat">
                   <option value="none">None — permissive</option>
                   <option value="low">Low — ELINT risk</option>
-                  <option value="medium" selected>Medium — jamming possible</option>
-                  <option value="high">High — active jamming</option>
+                  <option value="medium" selected>Medium — interference possible</option>
+                  <option value="high">High — active interference</option>
                 </select>
               </div>
               <div class="input-row">
@@ -978,7 +972,7 @@
 
               <p class="help" id="paceHelp">Synthesises the radio mix, your sites and the last coverage run into a PACE plan — Primary · Alternate · Contingency · Emergency. Run the radio mix and a coverage compute first for a complete plan.</p>
 
-              <p class="adv-hint" id="paceAdvHint">Switch to <strong>ADV</strong> mode to set the EW threat level.</p>
+              <p class="adv-hint" id="paceAdvHint">Switch to <strong>ADV</strong> mode to set the interference threat level.</p>
             </div>
           </section>
 
@@ -997,10 +991,10 @@
 
               <span class="field-label">Comms tempo (timings plan)</span>
               <div class="input-row">
-                <span class="input-suffix">SITREP every</span>
-                <input class="input input--sm" type="number" id="powerEveryMin" aria-label="SITREP interval in minutes" min="1" max="240" step="1" value="30" />
+                <span class="input-suffix">Check-in every</span>
+                <input class="input input--sm" type="number" id="powerEveryMin" aria-label="Check-in interval in minutes" min="1" max="240" step="1" value="30" />
                 <span class="input-suffix">min ·</span>
-                <input class="input input--sm" type="number" id="powerTxMin" aria-label="Transmit minutes per SITREP" min="0" max="60" step="0.5" value="2" />
+                <input class="input input--sm" type="number" id="powerTxMin" aria-label="Transmit minutes per check-in" min="0" max="60" step="0.5" value="2" />
                 <span class="input-suffix">min TX</span>
               </div>
               <div class="input-row adv-flex">
@@ -1021,7 +1015,7 @@
               </div>
 
               <div class="input-row adv-flex">
-                <label class="field-label" for="powerAtakMa">ATAK EUD draw</label>
+                <label class="field-label" for="powerAtakMa">ATAK device draw</label>
                 <input class="input input--sm" type="number" id="powerAtakMa" min="50" max="3000" step="10" value="600" />
                 <span class="input-suffix">mA ·</span>
                 <input class="input input--sm" type="number" id="powerAtakMah" aria-label="ATAK device battery capacity in mAh" min="1000" max="20000" step="100" value="5000" />

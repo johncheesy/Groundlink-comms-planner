@@ -211,11 +211,11 @@ export function buildPace(input = {}) {
     const cellRole = ewThreat === 'high'
       ? 'Encrypted private/tactical LTE only — exclude commercial cellular for sensitive traffic'
       : ewThreat === 'medium'
-        ? 'Commercial LTE — monitor for jamming/exploitation'
+        ? 'Commercial LTE — monitor for interference and interception'
         : 'Commercial LTE — voice/data (low EW environment)';
     const cellWhy = ewThreat === 'high'
-      ? `High EW threat: commercial cellular excluded; encrypted private/tactical LTE only. ELINT/jamming risk is high — use as last resort ${tierName} path.`
-      : `Cellular ${tierName.toLowerCase()} path — ${cellRole}. EW threat: ${ewThreat}.`;
+      ? `High interference threat: commercial cellular excluded; encrypted private LTE only. Interception and interference risk is high — last-resort ${tierName} path.`
+      : `Cellular ${tierName.toLowerCase()} path — ${cellRole}. Interference threat: ${ewThreat}.`;
     const cellLeg = {
       tier: tierName,
       band: ewThreat === 'high' ? 'Cellular (private LTE)' : 'Cellular (LTE/4G)',
@@ -237,8 +237,8 @@ export function buildPace(input = {}) {
   // Under high EW threat: always flag cellular risk even if excluded from PACE
   if (ewThreat === 'high' && cellForPace === 'none') {
     overlays.push({
-      band: 'Cellular — ELINT/jamming risk',
-      why: 'High EW threat: all cellular use carries exploitation and jamming risk. Exclude from PACE unless using an RAP-encrypted terminal.',
+      band: 'Cellular — interception/interference risk',
+      why: 'High interference threat: all cellular use carries interception and interference risk. Exclude from PACE unless the terminal is end-to-end encrypted.',
     });
   }
 

@@ -1,4 +1,5 @@
 /* Single CSS entry point — import order matters: tokens first. */
+@import './fonts.css';
 @import './tokens.css';
 @import './base.css';
 @import './components.css';

@@ -2898,7 +2898,7 @@ function buildPowerPlan() {
   const consumed = atakConsumedMah(atakMa, missionHours);
   const rec = powerbankRecommendation(consumed, atakMah);
   powerAtak.innerHTML =
-    `<b>ATAK EUD</b> — ${atakMa} mA over ${missionHours} h draws <b>${Math.round(consumed)} mAh</b> ` +
+    `<b>ATAK device</b> — ${atakMa} mA over ${missionHours} h draws <b>${Math.round(consumed)} mAh</b> ` +
     `(device ${atakMah} mAh). Carry <b>${rec.fullOffBankSizeMah} mAh × ${rec.fullOffBankCount}</b> ` +
     `powerbank${rec.fullOffBankCount === 1 ? '' : 's'} (65% usable). ${htmlEsc(rec.note)}`;
 
