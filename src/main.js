@@ -2,12 +2,59 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import '../styles/index.css';
 import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
+import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2
+import { modelLabelText } from './ui/badges.js';
 
 // M52 phase 1: the Ops workspace is opt-in (?ws=ops). The grid switches
 // before first paint; the shell itself mounts once everything is wired.
 const OPS_WS = isOpsWorkspace(window.location.search);
 if (OPS_WS) document.getElementById('app').dataset.ws = 'ops';
 let opsShell = null;
+let opsRail = null; // M52 phase 2: status rail (src/ui/ops-rail.js)
+let lastReadiness = null; // computeReadiness() output of the last badge refresh
+let lastModelLabel = null; // "P.1812 · ±8 dB" of the last painted run
+
+/** M52: redraw the rail tiles from existing state. No-op without the rail. */
+function refreshOpsRail() {
+  if (!opsRail) return;
+  const a = aoi?.getAoi?.();
+  const summary = lastPaint
+    ? summarizeCoverage({
+        ...lastPaint,
+        aoi: a ? { type: a.type, center: a.center, radiusM: a.radiusM, ring: a.ring } : null,
+        thresholds: coverageParams().thresholds,
+      })
+    : null;
+  const sites = mission?.getSites?.() ?? [];
+  const byId = new Map(sites.map((s) => [s.id, s]));
+  const allLinks = mission?.getLinks?.() ?? [];
+  const links = allLinks
+    .map((l) => {
+      const c = currentCheck(l, byId);
+      if (!c?.budget) return null;
+      const sa = byId.get(l.a);
+      const sb = byId.get(l.b);
+      return { name: l.label || `${sa?.name || 'Site'} – ${sb?.name || 'Site'}`, marginDb: c.budget.marginDb, status: linkStatus(c) };
+    })
+    .filter(Boolean);
+  opsRail.update({
+    coverage: summary,
+    coverageStale: planStale,
+    modelLabel: lastModelLabel,
+    cellM: lastPaint ? cellSizeM(lastPaint.bounds, lastPaint.cols) : null,
+    readiness: lastReadiness,
+    pace: lastPlan ?? null,
+    links,
+    linkCount: allLinks.length,
+  });
+}
+
+/** Arm the stale-plan pill and log it on the rail with a Recompute action. */
+function armStale(label) {
+  stalePill.arm(label);
+  opsRail?.event(`${label} — plan is stale`, { action: 'Recompute', onAction: () => runCoverage() });
+  refreshOpsRail();
+}
 import { esc as htmlEsc } from './util/esc.js';
 import { confirmDialog } from './ui/confirm.js';
 
@@ -521,6 +568,7 @@ function handleBasemapFailover(info) {
     message = `${from.label} can't be reached from this network, so the map switched to ${to.label}.${note ? ` ${note}` : ''}`;
   }
   mapNotice.show({ message, tone: 'warn', actions: [retry] });
+  opsRail?.event(kind === 'none' ? `${from.label} unreachable, no map source` : `Map switched to ${to.label} (${from.label} unreachable)`);
 }
 
 // ---- Variant list (M20 §5: inline in the basemap flyout) ------------------
@@ -1668,6 +1716,8 @@ whenStyleReady(() => {
 
   function updateOpsDashReadiness(readiness) {
     opsDash?.update({ readiness });
+    lastReadiness = readiness; // M52 rail reads the same result
+    refreshOpsRail();
   }
 
   // ---- M42: Drone height optimizer -------------------------------------
@@ -1768,6 +1818,7 @@ whenStyleReady(() => {
   buildPaceBtn.addEventListener('click', () => {
     lastPlan = buildPace(gatherPaceContext());
     renderPace(lastPlan);
+    refreshOpsRail(); // M52 PACE + readiness tiles
     statusMode.textContent = 'Comms plan ready';
     refreshWorkflowUi();
     updateOpsDash(); // M36
@@ -2331,6 +2382,7 @@ function onMissionChange(s) {
   showRow('points', s.points);
   showRow('links', s.links);
   opsShell?.refresh({ sites: s.sites, links: s.links }); // M52 drawer counts
+  refreshOpsRail();
   missionElements.hidden = s.sites < 1 && s.route < 1 && s.points < 1;
   refreshLinks();
   missionSitesCount.textContent = String(s.sites);
@@ -3272,7 +3324,7 @@ function initCalibrationControls() {
     calState.formRadioId = select.value || null;
     calState.applied = Object.keys(calState.offsets).length > 0;
     saveCalStore();
-    stalePill.arm('Calibration applied');
+    armStale('Calibration applied');
     const parts = Object.entries(calState.offsets).map(([id, o]) => `${id} ${fmtSignedDb(o)}`);
     statusMode.textContent = `Calibration applied — ${parts.join(' · ')}`;
     $('#calReadout').textContent =
@@ -3739,6 +3791,7 @@ function finishRunAll() {
   if (!buildPaceBtn.disabled) {
     lastPlan = buildPace(gatherPaceContext());
     renderPace(lastPlan);
+    refreshOpsRail(); // M52 PACE + readiness tiles
     refreshWorkflowUi();
   }
   const stats = coverage?.getStats?.();
@@ -4113,6 +4166,8 @@ async function loadMissionFromText(text, name) {
   statusMode.textContent = warnings.length
     ? `Mission loaded from ${name} with skipped items: ${warnings.join(' ')}`
     : `Mission loaded from ${name}`;
+  opsRail?.event(`Mission loaded from ${name}${warnings.length ? ` (${warnings.length} skipped)` : ''}`);
+  opsShell?.setMissionName(name);
   return { ok: true, warnings };
 }
 
@@ -4466,6 +4521,8 @@ async function checkLink(id, { show = true } = {}) {
   statusMode.textContent = verdict.status === 'ok'
     ? `${name}: link closes with ${margin} margin`
     : `${name}: ${margin}, ${verdict.text}`;
+  opsRail?.event(`Link ${name}: ${margin}${verdict.status === 'ok' ? '' : `, ${verdict.text}`}`);
+  refreshOpsRail();
   return data;
 }
 
@@ -5075,11 +5132,11 @@ function showResultCard() {
   }
   const pct = backendSettings?.getPercentiles?.() ?? { p: 50, pL: 50 };
   const percentileLabel = modelKey === 'p1812' ? `${pct.p}% time` : null;
-  resultCard.show(
-    summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds }),
-    { modelKey, percentileLabel },
-    currentAssumptions(),
-  );
+  const summary = summarizeCoverage({ ...lastPaint, aoi: aoiMask, thresholds: coverageParams().thresholds });
+  resultCard.show(summary, { modelKey, percentileLabel }, currentAssumptions());
+  lastModelLabel = modelLabelText(modelKey, percentileLabel); // M52 rail
+  opsRail?.event(`Coverage ready — ${Math.round(summary.coveredPct)} % covered, ${summary.deadZones.length} dead zone${summary.deadZones.length === 1 ? '' : 's'}`);
+  refreshOpsRail();
 }
 
 // Grid detail (coverage/grid.js): remembered per browser, standard by default.
@@ -5174,6 +5231,10 @@ if (OPS_WS) {
   if (mission) {
     opsShell.refresh({ sites: mission.getSites().length, links: mission.getLinks().length });
   }
+  // Phase 2: the status rail. A tile opens the section that feeds it.
+  const TILE_ANCHOR = { coverage: 'coverageTitle', readiness: 'paceTitle', link: 'missionTitle', gaps: 'coverageTitle', pace: 'paceTitle' };
+  opsRail = createOpsRail(opsShell.rail, { onTile: (key) => jumpToAnchor(TILE_ANCHOR[key] ?? 'coverageTitle') });
+  refreshOpsRail();
 }
 
 // ---- Focus mode (M21 §B) — any section fullscreen over the map ------------
@@ -5243,7 +5304,7 @@ document.addEventListener('objects:changed', (ev) => {
   resultCard.hide(); // the figures no longer describe the map
   refreshWorkflowUi();
   pendingRecompute = e.kind === 'drone' ? () => drone?.computeRelay() : () => runCoverage();
-  stalePill.arm(`${e.name} ${type === 'move' ? 'moved' : 'updated'}`);
+  armStale(`${e.name} ${type === 'move' ? 'moved' : 'updated'}`);
   updateIntelChip('stale'); // Maven intel chip
 });
 

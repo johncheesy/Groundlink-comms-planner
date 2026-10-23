@@ -82,17 +82,9 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
   }
 
   // ── Status rail host ──────────────────────────────────────────────────
+  // Phase 2 fills it (src/ui/ops-rail.js); the shell only owns the column.
   const rail = el('aside', 'ops-rail', { 'aria-label': 'Mission status' });
   rail.innerHTML = '<div class="ops-rail__head">Mission status</div>';
-  if (nodes.intel) {
-    const tile = el('div', 'ops-tile');
-    tile.innerHTML = '<div class="ops-tile__label">Coverage</div>';
-    tile.appendChild(nodes.intel);
-    rail.appendChild(tile);
-  }
-  const railNote = el('p', 'ops-rail__note');
-  railNote.textContent = 'Readiness, weakest link, dead zones and PACE tiles arrive in phase 2.';
-  rail.appendChild(railNote);
 
   // ── Data drawer host ──────────────────────────────────────────────────
   const drawer = el('div', 'ops-drawer', { role: 'tablist', 'aria-label': 'Mission data' });
@@ -171,6 +163,8 @@ export function createOpsShell({ app, mapWrap, modules, sectionTabs, nodes = {},
   app.append(top, strip, rail, drawer);
 
   return {
+    /** The status-rail column (phase 2 renders into it). */
+    rail,
     /** Open the flyout that holds this section anchor; false if none. */
     openAnchor(anchorId) {
       const m = moduleForAnchor(modules, anchorId);

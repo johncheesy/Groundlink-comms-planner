@@ -5446,18 +5446,6 @@ select.input--sm { text-align: left; padding-right: 6px; }
   padding-bottom: var(--sp-1);
 }
 .ops-rail__note { margin: 0; font-size: 11.5px; line-height: 1.4; color: var(--dim); }
-.ops-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 64px;
-  padding: 12px 14px;
-  border: 1px solid var(--hair);
-  border-radius: 11px;
-  background: var(--surface2);
-}
-.ops-tile__label { font-size: 12.5px; color: var(--dim); }
-.ops-tile .toolbar__intel { align-self: flex-start; }
 
 .ops-drawer {
   display: flex;
@@ -5538,3 +5526,86 @@ select.input--sm { text-align: left; padding-right: 6px; }
 .ops-flyout__note { margin: 0; padding: 12px 14px; font-size: 12.5px; color: var(--dim); }
 @keyframes ops-flyout-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ops-flyout { animation: none; } }
+
+/* ---- M52 phase 2: status rail tiles + events --------------------------- */
+.ops-rail__tiles { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ops-rail__head--events { margin-top: var(--sp-3); }
+.ops-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 64px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--hair);
+  border-left: 3px solid var(--hair2);
+  border-radius: 11px;
+  background: var(--surface2);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--ui);
+}
+.ops-tile:hover { border-color: var(--hair2); background: var(--raise); }
+.ops-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ops-tile--ok { border-left-color: var(--accent); }
+.ops-tile--warn { border-left-color: var(--warn); }
+.ops-tile--bad { border-left-color: var(--bad); }
+.ops-tile--none { border-left-color: var(--hair2); }
+.ops-tile__label { font-size: 12.5px; color: var(--dim); }
+.ops-tile__value {
+  font: 600 22px var(--disp);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.ops-tile--warn .ops-tile__value { color: var(--warn); }
+.ops-tile--bad .ops-tile__value { color: var(--bad); }
+.ops-tile--none .ops-tile__value { color: var(--dim); }
+.ops-tile__sub { font-size: 11.5px; color: var(--dim); line-height: 1.35; }
+.ops-tile__boxes { display: flex; gap: 4px; margin: 4px 0 2px; }
+.ops-tile__box {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hair2);
+  border-radius: 6px;
+  font: 600 11.5px var(--disp);
+  color: var(--dim);
+}
+.ops-tile__box--ok { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ops-tile__box--warn { border-color: var(--warn); color: var(--warn); }
+.ops-tile__dots { display: flex; gap: 4px; margin: 4px 0 2px; }
+.ops-tile__dot { width: 8px; height: 8px; border-radius: 999px; background: var(--hair2); }
+.ops-tile__dot.is-ok { background: var(--accent); }
+.ops-tile__dot.is-warn { background: var(--warn); }
+.ops-tile__dot.is-bad { background: var(--bad); }
+
+.ops-events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ops-events__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--hair);
+  font-size: 12.5px;
+}
+.ops-events__item:first-child { border-top: 0; }
+.ops-events__time { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ops-events__text { color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
+.ops-events__action {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--hair2);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--accent);
+  font: 500 11.5px var(--ui);
+  cursor: pointer;
+}
+.ops-events__action:hover { border-color: var(--accent); }
+.ops-events__empty { padding: 6px 0; font-size: 11.5px; color: var(--dim); }
