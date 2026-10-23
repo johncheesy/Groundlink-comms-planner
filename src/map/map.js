@@ -1,4 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
+import './maplibre-worker.js'; // MapLibre 6: point it at the bundled worker before any map exists
 import {
   buildStyle,
   BASEMAPS,

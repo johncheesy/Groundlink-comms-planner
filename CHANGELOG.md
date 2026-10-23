@@ -10,6 +10,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 _Nothing yet._
 
+## [0.10.1-beta] — 2026-10-23
+
+### Fixed
+- **Terrain height, 3D buildings and imported files drew nothing in 0.10.0-beta.** MapLibre 6 loads its tile worker from next to its own file, which does not exist once the app is bundled, so every worker-backed layer stayed empty: imported KML/KMZ/GPX/GeoJSON, mission lines and points, OpenFreeMap 3D buildings and the terrain mesh. The worker is now bundled and handed to MapLibre (`src/map/maplibre-worker.js`), and the build fails if it ever goes missing again. Found while testing the Upemba network import.
+
 ## [0.10.0-beta] — 2026-10-23
 
 The **Ops workspace** release. One week of work on top of 0.9.0-beta: a new default UI (M52 — tool strip with section flyouts, an always-on status rail with eleven tiles and an events list, a tabbed data drawer, tablet and phone layouts), 3D masts (M51), worldwide clutter with real tree and building heights, Copernicus terrain, an AOI-following coverage grid, the antenna model with per-site aiming (M49), LEO/MEO passes (M48), feeder loss, per-site height/power and radio links (M50), the readability pass from the 22 Oct user test, a unified Open / import, the coverage raster fading beyond the AOI with a "default radio" line on the key, MapLibre 6, self-hosted fonts and `npm audit` in CI. 696 tests.
