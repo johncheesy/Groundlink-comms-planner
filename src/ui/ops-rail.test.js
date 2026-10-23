@@ -17,7 +17,7 @@ describe('tileModel', () => {
     expect(t.link).toMatchObject({ value: '—', sub: 'no radio links', tone: 'none' });
     expect(t.gaps).toMatchObject({ value: '—', tone: 'none' });
     expect(t.pace).toMatchObject({ value: '—', sub: 'no plan yet', tone: 'none' });
-    expect(tileModel({}).map((x) => x.key)).toEqual(['coverage', 'readiness', 'link', 'gaps', 'pace']);
+    expect(tileModel({}).map((x) => x.key).slice(0, 5)).toEqual(['coverage', 'readiness', 'link', 'gaps', 'pace']);
   });
 
   it('coverage rounds the percentage and goes amber when stale', () => {
@@ -57,6 +57,40 @@ describe('tileModel', () => {
     expect(t.boxes.map((b) => b.state)).toEqual(['ok', 'ok', 'warn', 'none']);
     const all = { legs: pace.legs.map((l) => ({ ...l, status: 'ok' })) };
     expect(byKey(tileModel({ pace: all })).pace).toMatchObject({ value: '4 of 4', tone: 'ok' });
+  });
+});
+
+describe('tileModel — tiles 6 to 11', () => {
+  it('has eleven tiles in order when everything is present, nine without drone and cellular', () => {
+    const keys = tileModel({ drone: { hasDrone: true, altM: 100 }, cellular: { on: true, towerCount: 3, best: { operator: 'KPN', radio: 'LTE', distanceM: 800 } } }).map((t) => t.key);
+    expect(keys).toEqual(['coverage', 'readiness', 'link', 'gaps', 'pace', 'drone', 'power', 'cellular', 'spectrum', 'satcom', 'teams']);
+    expect(tileModel({}).map((t) => t.key)).toEqual(['coverage', 'readiness', 'link', 'gaps', 'pace', 'power', 'spectrum', 'satcom', 'teams']);
+  });
+  it('drone shows the gain over a ground mast', () => {
+    expect(byKey(tileModel({ drone: { hasDrone: true, altM: 100, result: { gainPts: 12.4, altFrac: 0.83 } } })).drone)
+      .toMatchObject({ value: '100 m AGL', sub: '+12 pts vs ground · 83 % at height', tone: 'ok' });
+    expect(byKey(tileModel({ drone: { hasDrone: true, altM: 50, computing: true } })).drone.sub).toBe('computing…');
+  });
+  it('endurance is the tightest battery node against the mission length', () => {
+    const power = { missionHours: 8, rows: [{ name: 'HQ', supply: 'mains' }, { name: 'Operator', supply: 'battery', enduranceHours: 6.5 }, { name: 'Relay', supply: 'battery', enduranceHours: 11 }] };
+    expect(byKey(tileModel({ power })).power).toMatchObject({ value: '6.5 h', sub: 'limiting: Operator · mission 8 h', tone: 'warn' });
+    expect(byKey(tileModel({ power: { ...power, missionHours: 4 } })).power.tone).toBe('ok');
+    expect(byKey(tileModel({ power: { ...power, missionHours: 20 } })).power.tone).toBe('bad');
+    expect(byKey(tileModel({})).power).toMatchObject({ value: '—', sub: 'no power plan' });
+  });
+  it('cellular names the best network and distance; spectrum counts conflicts', () => {
+    expect(byKey(tileModel({ cellular: { on: true, towerCount: 12, best: { operator: 'KPN', radio: 'LTE', distanceM: 1500 } } })).cellular)
+      .toMatchObject({ value: 'KPN LTE', sub: '12 towers · nearest 1.5 km', tone: 'ok' });
+    expect(byKey(tileModel({ spectrum: { radios: 3, errors: 1, warnings: 2 } })).spectrum).toMatchObject({ value: '3 conflicts', tone: 'bad' });
+    expect(byKey(tileModel({ spectrum: { radios: 2, errors: 0, warnings: 0 } })).spectrum).toMatchObject({ value: '0 conflicts', sub: '2 radios clear', tone: 'ok' });
+    expect(byKey(tileModel({ spectrum: { radios: 1 } })).spectrum).toMatchObject({ value: '—', sub: 'add a second radio to check' });
+  });
+  it('satcom reads the best GEO look angle; teams sums users', () => {
+    expect(byKey(tileModel({ satcom: { bestGeo: { label: 'Inmarsat 4-F2', elevation: 27.6, status: 'ok' } } })).satcom)
+      .toMatchObject({ value: '28°', sub: 'Inmarsat 4-F2 · clear look angle', tone: 'ok' });
+    expect(byKey(tileModel({ satcom: { bestGeo: null } })).satcom).toMatchObject({ value: '—', tone: 'bad' });
+    expect(byKey(tileModel({ teams: { teamCount: 3, operatorCount: 14, channelsNeeded: 2 } })).teams)
+      .toMatchObject({ value: '3 teams', sub: '14 users · 2 channels' });
   });
 });
 

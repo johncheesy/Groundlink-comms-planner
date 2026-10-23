@@ -1,5 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { linkRows, siteRows, sortRows, summaryFigures } from './ops-drawer.js';
+import { linkRows, siteRows, sortRows, summaryFigures, gapRows, radioRows } from './ops-drawer.js';
+
+describe('gapRows', () => {
+  it('numbers zones, finds the nearest site and shortens the advice', () => {
+    const zones = [{ centroid: { lat: 52.11, lng: 5.11 }, areaKm2: 3.14 }, { centroid: { lat: 52.00, lng: 5.00 }, areaKm2: 0.4 }];
+    const rows = gapRows(zones, [{ id: 'a', name: 'Ridge', lat: 52.10, lng: 5.10 }, { id: 'b', name: 'Barn', lat: 52.3, lng: 5.3 }], (a) => (a < 1 ? 'Small gap — raise the mast.' : 'Medium gap — deploy a relay.'));
+    expect(rows[0]).toMatchObject({ n: 1, areaKm2: 3.14, nearest: 'Ridge', advice: 'Medium gap' });
+    expect(rows[0].distanceM).toBeGreaterThan(1000);
+    expect(rows[0].distanceM).toBeLessThan(1500);
+    expect(rows[1]).toMatchObject({ n: 2, nearest: 'Ridge', advice: 'Small gap' });
+    expect(gapRows([{ centroid: { lat: 0, lng: 0 }, areaKm2: 1 }], [])[0]).toMatchObject({ nearest: '—', distanceM: null });
+  });
+});
+
+describe('radioRows', () => {
+  it('lists the arsenal with the roles each radio was assigned to', () => {
+    const r1 = { id: 'r1', label: 'DP4801', role: 'handheld', freqRangeMHz: [136, 174], powerW: 5, rxSensDbm: -116, antennaGainDbi: 2.15, feederLossDb: 0 };
+    const r2 = { id: 'r2', label: 'XPR 5550', role: 'mobile', freqRangeMHz: [403, 470], powerW: 45 };
+    const roles = [{ label: 'Operator (manpack)', radio: r1 }, { label: 'HQ (static)', radio: r2 }, { label: 'Mobile command post (veh.)', radio: r2 }, { label: 'Rebro / repeater (static)', radio: null }];
+    const rows = radioRows([r1, r2], roles);
+    expect(rows[0]).toMatchObject({ label: 'DP4801', role: 'handheld', band: '136–174', bandLo: 136, powerW: 5, carriedBy: 'Operator' });
+    expect(rows[1]).toMatchObject({ band: '403–470', feederLossDb: 0, antennaGainDbi: null, carriedBy: 'HQ, Mobile command post' });
+    expect(radioRows([r1], [])[0].carriedBy).toBe('not assigned');
+  });
+});
 
 const sites = [
   { id: 's1', name: 'Ridge', lat: 52.10, lng: 5.10, txHeightM: 25 },

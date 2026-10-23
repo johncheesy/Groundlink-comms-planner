@@ -21,7 +21,7 @@ const fmtArea  = (km2) => (km2 >= 100 ? km2.toFixed(0) : km2 >= 10 ? km2.toFixed
 const estimateRadiusKm = (areaKm2) => Math.sqrt(areaKm2 / Math.PI);
 
 /** Return a plain-text relay recommendation based on zone size. */
-function relayRecommendation(areaKm2) {
+export function relayRecommendation(areaKm2) {
   if (areaKm2 < 0.5) return 'Minor gap — mast height increase or antenna reorientation may suffice.';
   if (areaKm2 < 5)   return 'Small gap — consider a single passive repeater or raised mast.';
   if (areaKm2 < 25)  return 'Medium gap — deploy a static relay or tethered drone relay.';

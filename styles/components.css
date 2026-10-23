@@ -5743,3 +5743,8 @@ select.input--sm { text-align: left; padding-right: 6px; }
 }
 .map-key__warn u { text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
 .map-key__warn:hover { border-color: var(--warn); }
+
+/* M52 phase 4: the M36 ops flyout is the rail now; hide its rail button. */
+.app[data-ws='ops'] #railOpsBtn { display: none; }
+/* Section header inside a flyout: the flyout already carries the title. */
+.ops-flyout__body > .section > .section__head .section__title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

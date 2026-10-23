@@ -3,7 +3,8 @@ import maplibregl from 'maplibre-gl';
 import '../styles/index.css';
 import { isOpsWorkspace, createOpsShell } from './ui/ops-shell.js'; // M52
 import { createOpsRail } from './ui/ops-rail.js'; // M52 phase 2
-import { createOpsDrawer, linkRows, siteRows } from './ui/ops-drawer.js'; // M52 phase 3
+import { createOpsDrawer, linkRows, siteRows, gapRows, radioRows } from './ui/ops-drawer.js'; // M52 phase 3–4
+import { relayRecommendation } from './export/gap-report.js';
 import { modelLabelText } from './ui/badges.js';
 
 // M52 phase 1: the Ops workspace is opt-in (?ws=ops). The grid switches
@@ -14,8 +15,11 @@ let opsShell = null;
 let opsRail = null; // M52 phase 2: status rail (src/ui/ops-rail.js)
 let opsDrawer = null; // M52 phase 3: data drawer (src/ui/ops-drawer.js)
 
-/** M52: rebuild the drawer's Sites and Links rows from the mission + checks. */
-function refreshOpsDrawer() {
+let lastDroneState = null; // drone controller onState() snapshot (M52 tile)
+let decoPanel = null; // M39 deconfliction panel; also read by the M52 spectrum tile
+
+/** M52: rebuild the drawer's rows from the mission, checks, run and arsenal. */
+function refreshOpsDrawer(summary = null, arsenal = radios?.getArsenal?.() ?? []) {
   if (!opsDrawer) return;
   const sites = mission?.getSites?.() ?? [];
   const links = mission?.getLinks?.() ?? [];
@@ -26,7 +30,9 @@ function refreshOpsDrawer() {
     powerW: clampNum(powerInput.value, 0.01, 100, 5),
     eirpDbm: (w) => txEirpDbm(w),
   });
-  opsDrawer.refresh({ sites: sr, links: lr });
+  const gaps = summary ? gapRows(summary.deadZones ?? [], sites, relayRecommendation) : null;
+  const rr = radioRows(arsenal, arsenal.length ? assignRoles(arsenal, gatherRoleContext()) : []);
+  opsDrawer.refresh({ sites: sr, links: lr, gaps, radios: rr });
 }
 let lastReadiness = null; // computeReadiness() output of the last badge refresh
 let lastModelLabel = null; // "P.1812 · ±8 dB" of the last painted run
@@ -54,6 +60,16 @@ function refreshOpsRail() {
       return { name: l.label || `${sa?.name || 'Site'} – ${sb?.name || 'Site'}`, marginDb: c.budget.marginDb, status: linkStatus(c) };
     })
     .filter(Boolean);
+  // Tiles 6–11 read the modules' own state; each one is cheap.
+  const arsenal = radios?.getArsenal?.() ?? [];
+  const deco = decoPanel?.check?.(arsenal) ?? null;
+  const centre = missionCentre();
+  let satcom = null;
+  if (centre) {
+    try { satcom = { bestGeo: satcomAssessment(centre.lat, centre.lng).bestGeo }; } catch (_) { satcom = null; }
+  }
+  const teamList = teams?.getTeams?.() ?? [];
+  const cellOn = Boolean(cellEnabled?.checked && cellular?.hasData?.());
   opsRail.update({
     coverage: summary,
     coverageStale: planStale,
@@ -63,8 +79,14 @@ function refreshOpsRail() {
     pace: lastPlan ?? null,
     links,
     linkCount: allLinks.length,
+    drone: lastDroneState,
+    power: lastPowerModel,
+    cellular: cellOn ? { on: true, towerCount: cellular.getCount?.() ?? null, best: cellular.bestNetworkAt(probePoint()) } : null,
+    spectrum: { radios: arsenal.length, errors: deco?.errors ?? 0, warnings: deco?.warnings ?? 0 },
+    satcom,
+    teams: { teamCount: teamList.length, operatorCount: teamList.reduce((a, t) => a + (Number(t.members) || 0), 0) },
   });
-  refreshOpsDrawer(); // the same inputs feed the Sites and Links tables
+  refreshOpsDrawer(summary, arsenal); // the same inputs feed the tables
 }
 
 /** Arm the stale-plan pill and log it on the rail with a Recompute action. */
@@ -1434,6 +1456,8 @@ whenStyleReady(() => {
     coverageParams,
     registry,
     onState(st) {
+      lastDroneState = st; // M52 drone tile
+      refreshOpsRail();
       if ('hasDrone' in st) {
         dronePanel.hidden = !st.hasDrone;
         const pace = st.pace;
@@ -1612,7 +1636,6 @@ whenStyleReady(() => {
   });
 
   // ---- M39: Freq deconfliction panel -------------------------------------
-  let decoPanel = null;
   (() => {
     const host = $('#deconflictPanel');
     if (!host) return;
@@ -4885,6 +4908,7 @@ function updateOpsDash() {
     erlang: null, // wired once erlang module exposes a .summary()
     // readiness is injected separately via updateReadinessBadge() → updateOpsDashReadiness()
   });
+  refreshOpsRail(); // M52: cellular / drone / teams / power changes reach the rail here
 }
 
 // ---- M24: best-server / interference view ----------------------------------
@@ -5277,6 +5301,10 @@ if (OPS_WS) {
       );
     },
     onProfile(id) { checkLink(id, { show: true }); },
+    onGap(row) {
+      if (row?.centroid) map.flyTo({ center: [row.centroid.lng, row.centroid.lat], zoom: Math.max(map.getZoom(), 12), duration: 800 });
+    },
+    onRadio() { jumpToAnchor('radioTitle'); },
     actions: {
       relay() { jumpToAnchor('siteTitle'); if (!recommendBtn.disabled) recommendBtn.click(); },
       gaps() { openCoverageGapReport(); },

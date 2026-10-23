@@ -98,6 +98,86 @@ export function tileModel(s = {}) {
     tiles.push({ key: 'pace', label: 'PACE', value: '—', sub: 'no plan yet', tone: 'none' });
   }
 
+  // 6 · Drone relay — only while a drone is placed
+  const d = s.drone;
+  if (d?.hasDrone) {
+    const g = d.result?.gainPts;
+    tiles.push({
+      key: 'drone', label: 'Drone relay', value: d.altM != null ? `${Math.round(d.altM)} m AGL` : '—',
+      sub: d.computing ? 'computing…' : Number.isFinite(g) ? `${g >= 0 ? '+' : ''}${Math.round(g)} pts vs ground · ${Math.round((d.result.altFrac ?? 0) * 100)} % at height` : 'no relay run yet',
+      tone: Number.isFinite(g) ? (g > 0 ? 'ok' : 'warn') : 'none',
+    });
+  }
+
+  // 7 · Endurance
+  const p = s.power;
+  if (p?.rows?.length) {
+    const batt = p.rows.filter((r) => r.supply === 'battery' && Number.isFinite(r.enduranceHours));
+    const tight = batt.length ? batt.reduce((a, b) => (b.enduranceHours < a.enduranceHours ? b : a)) : null;
+    const h = tight ? tight.enduranceHours : Infinity;
+    const fmtH = (v) => (v >= 100 ? '99+ h' : v >= 10 ? `${Math.round(v)} h` : `${v.toFixed(1)} h`);
+    tiles.push({
+      key: 'power', label: 'Endurance', value: Number.isFinite(h) ? fmtH(h) : 'ext.',
+      sub: tight ? `limiting: ${tight.name ?? tight.label ?? 'node'} · mission ${p.missionHours} h` : 'no battery nodes · mission ' + p.missionHours + ' h',
+      tone: !Number.isFinite(h) ? 'ok' : h >= p.missionHours ? 'ok' : h >= p.missionHours / 2 ? 'warn' : 'bad',
+    });
+  } else {
+    tiles.push({ key: 'power', label: 'Endurance', value: '—', sub: 'no power plan', tone: 'none' });
+  }
+
+  // 8 · Cellular — only while the layer is on
+  const c = s.cellular;
+  if (c?.on) {
+    if (c.best) {
+      tiles.push({
+        key: 'cellular', label: 'Cellular', value: `${c.best.operator}${c.best.radio ? ` ${c.best.radio}` : ''}`,
+        sub: `${c.towerCount ?? 0} towers · nearest ${c.best.distanceM >= 1000 ? `${(c.best.distanceM / 1000).toFixed(1)} km` : `${Math.round(c.best.distanceM)} m`}`,
+        tone: c.best.distanceM < 5000 ? 'ok' : 'warn',
+      });
+    } else {
+      tiles.push({ key: 'cellular', label: 'Cellular', value: '—', sub: c.towerCount ? `${c.towerCount} towers, none near the probe` : 'no towers loaded', tone: 'none' });
+    }
+  }
+
+  // 9 · Spectrum (frequency deconfliction)
+  const sp = s.spectrum;
+  if (sp && sp.radios >= 2) {
+    const n = (sp.errors ?? 0) + (sp.warnings ?? 0);
+    tiles.push({
+      key: 'spectrum', label: 'Spectrum', value: `${n} conflict${n === 1 ? '' : 's'}`,
+      sub: n ? `${sp.errors} co-channel · ${sp.warnings} to watch · ${sp.radios} radios` : `${sp.radios} radios clear`,
+      tone: sp.errors ? 'bad' : sp.warnings ? 'warn' : 'ok',
+    });
+  } else {
+    tiles.push({ key: 'spectrum', label: 'Spectrum', value: '—', sub: sp?.radios === 1 ? 'add a second radio to check' : 'no radios carried', tone: 'none' });
+  }
+
+  // 10 · Satcom
+  const sat = s.satcom;
+  if (sat?.bestGeo) {
+    const b = sat.bestGeo;
+    const tone = b.status === 'ok' ? 'ok' : b.status === 'warn' || b.status === 'marginal' ? 'warn' : 'bad';
+    tiles.push({
+      key: 'satcom', label: 'Satcom', value: `${Math.round(b.elevation)}°`,
+      sub: `${b.label ?? b.network ?? 'GEO'} · ${b.status === 'ok' ? 'clear look angle' : b.status === 'warn' ? 'low — mind the horizon' : 'marginal'}${sat.fadeNote ? ` · ${sat.fadeNote}` : ''}`,
+      tone,
+    });
+  } else {
+    tiles.push({ key: 'satcom', label: 'Satcom', value: '—', sub: sat ? 'no GEO above the horizon' : 'no mission centre yet', tone: sat ? 'bad' : 'none' });
+  }
+
+  // 11 · Teams
+  const t = s.teams;
+  if (t?.teamCount) {
+    tiles.push({
+      key: 'teams', label: 'Teams', value: `${t.teamCount} team${t.teamCount === 1 ? '' : 's'}`,
+      sub: `${t.operatorCount} users${t.channelsNeeded ? ` · ${t.channelsNeeded} channels` : ''}${t.busiest ? ` · busiest ${t.busiest}` : ''}`,
+      tone: 'ok',
+    });
+  } else {
+    tiles.push({ key: 'teams', label: 'Teams', value: '—', sub: 'no teams defined', tone: 'none' });
+  }
+
   return tiles;
 }
 

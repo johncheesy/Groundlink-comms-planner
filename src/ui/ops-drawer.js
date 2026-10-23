@@ -33,6 +33,76 @@ export const LINK_COLUMNS = [
   { key: 'status', label: 'Verdict' },
 ];
 
+export const GAP_COLUMNS = [
+  { key: 'n', label: '#', numeric: true },
+  { key: 'areaKm2', label: 'Area', unit: 'km²', numeric: true },
+  { key: 'nearest', label: 'Nearest site' },
+  { key: 'distanceM', label: 'Distance', numeric: true },
+  { key: 'advice', label: 'Relay advice' },
+];
+
+export const RADIO_COLUMNS = [
+  { key: 'label', label: 'Radio' },
+  { key: 'role', label: 'Type' },
+  { key: 'band', label: 'Band', unit: 'MHz' },
+  { key: 'powerW', label: 'Power', unit: 'W', numeric: true },
+  { key: 'antennaGainDbi', label: 'Ant', unit: 'dBi', numeric: true },
+  { key: 'feederLossDb', label: 'Loss', unit: 'dB', numeric: true },
+  { key: 'rxSensDbm', label: 'Rx', unit: 'dBm', numeric: true },
+  { key: 'carriedBy', label: 'Carried by' },
+];
+
+/**
+ * One row per dead zone (summarizeCoverage order: largest first). Pure.
+ * @param {Array<{centroid:{lat,lng}, areaKm2:number}>} zones
+ * @param {Array<{id,name,lat,lng}>} sites
+ * @param {(areaKm2:number)=>string} advice   relayRecommendation()
+ */
+export function gapRows(zones, sites, advice = () => '') {
+  return zones.map((z, i) => {
+    let nearest = null;
+    let distanceM = null;
+    for (const s of sites) {
+      const d = haversineM(z.centroid.lat, z.centroid.lng, s.lat, s.lng);
+      if (distanceM == null || d < distanceM) { distanceM = d; nearest = s; }
+    }
+    return {
+      id: `gap-${i}`,
+      n: i + 1,
+      areaKm2: z.areaKm2 ?? 0,
+      centroid: z.centroid,
+      nearest: nearest ? nearest.name || 'Site' : '—',
+      distanceM,
+      advice: advice(z.areaKm2 ?? 0).replace(/\s*—.*$/, ''), // the short head of the sentence
+    };
+  });
+}
+
+/**
+ * One row per carried radio with the node roles it was assigned to. Pure.
+ * @param {Array<object>} arsenal   radio models (src/radios/model.js)
+ * @param {Array<{label:string, radio:object|null}>} roles   assignRoles() output
+ */
+export function radioRows(arsenal, roles = []) {
+  return arsenal.map((r) => {
+    const carried = [...new Set(roles.filter((x) => x.radio && (x.radio.id === r.id || x.radio === r)).map((x) => x.label.replace(/\s*\(.*\)$/, '')))];
+    const lo = r.freqRangeMHz?.[0];
+    const hi = r.freqRangeMHz?.[1];
+    return {
+      id: r.id,
+      label: r.label || r.id,
+      role: r.role ?? '—',
+      band: lo != null ? `${lo}–${hi}` : '—',
+      bandLo: lo ?? null,
+      powerW: r.powerW ?? null,
+      antennaGainDbi: r.antennaGainDbi ?? null,
+      feederLossDb: r.feederLossDb ?? 0,
+      rxSensDbm: r.rxSensDbm ?? null,
+      carriedBy: carried.length ? carried.join(', ') : 'not assigned',
+    };
+  });
+}
+
 const STATUS_RANK = { bad: 0, warn: 1, ok: 2, unknown: 3 };
 const STATUS_WORD = { ok: 'closes', warn: 'tight', bad: 'does not close', unknown: 'not checked' };
 
@@ -125,9 +195,16 @@ export function summaryFigures(summary) {
 const TABS = [
   { key: 'sites', label: 'Sites', live: true },
   { key: 'links', label: 'Links', live: true },
-  { key: 'gaps', label: 'Gaps', live: false },
-  { key: 'radios', label: 'Radios', live: false },
+  { key: 'gaps', label: 'Gaps', live: true },
+  { key: 'radios', label: 'Radios', live: true },
 ];
+const COLUMNS = { sites: SITE_COLUMNS, links: LINK_COLUMNS, gaps: GAP_COLUMNS, radios: RADIO_COLUMNS };
+const EMPTY = {
+  sites: 'No fixed sites yet — place a mast or open a mission file.',
+  links: 'No radio links yet — right-click a site → Add radio link…',
+  gaps: 'No dead zones — run coverage first, or the area is covered.',
+  radios: 'No radios carried — add them in the Radios section.',
+};
 
 /**
  * @param {HTMLElement} host   the `.ops-drawer` grid cell
@@ -138,7 +215,7 @@ const TABS = [
  * @param {(linkId:string)=>void} [o.onProfile]    Profile button
  * @param {Record<string,()=>void>} [o.actions]    { relay, gaps, brief }
  */
-export function createOpsDrawer(host, { app, onSite, onLink, onProfile, actions = {} } = {}) {
+export function createOpsDrawer(host, { app, onSite, onLink, onProfile, onGap, onRadio, actions = {} } = {}) {
   host.innerHTML = '';
   host.removeAttribute('role');
   const bar = el('div', 'ops-drawer__bar');
@@ -175,8 +252,8 @@ export function createOpsDrawer(host, { app, onSite, onLink, onProfile, actions 
 
   let active = 'sites';
   let open = false;
-  let data = { sites: [], links: [] };
-  let sort = { sites: { key: 'name', dir: 'asc' }, links: { key: 'name', dir: 'asc' } };
+  let data = { sites: [], links: [], gaps: [], radios: [] };
+  let sort = { sites: { key: 'name', dir: 'asc' }, links: { key: 'name', dir: 'asc' }, gaps: { key: 'n', dir: 'asc' }, radios: { key: 'label', dir: 'asc' } };
 
   function setOpen(v) {
     open = v;
@@ -191,7 +268,7 @@ export function createOpsDrawer(host, { app, onSite, onLink, onProfile, actions 
 
   function renderTable() {
     body.innerHTML = '';
-    const cols = active === 'sites' ? SITE_COLUMNS : LINK_COLUMNS;
+    const cols = COLUMNS[active];
     const rows = sortRows(data[active] ?? [], sort[active].key, sort[active].dir);
     const table = el('table', 'ops-table');
     const thead = el('thead');
@@ -215,7 +292,7 @@ export function createOpsDrawer(host, { app, onSite, onLink, onProfile, actions 
     if (!rows.length) {
       const tr = el('tr');
       const td = el('td', 'ops-table__empty', { colspan: String(cols.length + 1) });
-      td.textContent = active === 'sites' ? 'No fixed sites yet — place a mast or open a mission file.' : 'No radio links yet — right-click a site → Add radio link…';
+      td.textContent = EMPTY[active];
       tr.appendChild(td);
       tbody.appendChild(tr);
     }
@@ -230,7 +307,12 @@ export function createOpsDrawer(host, { app, onSite, onLink, onProfile, actions 
         td.appendChild(b);
         tr.appendChild(td);
       }
-      const act = () => (active === 'sites' ? onSite?.(r.id) : onLink?.(r.id));
+      const act = () => {
+        if (active === 'sites') onSite?.(r.id);
+        else if (active === 'links') onLink?.(r.id);
+        else if (active === 'gaps') onGap?.(r);
+        else onRadio?.(r.id);
+      };
       tr.addEventListener('click', act);
       tr.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
       tbody.appendChild(tr);
@@ -246,8 +328,12 @@ export function createOpsDrawer(host, { app, onSite, onLink, onProfile, actions 
     if (c.key === 'status') {
       const dot = el('span', `ops-dot ops-dot--${r.status}`);
       td.append(dot, document.createTextNode(` ${r.statusText}`));
-    } else if (c.key === 'lengthM') {
+    } else if (c.key === 'lengthM' || c.key === 'distanceM') {
       td.textContent = v == null ? '—' : fmtKm(v);
+    } else if (c.key === 'areaKm2') {
+      td.textContent = v >= 10 ? String(Math.round(v)) : v.toFixed(1);
+    } else if (c.key === 'rxSensDbm' || c.key === 'antennaGainDbi' || c.key === 'feederLossDb') {
+      td.textContent = v == null ? '—' : fmt1(v);
     } else if (c.key === 'marginDb') {
       td.textContent = v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))}`;
     } else if (c.key === 'heightM' || c.key === 'powerW') {
@@ -297,10 +383,12 @@ export function createOpsDrawer(host, { app, onSite, onLink, onProfile, actions 
   setOpen(false);
   return {
     /** New rows; counts update at once, the table if open. */
-    refresh({ sites = [], links = [] } = {}) {
-      data = { sites, links };
-      tabEls.get('sites').querySelector('.ops-drawer__tab-count').textContent = String(sites.length);
-      tabEls.get('links').querySelector('.ops-drawer__tab-count').textContent = String(links.length);
+    refresh({ sites = [], links = [], gaps = null, radios = [] } = {}) {
+      data = { sites, links, gaps: gaps ?? [], radios };
+      for (const [k, rows] of Object.entries(data)) {
+        const c = tabEls.get(k)?.querySelector('.ops-drawer__tab-count');
+        if (c) c.textContent = k === 'gaps' && gaps == null ? '—' : String(rows.length);
+      }
       if (open) renderTable();
     },
     setSummary,
