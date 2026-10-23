@@ -135,7 +135,14 @@ npm run deploy
 
 Everything is on `feat/site-rf-links` (PR #38), which sits on top of the
 PR stack. Merging has to be done by a person (the assistant's auto mode
-refuses to merge without review). In order, each with **Create a merge
+refuses to merge without review), but it is **one action**, either:
+
+- **GitHub → Actions → "Release — merge PR stack and tag" → Run workflow**
+  (works from the GitHub app on a phone; the defaults are this release), or
+- in a terminal: `bash scripts/release-stack.sh` (add `--dry-run` to see the
+  steps first; it also waits for the deploy and prints the served build id).
+
+Both do the steps below. By hand, in order, each with **Create a merge
 commit** (never squash — each PR contains the one below it):
 
 ```bash
